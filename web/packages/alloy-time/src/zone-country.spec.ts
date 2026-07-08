@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { countryCodeForZone, ZONE_COUNTRY } from './zone-country';
+import { countryCodeForZone, ZONE_COUNTRY } from './zone-country.js';
 
 describe('zone-country', () => {
   it('maps well-known zones to their ISO 3166-1 alpha-2 code', () => {

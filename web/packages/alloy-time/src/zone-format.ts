@@ -1,4 +1,4 @@
-import { zoneOffsetMinutes } from './zone-catalog';
+import { zoneOffsetMinutes } from './zone-catalog.js';
 
 export function gmtOffset(date: Date, timeZone: string): string {
   const name =

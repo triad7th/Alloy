@@ -1,4 +1,4 @@
-import { zoneOffsetMinutes } from './zone-catalog';
+import { zoneOffsetMinutes } from './zone-catalog.js';
 
 export interface WallClock {
   year: number;

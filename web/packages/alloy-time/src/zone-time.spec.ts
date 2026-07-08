@@ -4,7 +4,7 @@ import {
   wallClockInZone,
   inputToWallClock,
   wallClockToInput,
-} from './zone-time';
+} from './zone-time.js';
 
 describe('zone-time', () => {
   it('instantFromWallClock interprets fields in the given zone', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTimeZoneOptions, formatOffset, zoneOffsetMinutes } from './zone-catalog';
+import { buildTimeZoneOptions, formatOffset, zoneOffsetMinutes } from './zone-catalog.js';
 
 describe('zone-catalog', () => {
   it('formatOffset uses the U+2212 minus for negative offsets', () => {

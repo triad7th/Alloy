@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compactOffset, gmtOffset, zoneCity } from './zone-format';
+import { compactOffset, gmtOffset, zoneCity } from './zone-format.js';
 
 // 2026-06-11T03:09:05.270Z = 8:09:05 PM June 10 in Los Angeles (PDT), 12:09 PM in Seoul.
 const date = new Date('2026-06-11T03:09:05.270Z');

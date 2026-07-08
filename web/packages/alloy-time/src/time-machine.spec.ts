@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TimeMachine, TimeMachineStorage } from './time-machine';
+import { TimeMachine, TimeMachineStorage } from './time-machine.js';
 
 class MemoryStorage implements TimeMachineStorage {
   readonly map = new Map<string, string>();
