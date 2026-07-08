@@ -22,4 +22,8 @@ describe('zone-country', () => {
       expect(code).toMatch(/^[a-z]{2}$/);
     }
   });
+
+  it('has the twin-agreed entry count', () => {
+    expect(Object.keys(ZONE_COUNTRY).length).toBe(418);
+  });
 });
