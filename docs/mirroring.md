@@ -13,7 +13,7 @@ are mechanical translations.
 |---------|------------|-------|
 | Package/product | `@allyworld/alloy-time` | `AlloyTime` |
 | Type | `TimeMachine` | `TimeMachine` |
-| Function/method | `resolveZone(id)` | `resolveZone(_ id:)` |
+| Function/method | `zoneOffsetMinutes(timeZone, at)` | `ZoneCatalog.zoneOffsetMinutes(_:at:)` |
 | Property | `machine.isMocked` | `machine.isMocked` |
 | Constant table | `ZONE_COUNTRY` | `ZoneCountry.table` |
 | Module file | `zone-format.ts` | caseless `enum ZoneFormat` namespace |
@@ -24,6 +24,15 @@ are mechanical translations.
   (SCREAMING_SNAKE constants become Swift enum namespaces).
 - No abbreviations one side doesn't have. If the web says `timeZone`, Swift
   says `timeZone`, not `tz`.
+
+### Sanctioned exceptions
+
+Two shipped deviations from strict identical-name mirroring, both kept
+because existing iOS call sites stayed source-compatible during extraction.
+New modules must not add exceptions without recording them here:
+
+- TS `buildTimeZoneOptions` ↔ Swift `ZoneCatalog.buildOptions`
+- TS `countryCodeForZone` ↔ Swift `ZoneCountry.country(for:)`
 
 ## Idiom boundaries (allowed differences)
 
@@ -39,6 +48,10 @@ Mirroring means same *shape*, not transliterated code:
   `Date` + `TimeInterval`. Public APIs take/return these native types; the
   mirrored shape is the function signature, not the timestamp encoding.
 - TS modules of free functions map to Swift caseless-enum namespaces with identical member names.
+- `zone-time` (web) is deliberately web-only: Swift's `Calendar` covers
+  wall-clock math natively, and the TS input helpers are specific to the
+  HTML `datetime-local` input element. Do not "fix" this asymmetry by
+  adding a Swift twin.
 
 ## Data is generated, never hand-twinned
 

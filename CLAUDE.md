@@ -54,9 +54,15 @@ Pure data tables are generated, never hand-duplicated.
 
 ## Versioning and consumption
 
-- Apps consume by git URL: SPM dependency + semver tag (iOS), npm git
-  dependency (web). Tag deliberately at meaningful checkpoints, not per
-  commit.
+- iOS: SPM dependency by git URL + semver tag. Tag deliberately at
+  meaningful checkpoints, not per commit.
+- Web: npm cannot install a git subdirectory, so each release instead
+  attaches an `npm pack` tarball to the GitHub Release. Apps depend on the
+  release asset URL directly, e.g.
+  `https://github.com/triad7th/Alloy/releases/download/<version>/allyworld-alloy-time-<version>.tgz`.
+  Release procedure: bump the package version → `cd web/packages/alloy-time
+  && npm pack` → `gh release create <version> <tarball> --title ... --notes
+  ...` → delete the local tarball.
 - Local development against an app: Xcode local-package path override /
   npm `file:` link. Never publish to a registry.
 

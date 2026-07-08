@@ -14,7 +14,7 @@ libraries.
 
 | Library | Status | Contents |
 |---------|--------|----------|
-| **AlloyTime** | 0.1.0 — zone catalog, zone metadata, zone formatting, TimeMachine | Time/TimeZone/TimeMachine models (no views): mock-clock state machine, IANA + fixed-offset zone resolution, zone→country/city/GMT metadata |
+| **AlloyTime** | 0.1.x — zone catalog, zone metadata, zone formatting, TimeMachine | Time/TimeZone/TimeMachine models (no views): mock-clock state machine, IANA + fixed-offset zone resolution, zone→country/city/GMT metadata |
 | **AlloyUI** | planned | Liquid-glass panels, glass icon buttons, corner overlay chrome, knob controls, SF-Symbol-named icon layer |
 | **AlloyAudio** | planned | Unified audio/synth engine (AVAudioEngine on iOS, AudioWorklet on web) |
 
