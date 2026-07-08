@@ -24,9 +24,12 @@ own repos and consume Alloy as a versioned dependency.
 
 ```
 Alloy/
+  Package.swift               package "Alloy" at the REPO ROOT (SPM resolves
+                              git-URL dependencies only from a root manifest);
+                              products: AlloyTime (phase 1), later AlloyUI,
+                              AlloyAudio — target paths point into swift/
   swift/
-    Package.swift             package "Alloy"; products: AlloyTime (phase 1),
-    Sources/AlloyTime/        later AlloyUI, AlloyAudio
+    Sources/AlloyTime/
     Tests/AlloyTimeTests/
   web/
     packages/alloy-time/      @allyworld/alloy-time (pure TypeScript)
