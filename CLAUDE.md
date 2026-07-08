@@ -44,10 +44,6 @@ Pure data tables are generated, never hand-duplicated.
 - Swift: `cd swift && swift build && swift test`
 - Web: `cd web && npm ci && npm test` (Vitest)
 
-(Scaffolding pending — until `swift/Package.swift` and `web/package.json`
-exist, these commands are aspirational; the phase-1 implementation plan
-creates them.)
-
 ## Testing guidance
 
 - Twin tests: same fixed instants, zone ids, and expected outputs on both

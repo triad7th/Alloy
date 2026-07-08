@@ -16,6 +16,8 @@ are mechanical translations.
 | Function/method | `resolveZone(id)` | `resolveZone(_ id:)` |
 | Property | `machine.isMocked` | `machine.isMocked` |
 | Constant table | `ZONE_COUNTRY` | `ZoneCountry.table` |
+| Module file | `zone-format.ts` | caseless `enum ZoneFormat` namespace |
+| Zone parameter | zone-id `string` | `TimeZone` primary + `zone id: String` overload via `ZoneCatalog.resolve` |
 
 - Type, method, and property names are identical wherever both languages
   allow it. Case conventions of the host language win only where they must
@@ -36,6 +38,7 @@ Mirroring means same *shape*, not transliterated code:
 - Platform time types: TS uses `Date` + epoch milliseconds; Swift uses
   `Date` + `TimeInterval`. Public APIs take/return these native types; the
   mirrored shape is the function signature, not the timestamp encoding.
+- TS modules of free functions map to Swift caseless-enum namespaces with identical member names.
 
 ## Data is generated, never hand-twinned
 
