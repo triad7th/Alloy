@@ -1,1 +1,1 @@
-export const ALLOY_TIME = 'alloy-time';
+export * from './zone-catalog';
