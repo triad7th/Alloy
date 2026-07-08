@@ -1,0 +1,4 @@
+interface:
+  display_name: "Alloy Swift Lint Format"
+  short_description: "Run SwiftLint and SwiftFormat for the Swift twin"
+  default_prompt: "Use $alloy-swift-lint-format to format and lint the Alloy Swift package under swift/."

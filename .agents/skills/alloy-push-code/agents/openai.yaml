@@ -1,0 +1,4 @@
+interface:
+  display_name: "Alloy Push Code"
+  short_description: "Push committed Alloy work safely"
+  default_prompt: "Use $alloy-push-code to inspect the current branch, validate relevant commits, and push committed Alloy changes."

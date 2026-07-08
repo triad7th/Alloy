@@ -1,0 +1,1 @@
+../../../.claude/skills/alloy-auto-commit/SKILL.md

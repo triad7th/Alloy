@@ -1,0 +1,4 @@
+interface:
+  display_name: "Alloy Auto Commit"
+  short_description: "Create grouped Alloy commits consistently"
+  default_prompt: "Use $alloy-auto-commit to review current changes, split them into logical commits when needed, validate them, and commit them."

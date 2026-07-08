@@ -1,0 +1,4 @@
+interface:
+  display_name: "Alloy Web Lint Format"
+  short_description: "Run ESLint and Prettier for the web twin"
+  default_prompt: "Use $alloy-web-lint-format to format and lint the Alloy web packages under web/."
