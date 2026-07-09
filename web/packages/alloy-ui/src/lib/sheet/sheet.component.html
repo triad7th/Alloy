@@ -1,0 +1,25 @@
+<div class="sheet-overlay" [class.closing]="closing()" [class.contained]="contained()">
+  @if (backdrop()) {
+    <div
+      class="sheet-backdrop"
+      role="button"
+      tabindex="0"
+      aria-label="Dismiss"
+      (click)="close()"
+      (keydown.enter)="close()"
+      (keydown.space)="close()"
+    ></div>
+  }
+  <div
+    class="sheet-panel"
+    [class.full-height]="fullHeight()"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="sheetLabel()"
+  >
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-content">
+      <ng-content />
+    </div>
+  </div>
+</div>

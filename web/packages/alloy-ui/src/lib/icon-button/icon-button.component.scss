@@ -1,0 +1,47 @@
+@use '../../styles/tokens' as t;
+
+:host {
+  display: inline-flex;
+}
+
+.icon-button {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  background: t.$secondary-surface;
+  color: t.$label;
+  transition:
+    transform 0.12s ease,
+    background 0.2s ease;
+
+  app-icon {
+    width: 17px;
+    height: 17px;
+  }
+
+  &:active {
+    transform: scale(0.9);
+  }
+
+  &:hover {
+    background: t.$secondary-surface-hover;
+  }
+
+  &.primary {
+    background: t.$tint;
+
+    &:hover {
+      background: t.$tint-hover;
+    }
+  }
+
+  &.destructive {
+    background: t.$destructive;
+  }
+}
