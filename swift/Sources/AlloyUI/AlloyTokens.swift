@@ -17,9 +17,11 @@ public enum AlloyTokens {
     public static let label = Color(red: 255 / 255.0, green: 255 / 255.0, blue: 255 / 255.0, opacity: 1)
     public static let secondaryLabel = Color(red: 152 / 255.0, green: 152 / 255.0, blue: 158 / 255.0, opacity: 1)
     public static let track = Color(red: 255 / 255.0, green: 255 / 255.0, blue: 255 / 255.0, opacity: 0.16)
-    public static let backdrop = Color(red: 0 / 255.0, green: 0 / 255.0, blue: 0 / 255.0, opacity: 0.5)
+    public static let backdrop = Color(red: 0 / 255.0, green: 0 / 255.0, blue: 0 / 255.0, opacity: 0.4)
     public static let knobCard = Color(red: 255 / 255.0, green: 255 / 255.0, blue: 255 / 255.0, opacity: 0.04)
 
     public static let sheetAnimation: Double = 0.28
-    public static let autoHide: Double = 4
+    public static let autoHide: Double = 2.5
+
+    public static let sheetCornerRadius: CGFloat = 24
 }

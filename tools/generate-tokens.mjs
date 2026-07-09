@@ -15,18 +15,24 @@ ${syntax} Do not edit by hand.\n`;
 const scssColors = Object.entries(tokens.color)
   .map(([k, v]) => `$${k}: ${v};`)
   .join('\n');
+const scssSizes = Object.entries(tokens.sizePx ?? {})
+  .map(([k, v]) => `$${k}: ${v}px;`)
+  .join('\n');
 writeFileSync(
   join(root, 'web/packages/alloy-ui/src/styles/_tokens.scss'),
-  header('//') + scssColors + '\n'
+  header('//') + scssColors + '\n' + scssSizes + '\n'
 );
 
 // ---- TS (durations; SCREAMING_SNAKE with _MS suffix) ----
 const tsDurations = Object.entries(tokens.durationMs)
   .map(([k, v]) => `export const ${k.toUpperCase().replace(/-/g, '_')}_MS = ${v};`)
   .join('\n');
+const tsSizes = Object.entries(tokens.sizePx ?? {})
+  .map(([k, v]) => `export const ${k.toUpperCase().replace(/-/g, '_')}_PX = ${v};`)
+  .join('\n');
 writeFileSync(
   join(root, 'web/packages/alloy-ui/src/lib/tokens.ts'),
-  header('//') + tsDurations + '\n'
+  header('//') + tsDurations + '\n' + tsSizes + '\n'
 );
 
 // ---- Swift ----
@@ -50,6 +56,9 @@ const swiftColors = Object.entries(tokens.color)
 const swiftDurations = Object.entries(tokens.durationMs)
   .map(([k, v]) => `    public static let ${camel(k)}: Double = ${v / 1000}`)
   .join('\n');
+const swiftSizes = Object.entries(tokens.sizePx ?? {})
+  .map(([k, v]) => `    public static let ${camel(k)}: CGFloat = ${v}`)
+  .join('\n');
 writeFileSync(
   join(root, 'swift/Sources/AlloyUI/AlloyTokens.swift'),
   header('//') +
@@ -61,6 +70,8 @@ public enum AlloyTokens {
 ${swiftColors}
 
 ${swiftDurations}
+
+${swiftSizes}
 }
 `
 );

@@ -44,7 +44,7 @@
   background: rgba(28, 28, 30, 0.55);
   backdrop-filter: blur(10px) saturate(80%);
   color: t.$label;
-  border-radius: 16px 16px 0 0;
+  border-radius: t.$sheet-corner-radius t.$sheet-corner-radius 0 0;
   outline: none;
   animation: sheet-slide-up var(--sheet-anim, 0.28s) cubic-bezier(0.16, 1, 0.3, 1) both;
   max-height: 90dvh; // Piano-canonicalized: cap on short/landscape viewports
