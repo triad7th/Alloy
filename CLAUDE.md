@@ -17,6 +17,21 @@ as a versioned dependency.
   `docs/superpowers/specs/2026-07-07-alloy-shared-library-design.md`, then
   `docs/mirroring.md`. Those three explain everything below in depth.
 
+## Platform scope (decided 2026-07-08)
+
+Alloy targets exactly two platforms:
+
+- **Web**, consumed by the Angular apps. The TS twin stays framework-agnostic
+  pure TypeScript — Angular-isms (RxJS, signals, DI tokens, components) live
+  in the app repos, never here.
+- **Apple (iOS + macOS)** via the one Swift package; tvOS/watchOS ride along
+  in `Package.swift` at no extra cost. Views (SwiftUI/AppKit/UIKit) live in
+  the app repos, never here.
+
+Out of scope: React bindings, Linux, Windows, and any third native twin.
+Do not add targets, CI matrices, or contract changes for them without an
+explicit user decision.
+
 ## Layout
 
 - `swift/` — ONE Swift package named `Alloy`, one product per library
