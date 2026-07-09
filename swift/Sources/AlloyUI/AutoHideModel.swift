@@ -2,12 +2,27 @@ import Foundation
 import Observation
 
 /// Auto-hiding chrome state: visible on interaction, hides after a delay.
-/// Semantic mirror of the web `AutoHideDirective` (visible / reveal / hold);
-/// delay comes from the shared tokens (web ships 4000 ms).
+/// Semantic mirror of the web `AutoHideDirective` (visible / reveal / hold /
+/// revealBlocked); delay comes from the shared tokens.
+/// `suppressed` combines the web's `revealBlocked` with hidden-while-open:
+/// hosts set it while a sheet is open — the chrome reads not-visible,
+/// `reveal()` is a no-op, and lifting suppression reveals + re-arms.
 @MainActor
 @Observable
 public final class AutoHideModel {
     public private(set) var visible = true
+
+    /// While true (a sheet is open), the chrome is hidden and reveal() is
+    /// blocked. Lifting suppression reveals and restarts the hide clock.
+    public var suppressed = false {
+        didSet {
+            guard oldValue != suppressed, !suppressed else { return }
+            reveal()
+        }
+    }
+
+    /// What hosts bind opacity/hit-testing to.
+    public var effectivelyVisible: Bool { visible && !suppressed }
 
     private let delay: Double
     private var hold = false
@@ -18,8 +33,10 @@ public final class AutoHideModel {
         scheduleHide()
     }
 
-    /// Show the chrome and restart the hide clock (no-op arming while held).
+    /// Show the chrome and restart the hide clock (no-op while suppressed —
+    /// the web's revealBlocked).
     public func reveal() {
+        guard !suppressed else { return }
         visible = true
         scheduleHide()
     }
