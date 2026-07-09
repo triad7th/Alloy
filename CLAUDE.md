@@ -35,16 +35,22 @@ explicit user decision.
 ## Layout
 
 - `swift/` — ONE Swift package named `Alloy`, one product per library
-  (`AlloyTime`, `AlloyUI`, later `AlloyAudio`). Sources depend on
-  Foundation + Observation only.
-- `web/` — npm workspace, one package per library
-  (`@allyworld/alloy-time`, `@allyworld/alloy-ui`). Pure TypeScript: zero runtime deps, no Angular.
+  (`AlloyTime`, `AlloyUI`, later `AlloyAudio`). Non-UI sources depend on
+  Foundation + Observation only; `AlloyUI` additionally uses SwiftUI.
+- `web/` — npm workspace, one package per library. `@allyworld/alloy-time`
+  is pure TypeScript: zero runtime deps, no Angular. `@allyworld/alloy-ui`
+  is an Angular component library (see peer coupling below).
 - `docs/mirroring.md` — the twin-API contract. Binding for every change.
 - `tokens.json` + `tools/generate-tokens.mjs` — single source for shared design tokens (colors, durations) emitted to SCSS, TypeScript, and Swift.
 
 ### AlloyUI peer coupling
 
-`@allyworld/alloy-ui` is framework-agnostic, but Angular apps importing it must declare `Angular ^21` as a peer dependency. Alloy itself has no Angular dependency; this is a consumer-side requirement only.
+`@allyworld/alloy-ui` is an Angular component library: its components and
+directives are built on `@angular/core`, and it declares `@angular/core` +
+`@angular/common` `^21.0.0` as hard `peerDependencies`, required at both
+compile time and runtime. Consuming apps must stay within a compatible
+Angular major, so Angular upgrades are coordinated bumps across the Ally
+apps.
 
 ## The one rule that governs all changes
 

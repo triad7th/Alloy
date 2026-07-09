@@ -71,9 +71,12 @@ other, the API is probably leaking platform detail — redesign it.
 ## Dependency rules
 
 - Swift sources: Foundation + Observation only. No UIKit/SwiftUI — views
-  belong to AlloyUI (which will state its own rules) or to apps.
+  belong to AlloyUI (whose rules are in "UI mirroring" below) or to apps.
 - TypeScript sources: zero runtime dependencies, no Angular imports. Plain
   Vitest for tests.
+- AlloyUI is the sanctioned exception on both sides: its Swift sources use
+  SwiftUI, and `@allyworld/alloy-ui` is an Angular component library with
+  `@angular/core` + `@angular/common` `^21.0.0` as peer dependencies.
 
 ## Change protocol
 
