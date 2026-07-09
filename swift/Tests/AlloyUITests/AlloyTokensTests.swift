@@ -6,6 +6,7 @@ final class AlloyTokensTests: XCTestCase {
     func test_twinAgreedDurations() {
         XCTAssertEqual(AlloyTokens.sheetAnimation, 0.28, accuracy: 0.0001)
         XCTAssertEqual(AlloyTokens.autoHide, 2.5, accuracy: 0.0001)
+        XCTAssertEqual(AlloyTokens.sheetCornerRadius, 24)
     }
 
     func test_tintSpotValue() {

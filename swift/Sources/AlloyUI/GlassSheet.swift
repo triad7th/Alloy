@@ -66,7 +66,7 @@ public struct GlassSheet<Content: View>: View {
         // Rounded only at the top — the panel sits flush with the screen bottom.
         UnevenRoundedRectangle(
             topLeadingRadius: AlloyTokens.sheetCornerRadius,
-            topTrailingRadius: AlloyTokens.sheetCornerRadius,
+            topTrailingRadius: AlloyTokens.sheetCornerRadius
         )
     }
 
