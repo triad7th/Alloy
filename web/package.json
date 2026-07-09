@@ -5,8 +5,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces",
+    "build": "npm run build --workspaces --if-present && ng build alloy-ui",
+    "test": "npm run test --workspaces --if-present && ng test alloy-ui",
     "build:ui": "ng build alloy-ui",
     "test:ui": "ng test alloy-ui"
   },

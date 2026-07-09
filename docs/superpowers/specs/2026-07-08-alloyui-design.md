@@ -68,7 +68,7 @@ asset per release.
 | Icon button | `IconButtonComponent` | `GlassIconButton` | allyclock |
 | Sheet | `SheetComponent` | `GlassSheet` | allyclock |
 | Nav header | `NavHeaderComponent` | — (asymmetry, see Mirroring) | allyclock |
-| Auto-hide | `AutoHideDirective` | `AutoHide` modifier | allyclock (iOS: extracted from RootFaceView's scheduleHide) |
+| Auto-hide | `AutoHideDirective` | `AutoHideModel` (Observable model) | allyclock (iOS: extracted from RootFaceView's scheduleHide) |
 | Knobs (plan 2b) | `KnobCard/KnobLabel/KnobToggle/KnobSegment/KnobField` | `Knobs.swift` contents move as-is | allyclock (web side untangled from its settings components) |
 
 ### Tokens
@@ -106,8 +106,8 @@ asset per release.
 
 - Web: `AutoHideDirective` (allyclock canonical, Piano's copy retired).
 - iOS: the show/schedule-hide state machine currently inline in allyclock's
-  `RootFaceView` becomes an `AlloyUI` modifier/utility with the same timing
-  tokens as the web.
+  `RootFaceView` becomes `AlloyUI`'s `AutoHideModel`, an Observable model
+  with the same timing tokens as the web.
 
 ## Mirroring rules for UI (new section in docs/mirroring.md)
 

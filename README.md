@@ -26,6 +26,7 @@ swift/                    Swift package "Alloy" — one product per library
   Tests/AlloyTimeTests/
 web/                      npm workspace — one package per library
   packages/alloy-time/    @allyworld/alloy-time (pure TypeScript, no Angular)
+  packages/alloy-ui/      @allyworld/alloy-ui (Angular component library)
 docs/
   mirroring.md            the twin-API convention both ecosystems follow
   superpowers/specs/      design specs (start with the founding spec)

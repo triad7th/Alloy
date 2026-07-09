@@ -21,12 +21,16 @@ as a versioned dependency.
 
 Alloy targets exactly two platforms:
 
-- **Web**, consumed by the Angular apps. The TS twin stays framework-agnostic
-  pure TypeScript — Angular-isms (RxJS, signals, DI tokens, components) live
-  in the app repos, never here.
+- **Web**, consumed by the Angular apps. Non-UI libraries (`alloy-time`,
+  later `alloy-audio`) stay framework-agnostic pure TypeScript — no
+  Angular-isms (RxJS, signals, DI tokens). `alloy-ui` is the sanctioned
+  exception: an Angular component library by design (see peer coupling
+  below).
 - **Apple (iOS + macOS)** via the one Swift package; tvOS/watchOS ride along
-  in `Package.swift` at no extra cost. Views (SwiftUI/AppKit/UIKit) live in
-  the app repos, never here.
+  in `Package.swift` at no extra cost. Non-UI products depend on
+  Foundation + Observation only. `AlloyUI` is the sanctioned exception:
+  SwiftUI views by design. App-specific screens still live in the app repos;
+  only shared, reusable components belong in `AlloyUI`.
 
 Out of scope: React bindings, Linux, Windows, and any third native twin.
 Do not add targets, CI matrices, or contract changes for them without an
@@ -82,12 +86,27 @@ Pure data tables are generated, never hand-duplicated.
 - iOS: SPM dependency by git URL + semver tag. Tag deliberately at
   meaningful checkpoints, not per commit.
 - Web: npm cannot install a git subdirectory, so each release instead
-  attaches an `npm pack` tarball to the GitHub Release. Apps depend on the
+  attaches `npm pack` tarballs to the GitHub Release. Apps depend on the
   release asset URL directly, e.g.
   `https://github.com/triad7th/Alloy/releases/download/<version>/allyworld-alloy-time-<version>.tgz`.
-  Release procedure: bump the package version → `cd web/packages/alloy-time
-  && npm pack` → `gh release create <version> <tarball> --title ... --notes
-  ...` → delete the local tarball.
+  The two web packages pack from different places — get this wrong and the
+  tarball is broken:
+  - `alloy-time` is plain TypeScript compiled by its own `prepack` (tsc), so
+    it packs straight from its package directory. Bump the version in
+    `web/packages/alloy-time/package.json`, then:
+    ```
+    cd web/packages/alloy-time && npm pack
+    ```
+  - `alloy-ui` is an Angular library built by ng-packagr. It MUST be packed
+    from the ng-packagr output at `web/dist/alloy-ui`, never from
+    `web/packages/alloy-ui` — packing from src ships a tarball with no
+    compiled JS/FESM bundles and no generated `package.json`. Bump the
+    version in `web/packages/alloy-ui/package.json`, then:
+    ```
+    cd web && ng build alloy-ui && cd dist/alloy-ui && npm pack
+    ```
+  Then, per tarball: `gh release create <version> <tarball...> --title ...
+  --notes ...` → delete the local tarball(s).
 - Local development against an app: Xcode local-package path override /
   npm `file:` link. Never publish to a registry.
 

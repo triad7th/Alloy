@@ -99,10 +99,13 @@
 }
 
 .sheet-content {
-  // When the panel fills the viewport, its content scrolls instead of the page.
+  // The 90dvh panel cap needs content to scroll in ANY sheet, not just full-height ones.
+  min-height: 0;
+  overflow-y: auto;
+
+  // When the panel fills the viewport, its content additionally becomes the
+  // flexed region that consumes the remaining space instead of the page.
   .sheet-panel.full-height & {
     flex: 1;
-    min-height: 0;
-    overflow-y: auto;
   }
 }
