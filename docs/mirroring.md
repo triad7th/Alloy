@@ -77,6 +77,14 @@ other, the API is probably leaking platform detail — redesign it.
 - AlloyUI is the sanctioned exception on both sides: its Swift sources use
   SwiftUI, and `@allyworld/alloy-ui` is an Angular component library with
   `@angular/core` + `@angular/common` `^21.0.0` as peer dependencies.
+- AlloyAudio's platform edge is the second sanctioned exception: its Swift
+  side uses AVFoundation (`AVSynthEngine`, `BundleSampleSource`); its web
+  side touches WebAudio only through the `MinimalAudioContext` seam in
+  `audio-graph.ts`. The engine core on both sides stays pure.
+- Alloy libraries do not depend on each other across domains: alloy-ui and
+  AlloyAudio never import alloy-time/AlloyTime. Where a shape overlaps
+  (`ZonePickerOption` vs `TimeZoneOption`), the UI library declares its own
+  structurally compatible type and the app bridges.
 
 ## Change protocol
 
@@ -101,3 +109,38 @@ Note the encoding difference: `durationMs` in JSON are milliseconds on web, tran
 - **NavHeaderComponent** is web-only. iOS lacks a direct counterpart; GlassSheet's title row fills that semantic role instead (top-level sheet title + layout anchoring).
 - **Knobs row** — web's card/label are stylesheet classes, not components. Web exports `_knobs.scss` classes (`cfg`, `knobs-panel`, `knobs-section`, `knobs-section-label`, `knobs-pair`, `knobs-cell`, `knobs-row`, `knobs-toggle`, `knobs-segment`, `knobs-slider`) + three attach-in-place controls (`KnobToggleComponent`, `KnobSegmentComponent`, `KnobSliderDirective`). iOS exports five views (`KnobCard`, `KnobLabel`, `KnobToggle`, `KnobSegment`, `KnobField`) + `knobColumns` helper function. The asymmetry is intentional: web markup applies classes; iOS markup composes views. `KnobField` has no library-side web twin: its web counterpart, `.knobs-tz`, stayed app-local in allyclock rather than joining the shared stylesheet.
 - **Chrome sizes** (button height, padding, corner radius) are not yet tokenized. Web buttons are 34 px, iOS buttons are 36 pt — deliberately left asymmetric to avoid pixel churn during iteration. Tokenize when sizes stabilize.
+- **Flag artwork** is app-supplied on both sides, but addressed differently: web composes a URL under an injectable base path (`provideAlloyFlags`, default `flags/1x1`); Apple resolves `<assetPrefix><code>` (default `Flags/`) in an injectable bundle. Same fallback contract: blank code or missing artwork renders the `globe` icon.
+- **Zone picker back/cancel** is host-side on the web and dropped on Apple platforms (the sheet's X is the cancel). The Apple twin takes a `listHeight` the web expresses in CSS (`max-height: 45vh`). The filter contract is twin-tested: case-insensitive substring over the full label; `ZonePickerOption { id, label }` is the shared shape on both sides.
+
+## Audio mirroring (AlloyAudio)
+
+Strict-regime core, semantic-regime engines — per the independence direction
+doc and the phase-4 spec (2026-07-09).
+
+**Strict (twin-tested, identical fixtures):** the `SynthEngine` interface
+(`noteOn`/`noteOff`/`setSustain`/`setInstrument`/`allNotesOff`),
+`SynthEngineCore` (polyphony + sustain-pedal latching, DI'd `playerFor` +
+`now`; inert until an instrument is selected), the `VoicePlayer` contracts,
+pitch math, voice spec types + `InstrumentDescriptor`, and `sampleFileName`
++ nearest-zone lookup (equidistant prefers the lower zone). Instrument ids
+are opaque strings; instrument catalogs are app-side.
+
+**Semantic (per-platform by design):** the web plays voices through native
+WebAudio nodes behind `MinimalAudioContext`; Swift renders voices per-sample
+by hand (`Oscillator`, `BiquadLowpass`, `ParamRamp`) inside an
+`AVAudioSourceNode`. The alignment contract is the three AudioParam
+scheduling primitives (`setValueAtTime` / `linearRampToValueAtTime` /
+`setTargetAtTime`) mirrored by `ParamRamp`, plus pinned shared constants
+(`VOICE_PEAK` 0.3, `FAST_STOP_S` 0.03, and the master-bus limiter/reverb/
+delay values).
+
+**Sanctioned naming exception:** TS `ActiveVoice` ↔ Swift
+`ActiveVoiceHandle` (name-clash avoidance with the render-loop `Voice`
+protocol, which is Swift-only).
+
+**Documented asymmetries:** the render-loop layer (`Voice`, `VoiceMixer`,
+`ChannelCommandQueue`) is Swift-only — the browser exposes no user-visible
+audio thread. `MasterChain`/`generateImpulseResponse` are web-only — Swift
+builds the equivalent bus inside `AVSynthEngine` from AVFoundation units.
+Sample assets ship with apps, never with Alloy; the shared contract is the
+naming convention (zero-padded MIDI + `.mp3`) and the zone-list arithmetic.

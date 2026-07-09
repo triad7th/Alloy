@@ -41,11 +41,16 @@ explicit user decision.
 ## Layout
 
 - `swift/` — ONE Swift package named `Alloy`, one product per library
-  (`AlloyTime`, `AlloyUI`, later `AlloyAudio`). Non-UI sources depend on
-  Foundation + Observation only; `AlloyUI` additionally uses SwiftUI.
+  (`AlloyTime`, `AlloyUI`, `AlloyAudio`). Non-UI sources depend on
+  Foundation + Observation only; `AlloyUI` additionally uses SwiftUI, and
+  `AlloyAudio`'s platform edge uses AVFoundation.
 - `web/` — npm workspace, one package per library. `@allyworld/alloy-time`
-  is pure TypeScript: zero runtime deps, no Angular. `@allyworld/alloy-ui`
-  is an Angular component library (see peer coupling below).
+  and `@allyworld/alloy-audio` are pure TypeScript: zero runtime deps, no
+  Angular (alloy-audio reaches WebAudio only through its MinimalAudioContext
+  seam). `@allyworld/alloy-ui` is an Angular component library (see peer
+  coupling below).
+- `examples/` — private preview harnesses (web Angular app + macOS SwiftUI
+  package); never packed, tagged, or released.
 - `docs/mirroring.md` — the twin-API contract. Binding for every change.
 - `tokens.json` + `tools/generate-tokens.mjs` — single source for shared design tokens (colors, durations) emitted to SCSS, TypeScript, and Swift.
 - `web/packages/alloy-ui/src/styles/_knobs.scss` — canonical knobs design language (section cards, labels, toggles, segments, sliders, responsive grid) consumed globally by apps' styles.
