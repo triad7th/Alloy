@@ -16,6 +16,8 @@ as a versioned dependency.
 - **Read first:** `README.md`, then the founding spec at
   `docs/superpowers/specs/2026-07-07-alloy-shared-library-design.md`, then
   `docs/mirroring.md`. Those three explain everything below in depth.
+- **Long-term direction** (versioning policy, upcoming libraries, harness
+  apps): `docs/superpowers/specs/2026-07-08-alloy-independence-direction.md`.
 
 ## Platform scope (decided 2026-07-08)
 
@@ -89,24 +91,20 @@ Pure data tables are generated, never hand-duplicated.
   attaches `npm pack` tarballs to the GitHub Release. Apps depend on the
   release asset URL directly, e.g.
   `https://github.com/triad7th/Alloy/releases/download/<version>/allyworld-alloy-time-<version>.tgz`.
-  The two web packages pack from different places — get this wrong and the
-  tarball is broken:
-  - `alloy-time` is plain TypeScript compiled by its own `prepack` (tsc), so
-    it packs straight from its package directory. Bump the version in
-    `web/packages/alloy-time/package.json`, then:
-    ```
-    cd web/packages/alloy-time && npm pack
-    ```
-  - `alloy-ui` is an Angular library built by ng-packagr. It MUST be packed
-    from the ng-packagr output at `web/dist/alloy-ui`, never from
-    `web/packages/alloy-ui` — packing from src ships a tarball with no
-    compiled JS/FESM bundles and no generated `package.json`. Bump the
-    version in `web/packages/alloy-ui/package.json`, then:
-    ```
-    cd web && ng build alloy-ui && cd dist/alloy-ui && npm pack
-    ```
-  Then, per tarball: `gh release create <version> <tarball...> --title ...
-  --notes ...` → delete the local tarball(s).
+- **Release procedure — always via the script, never by hand:**
+  bump `package.json` for each package being released to the new version,
+  commit and push, then run:
+  ```
+  node tools/release.mjs <version> [--dry-run] [--notes "..."]
+  ```
+  Packages whose `package.json` version equals `<version>` ride the release;
+  unchanged packages keep their old version and get no new tarball. The
+  script guards everything easy to get wrong by hand: clean/pushed tree,
+  both test suites green, generated outputs fresh, and the packing rules —
+  `alloy-time` packs from its package directory (tsc `prepack`), while
+  `alloy-ui` MUST pack from the ng-packagr output at `web/dist/alloy-ui`
+  (packing from src ships a broken tarball with no compiled bundles). It
+  then tags via `gh release create` and cleans up the tarballs.
 - Local development against an app: Xcode local-package path override /
   npm `file:` link. Never publish to a registry.
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Alloy Release"
+  short_description: "Cut a release via tools/release.mjs"
+  default_prompt: "Use $alloy-release to bump versions, dry-run, and cut an Alloy release with tarballs attached via tools/release.mjs."
