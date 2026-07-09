@@ -69,7 +69,7 @@ asset per release.
 | Sheet | `SheetComponent` | `GlassSheet` | allyclock |
 | Nav header | `NavHeaderComponent` | — (asymmetry, see Mirroring) | allyclock |
 | Auto-hide | `AutoHideDirective` | `AutoHideModel` (Observable model) | allyclock (iOS: extracted from RootFaceView's scheduleHide) |
-| Knobs (plan 2b) | `KnobCard/KnobLabel/KnobToggle/KnobSegment/KnobField` | `Knobs.swift` contents move as-is | allyclock (web side untangled from its settings components) |
+| Knobs | `_knobs.scss` classes + `KnobToggleComponent`/`KnobSegmentComponent`/`KnobSliderDirective` | `KnobCard`/`KnobLabel`/`KnobToggle`/`KnobSegment`/`KnobField` + `knobColumns()` | allyclock (web side untangled from its settings components) |
 
 ### Tokens
 

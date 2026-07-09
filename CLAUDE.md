@@ -48,6 +48,7 @@ explicit user decision.
   is an Angular component library (see peer coupling below).
 - `docs/mirroring.md` — the twin-API contract. Binding for every change.
 - `tokens.json` + `tools/generate-tokens.mjs` — single source for shared design tokens (colors, durations) emitted to SCSS, TypeScript, and Swift.
+- `web/packages/alloy-ui/src/styles/_knobs.scss` — canonical knobs design language (section cards, labels, toggles, segments, sliders, responsive grid) consumed globally by apps' styles.
 
 ### AlloyUI peer coupling
 
