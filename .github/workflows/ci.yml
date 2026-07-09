@@ -15,6 +15,10 @@ jobs:
       - uses: actions/checkout@v4
       - run: swift build
       - run: swift test
+      # Second-tier harness check: build-only, proves the package is
+      # consumable by an app-shaped target (per the independence direction doc).
+      - name: Apple harness builds
+        run: swift build --package-path examples/apple-harness
 
   web:
     name: Web twins (build + test + generated-output freshness)
@@ -39,3 +43,18 @@ jobs:
           node tools/generate-tokens.mjs
           node tools/generate-zone-country.mjs
           git diff --exit-code
+
+  web-harness:
+    name: Web harness (build only)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: examples/web-harness/package-lock.json
+      - run: npm ci
+        working-directory: examples/web-harness
+      - run: npm run build
+        working-directory: examples/web-harness
