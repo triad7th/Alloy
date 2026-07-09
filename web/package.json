@@ -4,7 +4,23 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces"
+    "test": "npm run test --workspaces",
+    "build:ui": "ng build alloy-ui",
+    "test:ui": "ng test alloy-ui"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "@angular/build": "^21.2.0",
+    "@angular/cli": "^21.2.0",
+    "@angular/common": "^21.2.0",
+    "@angular/compiler": "^21.2.0",
+    "@angular/compiler-cli": "^21.2.0",
+    "@angular/core": "^21.2.0",
+    "@angular/platform-browser": "^21.2.0",
+    "jsdom": "^29.1.1",
+    "ng-packagr": "^21.2.0",
+    "rxjs": "^7.8.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.7"
+  }
 }

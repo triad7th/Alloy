@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "declaration": true,
+    "experimentalDecorators": false,
+    "importHelpers": false,
+    "skipLibCheck": true,
+    "outDir": "../../dist/out-tsc",
+    "types": ["vitest/globals"]
+  },
+  "include": ["src/**/*.ts"],
+  "angularCompilerOptions": {
+    "compilationMode": "partial",
+    "strictTemplates": true
+  }
+}

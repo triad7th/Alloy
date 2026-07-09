@@ -3,5 +3,6 @@
 .swiftpm/
 node_modules/
 dist/
+.angular/
 *.tgz
 .DS_Store
