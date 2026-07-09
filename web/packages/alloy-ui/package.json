@@ -1,6 +1,6 @@
 {
   "name": "@allyworld/alloy-ui",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Shared liquid-glass UI kit for the Ally app series (web twin of AlloyUI)",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/triad7th/Alloy.git" },

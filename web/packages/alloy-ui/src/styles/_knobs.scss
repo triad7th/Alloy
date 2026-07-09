@@ -45,6 +45,12 @@
   }
 }
 
+// A lone card spans the whole panel — the 2/3-column tiers otherwise strand
+// a single .knobs-section in the first track at sheet widths ≥600px.
+.knobs-panel > .knobs-section:only-child {
+  grid-column: 1 / -1;
+}
+
 .knobs-section {
   display: flex;
   flex-direction: column;
