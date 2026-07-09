@@ -14,5 +14,6 @@ describe('tokens', () => {
     expect(tokensScss).toContain('$tint: #0a84ff;');
     expect(tokensScss).toContain('$secondary-surface: rgba(118, 118, 128, 0.24);');
     expect(tokensScss).toContain('$backdrop: rgba(0, 0, 0, 0.5);');
+    expect(tokensScss).toContain('$knob-card: rgba(255, 255, 255, 0.04);');
   });
 });
