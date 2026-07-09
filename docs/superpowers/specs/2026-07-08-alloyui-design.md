@@ -74,11 +74,13 @@ asset per release.
 ### Tokens
 
 - `tokens.json` is the single source: colors (tint `#0a84ff`, surfaces,
-  label tiers), radii, glass opacities, standard chrome sizes (36pt button,
-  28pt sheet-X), animation durations shared by sheet/auto-hide.
-- A `tools/generate-tokens.mjs` script emits `_tokens.scss` (CSS custom
-  properties + SCSS vars) and `AlloyTokens.swift`. Twin tests assert
-  agreement (spot values + count), the zone-country pattern.
+  label tiers) and the animation durations shared by sheet/auto-hide.
+  Chrome sizes are deferred past v1 — web (34 px) and iOS (36 pt) buttons
+  intentionally differ today, and unifying them is a visual change, not an
+  extraction.
+- A `tools/generate-tokens.mjs` script emits `_tokens.scss`, `tokens.ts`,
+  and `AlloyTokens.swift`. Twin tests assert agreement (spot values), the
+  zone-country pattern.
 
 ### Icon layer
 
