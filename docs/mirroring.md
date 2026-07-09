@@ -81,3 +81,19 @@ other, the API is probably leaking platform detail — redesign it.
 2. Port to Swift in the same change set — twins never ship half-updated.
 3. Regenerate data tables if the source changed.
 4. Run both test suites before tagging.
+
+## UI mirroring (AlloyUI)
+
+UI twins are semantic mirrors, not transliterations. The web and iOS implementations share the same **component names, semantic roles, and behavioral contracts** — apply-on-close sheets, consistent dismissal paths, synchronized auto-hide timing, and identical selected/disabled a11y states — while keeping internals idiomatic per platform.
+
+**Token generation is the hard-shared layer.** `tokens.json` is the single source of truth for colors and durations, fed through `tools/generate-tokens.mjs` to emit:
+- `web/packages/alloy-ui/src/styles/_tokens.scss` (SCSS variables used by components)
+- `web/packages/alloy-ui/src/lib/tokens.ts` (TypeScript exports for code paths)
+- `swift/Sources/AlloyUI/AlloyTokens.swift` (Swift enum namespaces)
+
+Note the encoding difference: `durationMs` in JSON are milliseconds on web, translated to seconds (÷1000) in Swift's `TimeInterval`.
+
+**Documented asymmetries** are intentional and recorded here:
+- **Icon path data** is web-only. iOS renders real SF Symbols by the same semantic name (e.g., "pencil" maps to `Image(systemName: "pencil")`); the web layer holds SVG path data only as needed by the DOM.
+- **NavHeaderComponent** is web-only. iOS lacks a direct counterpart; GlassSheet's title row fills that semantic role instead (top-level sheet title + layout anchoring).
+- **Chrome sizes** (button height, padding, corner radius) are not yet tokenized. Web buttons are 34 px, iOS buttons are 36 pt — deliberately left asymmetric to avoid pixel churn during iteration. Tokenize when sizes stabilize.
