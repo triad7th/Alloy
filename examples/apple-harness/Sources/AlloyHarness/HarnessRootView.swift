@@ -16,6 +16,7 @@ struct HarnessRootView: View {
                 section("Knobs") { KnobsDemoView() }
                 section("Flag & zone picker") { zoneDemo }
                 section("Synth") { SynthDemoView() }
+                section("Chrome") { ChromeDemoView() }
             }
             .padding(24)
         }
@@ -74,7 +75,7 @@ struct HarnessRootView: View {
     @ViewBuilder
     private var sheetOverlay: some View {
         if sheetShown {
-            GlassSheet(title: "Harness Sheet", onClose: { sheetShown = false }) {
+            GlassSheet(title: "Harness Sheet", onClosed: { sheetShown = false }) { _ in
                 VStack(alignment: .leading, spacing: 10) {
                     Text("GlassSheet body — apply-on-close semantics live here.")
                     KnobLabel("A knob label inside the sheet")

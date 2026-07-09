@@ -150,6 +150,46 @@ public struct KnobField<Content: View>: View {
     }
 }
 
+/// Slider row (web `input[appKnobSlider]` inside `.knobs-row`): section
+/// label above, tinted track, trailing monospaced value readout. Range,
+/// step, and the formatted display string are the caller's (the web twin
+/// likewise leaves min/max/value/format to the host).
+public struct KnobSlider: View {
+    let label: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    let display: String
+
+    public init(
+        label: String,
+        value: Binding<Double>,
+        in range: ClosedRange<Double>,
+        step: Double = 1,
+        display: String
+    ) {
+        self.label = label
+        self._value = value
+        self.range = range
+        self.step = step
+        self.display = display
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            KnobLabel(label)
+            HStack(spacing: 12) {
+                Slider(value: $value, in: range, step: step)
+                    .tint(Knobs.tint)
+                Text(display)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(AlloyTokens.label)
+                    .frame(width: 64, alignment: .trailing)
+            }
+        }
+    }
+}
+
 /// Port of the web's container-query breakpoints for the knobs grid
 /// (`@container (min-width: 600px|900px)`).
 public func knobColumns(for width: CGFloat) -> Int {
