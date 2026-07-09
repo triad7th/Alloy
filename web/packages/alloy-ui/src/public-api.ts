@@ -1,2 +1,2 @@
 // Public API of @allyworld/alloy-ui. Later tasks append exports.
-export {};
+export * from './lib/tokens';
