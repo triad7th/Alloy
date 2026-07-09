@@ -5,3 +5,4 @@ export { AlloyIconName, SfSymbol, provideAlloyIcons } from './lib/icon/icon-regi
 export { SheetComponent } from './lib/sheet/sheet.component';
 export { IconButtonComponent } from './lib/icon-button/icon-button.component';
 export { NavHeaderComponent } from './lib/nav-header/nav-header.component';
+export { AutoHideDirective } from './lib/auto-hide.directive';
