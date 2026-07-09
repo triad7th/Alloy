@@ -7,3 +7,5 @@ export { IconButtonComponent } from './lib/icon-button/icon-button.component';
 export { NavHeaderComponent } from './lib/nav-header/nav-header.component';
 export { AutoHideDirective } from './lib/auto-hide.directive';
 export { KnobSliderDirective } from './lib/knobs/knob-slider.directive';
+export { KnobToggleComponent } from './lib/knobs/knob-toggle.component';
+export { KnobSegmentComponent, KnobSegmentOption } from './lib/knobs/knob-segment.component';
