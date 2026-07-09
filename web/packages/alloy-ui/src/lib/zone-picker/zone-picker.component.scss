@@ -1,0 +1,78 @@
+@use '../../styles/tokens' as t;
+
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.zp-search {
+  appearance: none;
+  width: 100%;
+  box-sizing: border-box;
+  background: t.$secondary-surface;
+  border: none;
+  border-radius: 8px;
+  color: t.$label;
+  font-size: 0.95rem;
+  padding: 0.5rem 0.75rem;
+
+  &::placeholder {
+    color: t.$secondary-label;
+  }
+}
+
+.zp-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 45vh;
+  overflow-y: auto;
+  border-radius: 8px;
+}
+
+.zp-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: none;
+  border: none;
+  color: t.$label;
+  font-size: 0.95rem;
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  border-radius: 6px;
+
+  &:hover {
+    background: rgba(118, 118, 128, 0.18);
+  }
+
+  &.active {
+    color: t.$tint;
+    font-weight: 600;
+  }
+}
+
+.zp-flag {
+  flex: 0 0 auto;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 4px;
+  color: t.$secondary-label; // tints the globe fallback
+}
+
+.zp-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zp-empty {
+  color: t.$secondary-label;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem 0;
+  margin: 0;
+}

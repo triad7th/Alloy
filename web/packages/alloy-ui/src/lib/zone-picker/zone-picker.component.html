@@ -1,0 +1,24 @@
+<input
+  class="zp-search"
+  type="text"
+  [value]="query()"
+  (input)="query.set($any($event.target).value)"
+  placeholder="Search time zone"
+  aria-label="Search time zone"
+/>
+<div class="zp-list">
+  @for (z of filtered(); track z.id) {
+    <button
+      type="button"
+      class="zp-option"
+      [class.active]="z.id === selectedId()"
+      [attr.data-id]="z.id"
+      (click)="pick(z.id)"
+    >
+      <app-flag class="zp-flag" [countryCode]="countryFor()(z.id)" />
+      <span class="zp-label">{{ z.label }}</span>
+    </button>
+  } @empty {
+    <p class="zp-empty">No matching time zone</p>
+  }
+</div>
