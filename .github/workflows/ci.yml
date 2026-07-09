@@ -8,7 +8,9 @@ on:
 jobs:
   swift:
     name: Swift twins (build + test)
-    runs-on: macos-15
+    # AlloyUI uses Liquid Glass APIs (GlassEffectContainer, .glassEffect),
+    # which need the macOS/iOS 26 SDK — macos-15's Xcode 16 cannot compile it.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - run: swift build
