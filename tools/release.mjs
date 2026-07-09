@@ -90,9 +90,9 @@ try {
 step('packing tarballs');
 const tarballs = releasing.map((pkg) => {
   let packDir;
-  if (pkg.dir === 'alloy-time') {
-    // Plain tsc package: prepack compiles, packs from the package directory.
-    packDir = join(packagesDir, 'alloy-time');
+  if (pkg.dir === 'alloy-time' || pkg.dir === 'alloy-audio') {
+    // Plain tsc packages: prepack compiles, packs from the package directory.
+    packDir = join(packagesDir, pkg.dir);
   } else if (pkg.dir === 'alloy-ui') {
     // Angular library: MUST pack from the ng-packagr output, never from src.
     run('npx ng build alloy-ui', { cwd: join(root, 'web') });
@@ -108,10 +108,11 @@ const tarballs = releasing.map((pkg) => {
 tarballs.forEach((t) => console.log(`  ${t}`));
 
 // ---- Tag + GitHub Release ----
+// 'alloy-time' -> 'AlloyTime' etc.; multi-package trains title as 'Alloy'.
+const productName = (dir) =>
+  'Alloy' + dir.replace(/^alloy-/, '').replace(/(^|-)(\w)/g, (_, __, c) => c.toUpperCase());
 const title =
-  releasing.length === 1
-    ? `${releasing[0].dir === 'alloy-ui' ? 'AlloyUI' : 'AlloyTime'} ${version}`
-    : `Alloy ${version}`;
+  releasing.length === 1 ? `${productName(releasing[0].dir)} ${version}` : `Alloy ${version}`;
 if (dryRun) {
   step(`dry run — would create release "${title}" (tag ${version}) with ${tarballs.length} asset(s)`);
 } else {

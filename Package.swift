@@ -7,6 +7,7 @@ let package = Package(
   products: [
     .library(name: "AlloyTime", targets: ["AlloyTime"]),
     .library(name: "AlloyUI", targets: ["AlloyUI"]),
+    .library(name: "AlloyAudio", targets: ["AlloyAudio"]),
   ],
   targets: [
     .target(name: "AlloyTime", path: "swift/Sources/AlloyTime"),
@@ -15,5 +16,8 @@ let package = Package(
     .target(name: "AlloyUI", path: "swift/Sources/AlloyUI"),
     .testTarget(name: "AlloyUITests", dependencies: ["AlloyUI"],
                 path: "swift/Tests/AlloyUITests"),
+    .target(name: "AlloyAudio", path: "swift/Sources/AlloyAudio"),
+    .testTarget(name: "AlloyAudioTests", dependencies: ["AlloyAudio"],
+                path: "swift/Tests/AlloyAudioTests"),
   ]
 )
