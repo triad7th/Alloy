@@ -1,0 +1,249 @@
+// Canonical knobs design language — section cards, labels, toggles, segments,
+// sliders, and the responsive panel grid. Consumed globally by each app's
+// styles.scss (`@use '@allyworld/alloy-ui/styles/knobs';`). These classes are
+// the API; the three interactive controls (KnobToggleComponent,
+// KnobSegmentComponent, KnobSliderDirective) live in `lib/knobs/` and attach
+// to markup using them.
+@use 'tokens' as t;
+
+.cfg {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  color: t.$label;
+  padding: 0.5rem 1.5rem 2rem;
+  // Query container for the knobs panel below. Must live on this ancestor — a
+  // container cannot respond to its own size, so `container-type` on
+  // .knobs-panel itself never reflows it.
+  container-type: inline-size;
+}
+
+// ── Knobs panel ────────────────────────────────────────────────────────────
+
+.knobs-panel {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding-top: 1.5rem;
+}
+
+@container (min-width: 600px) {
+  .knobs-panel {
+    grid-template-columns: repeat(2, 1fr);
+    // Default `stretch`: cards in a row share the row's height (uniform cards).
+  }
+}
+
+@container (min-width: 900px) {
+  .knobs-panel {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.knobs-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: t.$knob-card;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  // Uniform card height across the whole grid (not just within a row) — covers
+  // the tallest card. border-box is assumed global.
+  min-height: 5.5rem;
+}
+
+.knobs-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.knobs-section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: t.$secondary-label;
+}
+
+// Labelled switches sitting side by side in a grouped card. Each cell stacks
+// its label over the switch, mirroring the label-over-control layout of the
+// other cards.
+.knobs-pair {
+  display: flex;
+  gap: 1rem;
+}
+
+.knobs-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.knobs-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.knobs-row-label {
+  font-size: 0.72rem;
+  color: t.$secondary-label;
+  flex: 0 0 5.5rem;
+  white-space: nowrap;
+}
+
+.knobs-row-value {
+  font-size: 0.72rem;
+  color: t.$label;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 2.4rem;
+  text-align: right;
+}
+
+// ── iOS-style toggle switch ────────────────────────────────────────────────
+
+.knobs-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: t.$secondary-surface;
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 auto;
+  transition: background 0.2s ease;
+
+  &.on {
+    background: t.$tint;
+  }
+}
+
+.knobs-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease;
+
+  .knobs-toggle.on & {
+    transform: translateX(18px);
+  }
+}
+
+// ── Toggle row (label left / toggle right, consistent with section-header) ─
+
+.knobs-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// ── Segmented control (Bar mode) ───────────────────────────────────────────
+
+.knobs-segment-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.knobs-segment {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: t.$secondary-surface;
+  border-radius: 9px;
+}
+
+.knobs-segment-btn {
+  flex: 1 1 0;
+  border: none;
+  background: transparent;
+  color: t.$secondary-label;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.4rem 0;
+  border-radius: 7px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+
+  &.on {
+    background: t.$tint;
+    color: #fff;
+  }
+}
+
+.knobs-slider {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+// iOS UISlider look. The input is a tall, transparent hit-area; the visible
+// 4px track is painted on the track pseudo-element so the 27px thumb centers on
+// it cleanly. The blue minimum-track fill comes from the `--fill` percentage the
+// consuming control binds (WebKit gradient; Firefox uses ::-moz-range-progress).
+input[type='range'].knobs-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+
+  &::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 999px;
+    background: linear-gradient(to right, t.$tint var(--fill, 0%), t.$track var(--fill, 0%));
+  }
+
+  &::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 27px;
+    height: 27px;
+    margin-top: -11.5px;
+    border-radius: 50%;
+    background: #fff;
+    border: none;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  }
+
+  &::-moz-range-track {
+    height: 4px;
+    border-radius: 999px;
+    background: t.$track;
+  }
+
+  &::-moz-range-progress {
+    height: 4px;
+    border-radius: 999px;
+    background: t.$tint;
+  }
+
+  &::-moz-range-thumb {
+    width: 27px;
+    height: 27px;
+    border-radius: 50%;
+    background: #fff;
+    border: none;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  }
+}
