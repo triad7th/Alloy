@@ -58,11 +58,17 @@ public final class DriveClient: Sendable {
     return data
   }
 
-  /// Percent-encode a Drive query, quotes included (twin of TS encodeQuery).
+  /// The exact unreserved set of JS encodeURIComponent: ASCII alphanumerics
+  /// plus -_.!~*'() — CharacterSet.alphanumerics would wrongly pass Unicode
+  /// letters/digits (é, CJK, Cyrillic) through unencoded.
+  private static let queryAllowed = CharacterSet(
+    charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()")
+
+  /// Percent-encode a Drive query, quotes included (twin of TS encodeQuery:
+  /// encodeURIComponent leaves ' unencoded, then one pass replaces it — %27
+  /// is always wire-valid).
   private func encodeQuery(_ raw: String) -> String {
-    var allowed = CharacterSet.alphanumerics
-    allowed.insert(charactersIn: "-_.!~*()")
-    return raw.addingPercentEncoding(withAllowedCharacters: allowed)!
+    raw.addingPercentEncoding(withAllowedCharacters: Self.queryAllowed)!
       .replacingOccurrences(of: "'", with: "%27")
   }
 
@@ -154,7 +160,9 @@ public final class DriveClient: Sendable {
 
   public func downloadFile(fileId: String) async throws -> String {
     let data = try await call("\(api)/files/\(fileId)?alt=media")
-    return String(data: data, encoding: .utf8) ?? ""
+    // Lenient decode (U+FFFD for invalid bytes) — parity with TS res.text(),
+    // which never throws and never drops content.
+    return String(decoding: data, as: UTF8.self)
   }
 
   public func deleteFile(fileId: String) async throws {

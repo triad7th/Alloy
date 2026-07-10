@@ -83,4 +83,16 @@ final class ScriptedTransport: HTTPTransport, @unchecked Sendable {
     #expect(q.contains("key='allyscoreId' and value='id9'"))
     #expect(q.contains(" or "))
   }
+
+  @Test func encodesNonASCIIQueryCharactersLikeEncodeURIComponent() async throws {
+    let transport = ScriptedTransport([
+      .init(matches: { _ in true }, body: #"{"files":[{"id":"f1"}]}"#, status: 200)
+    ])
+    let client = DriveClient(auth: StubAuth(token: "tok"), transport: transport)
+    _ = try await client.resolveFolderPath("café")
+    let url = transport.requests[0].url!.absoluteString
+    // The exact bytes TS encodeURIComponent produces: only ASCII
+    // A-Za-z0-9 -_.!~*'() pass through unencoded, so é → %C3%A9.
+    #expect(url.contains("caf%C3%A9"))
+  }
 }
