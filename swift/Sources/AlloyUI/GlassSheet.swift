@@ -32,6 +32,20 @@ public struct GlassIconButton: View {
     }
 }
 
+/// Optional trailing header button for GlassSheet (web twin: the nav-header's
+/// `navTrailing` slot). Rendered as a GlassIconButton mirroring the X, so the
+/// header stays symmetric.
+@available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, *)
+public struct GlassSheetAction {
+    let icon: String
+    let label: String
+    let action: () -> Void
+
+    public init(icon: String, label: String, action: @escaping () -> Void) {
+        self.icon = icon; self.label = label; self.action = action
+    }
+}
+
 /// Bottom panel matching the web's sheet component: hugs its content height,
 /// Liquid Glass background so the face stays visible behind, centered grab
 /// bar, title header with a large-target close button, and a backdrop that
@@ -51,6 +65,9 @@ public struct GlassSheet<Content: View>: View {
     var hInset: CGFloat = 0
     /// Panel max width; nil (default) spans the window. Web twin: `maxWidth`.
     var maxWidth: CGFloat?
+    /// Optional trailing header button, opposite the X (web twin: nav-header
+    /// `navTrailing`).
+    var trailing: GlassSheetAction?
     /// Fires once, after the slide-out completes. Presenters clear their
     /// sheet state (and commit any pending selection) here.
     let onClosed: () -> Void
@@ -59,10 +76,12 @@ public struct GlassSheet<Content: View>: View {
     @State private var shown = false
 
     public init(title: String, hInset: CGFloat = 0, maxWidth: CGFloat? = nil,
+                trailing: GlassSheetAction? = nil,
                 onClosed: @escaping () -> Void,
                 @ViewBuilder content: @escaping (_ dismiss: @escaping () -> Void) -> Content)
     {
         self.title = title; self.hInset = hInset; self.maxWidth = maxWidth
+        self.trailing = trailing
         self.onClosed = onClosed; self.content = content
     }
 
@@ -116,6 +135,16 @@ public struct GlassSheet<Content: View>: View {
                         // Island and corner curves, so only content needs hInset.
                         .padding(.leading, 12)
                         .padding(.top, 16)
+                }
+                .overlay(alignment: .topTrailing) {
+                    if let trailing {
+                        GlassIconButton(
+                            icon: trailing.icon, label: trailing.label, size: 28,
+                            action: trailing.action
+                        )
+                        .padding(.trailing, 12)
+                        .padding(.top, 16)
+                    }
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }

@@ -30,11 +30,18 @@ struct ChromeDemoView: View {
             }
 
             if sheetOpen {
-                GlassSheet(title: "Chrome demo", onClosed: {
-                    sheetOpen = false
-                    closedCount += 1
-                    chrome.suppressed = false
-                }) { dismiss in
+                GlassSheet(
+                    title: "Chrome demo",
+                    trailing: GlassSheetAction(icon: "arrow.clockwise", label: "Reset") {
+                        sliderValue = 60.0
+                        toggleOn = true
+                    },
+                    onClosed: {
+                        sheetOpen = false
+                        closedCount += 1
+                        chrome.suppressed = false
+                    },
+                ) { dismiss in
                     VStack(alignment: .leading, spacing: 16) {
                         KnobSlider(
                             label: "Zoom",

@@ -63,20 +63,39 @@ public struct KnobToggle: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             KnobLabel(label)
-            Capsule().fill(isOn ? Knobs.tint : Knobs.secondarySurface)
-                .frame(width: 44, height: 26)
-                .overlay(alignment: .leading) {
-                    Circle().fill(.white)
-                        .frame(width: 20, height: 20)
-                        .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
-                        .offset(x: isOn ? 21 : 3)
-                }
-                .animation(.easeInOut(duration: 0.2), value: isOn)
-                .onTapGesture { set(!isOn) }
-                .accessibilityLabel(label)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityValue(isOn ? "on" : "off")
+            KnobSwitch(isOn: isOn, label: label, set: set)
         }
+    }
+}
+
+/// Bare pill switch (web `button[appKnobToggle]`, the `.knobs-toggle` pill):
+/// no label of its own, so hosts compose their own row arrangement — e.g. a
+/// text label leading and the switch trailing.
+public struct KnobSwitch: View {
+    let isOn: Bool
+    let label: String
+    let set: (Bool) -> Void
+
+    public init(isOn: Bool, label: String, set: @escaping (Bool) -> Void) {
+        self.isOn = isOn
+        self.label = label
+        self.set = set
+    }
+
+    public var body: some View {
+        Capsule().fill(isOn ? Knobs.tint : Knobs.secondarySurface)
+            .frame(width: 44, height: 26)
+            .overlay(alignment: .leading) {
+                Circle().fill(.white)
+                    .frame(width: 20, height: 20)
+                    .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
+                    .offset(x: isOn ? 21 : 3)
+            }
+            .animation(.easeInOut(duration: 0.2), value: isOn)
+            .onTapGesture { set(!isOn) }
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityValue(isOn ? "on" : "off")
     }
 }
 

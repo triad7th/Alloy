@@ -15,6 +15,10 @@ final class KnobsTests: XCTestCase {
         _ = KnobToggle(isOn: true, label: "Toggle", set: { _ in })
     }
 
+    func test_knobSwitch_publicConstruction() {
+        _ = KnobSwitch(isOn: true, label: "Switch", set: { _ in })
+    }
+
     func test_knobSegment_publicConstruction() {
         let options: [(value: String, label: String)] = [("a", "Option A"), ("b", "Option B")]
         _ = KnobSegment(options: options, selection: "a", set: { _ in })
