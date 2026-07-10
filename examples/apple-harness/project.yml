@@ -26,6 +26,16 @@ targets:
         product: AlloyAudio
       - package: Alloy
         product: AlloyStorage
+    # Ad-hoc signed WITH entitlements (not CODE_SIGNING_ALLOWED: NO): an
+    # unsigned app has no application-identifier, and the simulator keychain
+    # rejects it with errSecMissingEntitlement (-34018) — which breaks
+    # KeychainTokenVault and therefore Google sign-in in the Storage demo.
+    entitlements:
+      path: AlloyHarnessIOS.entitlements
+      properties:
+        application-identifier: world.ally.AlloyHarnessIOS
+        keychain-access-groups:
+          - world.ally.AlloyHarnessIOS
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: world.ally.AlloyHarnessIOS
@@ -34,4 +44,4 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "6.0"
-        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_IDENTITY: "-"
