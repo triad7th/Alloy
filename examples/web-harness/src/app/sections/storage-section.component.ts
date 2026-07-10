@@ -16,8 +16,9 @@ import {
  *     with GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / ALLOWED_ORIGINS set
  *     (ALLOWED_ORIGINS=http://localhost:4200).
  *  Empty strings = the Drive card shows these setup steps instead. */
-const GOOGLE_CLIENT_ID = '';
-const TOKEN_SERVICE_URL = ''; // e.g. 'http://localhost:8888'
+const GOOGLE_CLIENT_ID =
+  '705555068863-ovkcqfbaf0ldrkl8v63vjsatgtjkdvmo.apps.googleusercontent.com';
+const TOKEN_SERVICE_URL = 'http://localhost:8888';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_FOLDER = 'AlloyHarness';
 

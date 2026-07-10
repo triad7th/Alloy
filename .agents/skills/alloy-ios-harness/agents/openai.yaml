@@ -1,0 +1,4 @@
+interface:
+  display_name: "Alloy iOS Harness"
+  short_description: "Build and run the apple-harness in the iOS simulator"
+  default_prompt: "Use $alloy-ios-harness to build the apple-harness iOS app, launch it in the simulator, and verify it rendered."
