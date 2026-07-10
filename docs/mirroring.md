@@ -146,3 +146,39 @@ audio thread. `MasterChain`/`generateImpulseResponse` are web-only — Swift
 builds the equivalent bus inside `AVSynthEngine` from AVFoundation units.
 Sample assets ship with apps, never with Alloy; the shared contract is the
 naming convention (zero-padded MIDI + `.mp3`) and the zone-list arithmetic.
+
+## AlloyStorage
+
+Storage abstraction + backends (`@allyworld/alloy-storage` ↔ `AlloyStorage`).
+
+**Strict regime** (identical API, twin fixtures — the backend contract suite and
+the StorageError table run the same scenarios and instants on both platforms):
+
+- `StorageRecordMeta` / `StorageRecord` (TS `updatedAt: number` epoch ms ↔ Swift
+  `updatedAt: Date` — the platform-time rule above)
+- `StorageBackend` (`list`/`read`/`write`/`delete`; list is metadata-only,
+  read misses resolve null/nil, delete is idempotent)
+- `AuthProvider` + `AuthState`
+- `StorageError` with `fromHttpStatus` ↔ `fromHTTPStatus` mapping
+  (401/403→auth, 404→notFound, 409/412→conflict, 429→quota, else unreachable)
+- `DriveClient` method surface + Drive query strings; `DriveBackend` semantics
+  (folder-path resolution, id cache + one 404 re-resolve, per-id write chains,
+  `alloyId`/`alloySavedAt` writes with legacy `allyscoreId`/`savedAt` reads)
+- `PKCE` helpers (RFC 7636 vector as the twin fixture)
+- `GoogleAuth` refresh state machine (5-minute proactive margin; rejected grant
+  clears stored tokens → `expired` (web keys on 401 from the token service,
+  Swift on Google 4xx since Google returns 400 for invalid_grant); network failure keeps the refresh token)
+
+**Semantic regime** (same behavior, platform-appropriate shape):
+
+- Transport seam: TS injected `fetch` ↔ Swift `HTTPTransport`/`URLSessionTransport`
+- Local replica: `BrowserStorageBackend` (IndexedDB) ↔ `LocalStorageBackend`
+  (FileManager under Application Support)
+- Folder-id cache: TS `Storage` (localStorage) ↔ Swift `UserDefaults`
+- Token persistence: `TokenStore`/`IndexedDbTokenStore` ↔ `TokenVault`/`KeychainTokenVault`
+- Sign-in shape: web `beginSignIn()`/`completeSignIn(callbackUrl)` (page
+  redirect via the shared `services/google-oauth` token function — web needs a
+  confidential client) ↔ Apple `signIn()` (in-process
+  `ASWebAuthenticationSession`, iOS-type client, no backend, no secret)
+- `CryptoKit`/`AuthenticationServices`/`Security` imports are confined to
+  `Auth/`; everything else stays Foundation + Observation.
