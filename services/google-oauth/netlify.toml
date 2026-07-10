@@ -1,0 +1,7 @@
+# Stateless Google OAuth token exchange shared by the Ally web apps.
+# Env (set in the Netlify UI): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, ALLOWED_ORIGINS.
+[build]
+  publish = "public"
+
+[functions]
+  directory = "functions"
