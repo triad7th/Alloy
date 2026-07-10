@@ -72,6 +72,14 @@ public final class DriveClient: Sendable {
       .replacingOccurrences(of: "'", with: "%27")
   }
 
+  /// Escape a value interpolated into a Drive `q` string literal: backslash
+  /// first (so the escaping backslash itself isn't re-escaped), then quote.
+  /// Twin of TS escapeQueryValue.
+  private func escapeQueryValue(_ raw: String) -> String {
+    raw.replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: "'", with: "\\'")
+  }
+
   private func multipart(meta: [String: Any], content: String) -> (
     headers: [String: String], body: Data
   ) {
@@ -91,7 +99,7 @@ public final class DriveClient: Sendable {
   private func findFolder(name: String, parentId: String?) async throws -> String? {
     let parent = parentId.map { " and '\($0)' in parents" } ?? ""
     let q = encodeQuery(
-      "name='\(name)' and mimeType='\(folderMime)' and trashed=false\(parent)")
+      "name='\(escapeQueryValue(name))' and mimeType='\(folderMime)' and trashed=false\(parent)")
     let data = try await call("\(api)/files?q=\(q)&fields=files(id)")
     return try JSONDecoder().decode(FolderIdList.self, from: data).files?.first?.id
   }
@@ -130,10 +138,11 @@ public final class DriveClient: Sendable {
   }
 
   public func findByAlloyId(folderId: String, id: String) async throws -> DriveFileMeta? {
+    let escapedId = escapeQueryValue(id)
     let q = encodeQuery(
       "'\(folderId)' in parents and trashed=false and "
-        + "(appProperties has { key='alloyId' and value='\(id)' } or "
-        + "appProperties has { key='allyscoreId' and value='\(id)' })")
+        + "(appProperties has { key='alloyId' and value='\(escapedId)' } or "
+        + "appProperties has { key='allyscoreId' and value='\(escapedId)' })")
     let data = try await call(
       "\(api)/files?q=\(q)&fields=files(id,name,appProperties,headRevisionId)")
     return try JSONDecoder().decode(FileList.self, from: data).files?.first

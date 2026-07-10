@@ -84,6 +84,16 @@ final class ScriptedTransport: HTTPTransport, @unchecked Sendable {
     #expect(q.contains(" or "))
   }
 
+  @Test func findByAlloyIdEscapesAQuoteInTheIdSoItCannotBreakTheDriveQueryGrammar() async throws {
+    let transport = ScriptedTransport([
+      .init(matches: { _ in true }, body: #"{"files":[]}"#, status: 200)
+    ])
+    let client = DriveClient(auth: StubAuth(token: "tok"), transport: transport)
+    _ = try await client.findByAlloyId(folderId: "f1", id: "it's")
+    let q = transport.requests[0].url!.absoluteString.removingPercentEncoding!
+    #expect(q.contains(#"value='it\'s'"#))
+  }
+
   @Test func encodesNonASCIIQueryCharactersLikeEncodeURIComponent() async throws {
     let transport = ScriptedTransport([
       .init(matches: { _ in true }, body: #"{"files":[{"id":"f1"}]}"#, status: 200)

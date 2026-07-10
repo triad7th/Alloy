@@ -149,6 +149,23 @@ describe('GoogleAuth', () => {
     expect((await tokenStore.load())?.refreshToken).toBe('rt');
   });
 
+  it('completeSignIn resolves false (never throws) when the token exchange fetch throws', async () => {
+    let navigated = '';
+    const session = fakeSession();
+    const failing: typeof fetch = async () => {
+      throw new TypeError('offline');
+    };
+    const { setup } = auth({ fetch: failing, navigate: (u) => (navigated = u), session });
+    const a = await setup();
+    await a.beginSignIn();
+    const state = new URL(navigated).searchParams.get('state')!;
+
+    await expect(a.completeSignIn(`https://app.example/oauth?code=c1&state=${state}`)).resolves.toBe(
+      false
+    );
+    expect(a.state).not.toBe('signedIn');
+  });
+
   it('completeSignIn rejects a state mismatch without exchanging', async () => {
     const { fn, calls } = jsonFetch(() => ({ status: 200, body: {} }));
     const session = fakeSession();

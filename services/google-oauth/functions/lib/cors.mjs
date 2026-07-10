@@ -11,6 +11,7 @@ export function corsHeaders(request) {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'POST, OPTIONS',
     'access-control-allow-headers': 'content-type',
+    vary: 'Origin',
   };
 }
 
@@ -26,7 +27,16 @@ export async function handle(request, onBody) {
   } catch {
     return new Response('invalid JSON', { status: 400, headers: cors });
   }
-  const result = await onBody(body);
+  let result;
+  try {
+    result = await onBody(body);
+  } catch {
+    // Never leak internal error details to the client.
+    return new Response(JSON.stringify({ error: 'internal error' }), {
+      status: 500,
+      headers: { ...cors, 'content-type': 'application/json' },
+    });
+  }
   return new Response(JSON.stringify(result.body), {
     status: result.status,
     headers: { ...cors, 'content-type': 'application/json' },

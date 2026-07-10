@@ -7,6 +7,7 @@ process.env.ALLOWED_ORIGINS = 'https://score.example,https://clock.example';
 
 const { default: token } = await import('../functions/token.mjs');
 const { default: refresh } = await import('../functions/refresh.mjs');
+const { handle } = await import('../functions/lib/cors.mjs');
 
 function req(path, { method = 'POST', origin = 'https://score.example', body } = {}) {
   return new Request(`https://oauth.example${path}`, {
@@ -63,6 +64,17 @@ test('handles OPTIONS preflight with 204 + CORS headers', async () => {
   assert.equal(res.status, 204);
   assert.equal(res.headers.get('access-control-allow-origin'), 'https://score.example');
   assert.equal(res.headers.get('access-control-allow-headers'), 'content-type');
+  assert.equal(res.headers.get('vary'), 'Origin');
+});
+
+test('an onBody throw maps to 500 with no leaked error details, keeping CORS headers', async () => {
+  const res = await handle(req('/whatever', { body: { anything: true } }), async () => {
+    throw new Error('boom: some internal detail');
+  });
+  assert.equal(res.status, 500);
+  assert.equal(res.headers.get('access-control-allow-origin'), 'https://score.example');
+  const body = await res.json();
+  assert.deepEqual(body, { error: 'internal error' });
 });
 
 test('rejects a missing/invalid body with 400', async () => {

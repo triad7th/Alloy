@@ -58,11 +58,13 @@ describe('DriveBackend', () => {
       { id: 'd1', name: 'a.json', headRevisionId: 'r1', appProperties: { alloyId: 'a', alloySavedAt: String(T1) } },
       { id: 'd2', name: 'b.allyscore', appProperties: { allyscoreId: 'b', savedAt: String(T1) } },
       { id: 'd3', name: 'stranger.txt' }, // no alloy identity → skipped
+      { id: 'd4', name: 'c.json', appProperties: { alloyId: 'c', alloySavedAt: 'garbage' } },
     ]);
     const b = new DriveBackend(fakeClient({ listFiles } as Partial<DriveClient>), 'App', memStorage());
     expect(await b.list()).toEqual([
       { id: 'a', name: 'a.json', updatedAt: T1, revision: 'r1' },
       { id: 'b', name: 'b.allyscore', updatedAt: T1 },
+      { id: 'c', name: 'c.json', updatedAt: 0 }, // unparseable savedAt → 0, not NaN (twin of Swift)
     ]);
   });
 

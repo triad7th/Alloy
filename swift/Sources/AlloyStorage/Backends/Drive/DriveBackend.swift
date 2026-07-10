@@ -51,19 +51,24 @@ public actor DriveBackend: StorageBackend {
 
   private func ensureFolder() async throws -> String {
     if let folderId { return folderId }
-    let task: Task<String, Error>
     if let existing = folderTask {
-      task = existing
-    } else {
-      task = Task { try await self.resolveFolder() }
-      folderTask = task
+      return try await existing.value
     }
-    defer { folderTask = nil }  // a rejected resolve may retry later
+    // Clearing happens inside the task closure so it settles exactly once,
+    // when the task itself resolves — mirroring TS's `.finally`. A per-awaiter
+    // `defer` here would instead run once per awaiter: actor reentrancy lets a
+    // late awaiter of a FAILED task null out a NEWER in-flight task, letting
+    // two callers both think no resolution is in flight and both re-resolve.
+    let task = Task<String, Error> {
+      defer { self.folderTask = nil }
+      return try await self.resolveFolder()
+    }
+    folderTask = task
     return try await task.value
   }
 
   private func resolveFolder() async throws -> String {
-    if let cached = cache?.string(forKey: cacheKey) {
+    if let cached = cache?.string(forKey: cacheKey), !cached.isEmpty {
       folderId = cached
       return cached
     }

@@ -81,4 +81,15 @@ describe('DriveClient', () => {
     expect(q).toContain("key='allyscoreId' and value='id9'");
     expect(q).toContain(' or ');
   });
+
+  it('escapes a quote in the id so it cannot break the Drive query grammar', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new DriveClient(
+      auth,
+      fakeFetch([{ match: () => true, response: { files: [] } }], calls)
+    );
+    await client.findByAlloyId('f1', "it's");
+    const q = decodeURIComponent(calls[0].url);
+    expect(q).toContain("value='it\\'s'");
+  });
 });

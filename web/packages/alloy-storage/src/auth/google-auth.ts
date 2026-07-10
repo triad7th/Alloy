@@ -72,28 +72,35 @@ export class GoogleAuth implements AuthProvider {
     this.navigate(url.toString());
   }
 
-  /** Call on the redirect page. Returns false on state mismatch / missing code. */
+  /** Call on the redirect page. Returns false on state mismatch / missing code,
+   *  and — per contract (mirrored by the Swift twin) — on ANY thrown error:
+   *  a corrupted session entry (JSON.parse) or a network-failed exchange
+   *  (this.post) must resolve false, never reject. */
   async completeSignIn(callbackUrl: string): Promise<boolean> {
     const pending = this.session.getItem(SESSION_KEY);
     this.session.removeItem(SESSION_KEY);
     if (!pending) return false;
-    const { verifier, state } = JSON.parse(pending) as { verifier: string; state: string };
-    const params = new URL(callbackUrl).searchParams;
-    const code = params.get('code');
-    if (!code || params.get('state') !== state) return false;
-    const res = await this.post('/token', {
-      code,
-      codeVerifier: verifier,
-      redirectUri: this.config.redirectUri,
-    });
-    if (!res.ok) return false;
-    await this.tokenStore.save({
-      accessToken: res.data.accessToken,
-      expiresAt: this.now() + res.data.expiresIn * 1000,
-      refreshToken: res.data.refreshToken ?? null,
-    });
-    this._state = 'signedIn';
-    return true;
+    try {
+      const { verifier, state } = JSON.parse(pending) as { verifier: string; state: string };
+      const params = new URL(callbackUrl).searchParams;
+      const code = params.get('code');
+      if (!code || params.get('state') !== state) return false;
+      const res = await this.post('/token', {
+        code,
+        codeVerifier: verifier,
+        redirectUri: this.config.redirectUri,
+      });
+      if (!res.ok) return false;
+      await this.tokenStore.save({
+        accessToken: res.data.accessToken,
+        expiresAt: this.now() + res.data.expiresIn * 1000,
+        refreshToken: res.data.refreshToken ?? null,
+      });
+      this._state = 'signedIn';
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async accessToken(): Promise<string | null> {

@@ -63,10 +63,16 @@ export class DriveClient {
     return encodeURIComponent(raw).replace(/'/g, '%27');
   }
 
+  /** Escape a value interpolated into a Drive `q` string literal: backslash
+   *  first (so the escaping backslash itself isn't re-escaped), then quote. */
+  private escapeQueryValue(raw: string): string {
+    return raw.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+
   private async findFolder(name: string, parentId: string | null): Promise<string | null> {
     const parent = parentId ? ` and '${parentId}' in parents` : '';
     const q = this.encodeQuery(
-      `name='${name}' and mimeType='${FOLDER_MIME}' and trashed=false${parent}`
+      `name='${this.escapeQueryValue(name)}' and mimeType='${FOLDER_MIME}' and trashed=false${parent}`
     );
     const res = await this.call(`${API}/files?q=${q}&fields=files(id)`);
     const body = (await res.json()) as { files?: Array<{ id: string }> };
@@ -106,10 +112,11 @@ export class DriveClient {
   }
 
   async findByAlloyId(folderId: string, id: string): Promise<DriveFileMeta | null> {
+    const escapedId = this.escapeQueryValue(id);
     const q = this.encodeQuery(
       `'${folderId}' in parents and trashed=false and ` +
-        `(appProperties has { key='alloyId' and value='${id}' } or ` +
-        `appProperties has { key='allyscoreId' and value='${id}' })`
+        `(appProperties has { key='alloyId' and value='${escapedId}' } or ` +
+        `appProperties has { key='allyscoreId' and value='${escapedId}' })`
     );
     const res = await this.call(
       `${API}/files?q=${q}&fields=files(id,name,appProperties,headRevisionId)`

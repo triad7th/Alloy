@@ -13,7 +13,8 @@ function toMeta(file: DriveFileMeta): StorageRecordMeta | null {
   const p = file.appProperties ?? {};
   const id = p['alloyId'] ?? p['allyscoreId'];
   if (!id) return null; // not ours — a foreign file sharing the folder
-  const updatedAt = Number(p['alloySavedAt'] ?? p['savedAt'] ?? 0);
+  const raw = Number(p['alloySavedAt'] ?? p['savedAt'] ?? 0);
+  const updatedAt = Number.isFinite(raw) ? raw : 0;
   const meta: StorageRecordMeta = { id, name: file.name, updatedAt };
   return file.headRevisionId ? { ...meta, revision: file.headRevisionId } : meta;
 }
