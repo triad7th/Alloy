@@ -287,17 +287,28 @@ public final class GoogleAuth: AuthProvider, @unchecked Sendable {
         session.prefersEphemeralWebBrowserSession = false
         session.presentationContextProvider = AuthPresentationContextProvider.shared
         currentSession = session
-        session.start()
+        // start() must run on the main thread: ASWebAuthenticationSession
+        // synchronously queries presentationAnchor(for:) as part of a "dry
+        // run" on whatever thread called start(), and that method assumes
+        // it's already on the main actor. authenticate(url:callbackScheme:)
+        // is called from arbitrary Tasks (e.g. a SwiftUI button action),
+        // which do not inherit MainActor by default — an off-main start()
+        // crashes instead of hopping.
+        DispatchQueue.main.async {
+          session.start()
+        }
       }
     }
   }
 
   /// Presentation anchor: the key window on whichever platform has one.
   /// `presentationAnchor` is declared `nonisolated` and hops to the main
-  /// actor internally via `assumeIsolated` — safe because
-  /// `ASWebAuthenticationSession` always invokes this on the main thread —
-  /// so the type itself stays free of implicit main-actor isolation and
-  /// `shared` can be a plain static constant.
+  /// actor internally via `assumeIsolated` — safe only because
+  /// `DefaultAuthUISession.authenticate` forces `session.start()` onto the
+  /// main thread; `ASWebAuthenticationSession` queries this method
+  /// synchronously from whatever thread `start()` is called on, not
+  /// necessarily the main thread. `assumeIsolated` traps if that
+  /// invariant is ever broken — it does not hop.
   private final class AuthPresentationContextProvider: NSObject,
     ASWebAuthenticationPresentationContextProviding, @unchecked Sendable
   {
