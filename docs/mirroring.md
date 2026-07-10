@@ -167,7 +167,8 @@ the StorageError table run the same scenarios and instants on both platforms):
 - `PKCE` helpers (RFC 7636 vector as the twin fixture)
 - `GoogleAuth` refresh state machine (5-minute proactive margin; rejected grant
   clears stored tokens → `expired` (web keys on 401 from the token service,
-  Swift on Google 4xx since Google returns 400 for invalid_grant); network failure keeps the refresh token)
+  Swift on Google 4xx since Google returns 400 for invalid_grant); 5xx and
+  network failures keep the refresh token)
 
 **Semantic regime** (same behavior, platform-appropriate shape):
 
