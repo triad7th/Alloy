@@ -10,3 +10,6 @@ dist/
 # examples/apple-harness: xcodegen output + iOS build products (regenerate: xcodegen generate)
 examples/apple-harness/AlloyHarnessIOS.xcodeproj/
 examples/apple-harness/.build-ios/
+
+# local secrets for services (never committed)
+services/google-oauth/.env
