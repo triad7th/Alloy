@@ -38,6 +38,7 @@
   left: 0;
   right: 0;
   bottom: 0;
+  margin-inline: auto; // centers the panel when max-width constrains it
   display: flex;
   flex-direction: column;
   // Translucent panel: the face shows through, frosted by a backdrop blur.

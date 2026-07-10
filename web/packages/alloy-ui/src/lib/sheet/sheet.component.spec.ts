@@ -21,6 +21,7 @@ describe('SheetComponent', () => {
       fullHeight?: boolean;
       sheetLabel?: string;
       contained?: boolean;
+      maxWidth?: number;
     } = {},
   ) {
     const fixture = TestBed.createComponent(SheetComponent);
@@ -31,6 +32,7 @@ describe('SheetComponent', () => {
       fixture.componentRef.setInput('sheetLabel', inputs.sheetLabel);
     if (inputs.contained !== undefined)
       fixture.componentRef.setInput('contained', inputs.contained);
+    if (inputs.maxWidth !== undefined) fixture.componentRef.setInput('maxWidth', inputs.maxWidth);
     fixture.detectChanges();
     return fixture;
   }
@@ -76,6 +78,22 @@ describe('SheetComponent', () => {
     const fixture = createSheet({ contained: true });
     const overlay = (fixture.nativeElement as HTMLElement).querySelector('.sheet-overlay');
     expect(overlay?.classList.contains('contained')).toBe(true);
+  });
+
+  it('leaves the panel unconstrained by default', () => {
+    const fixture = createSheet();
+    const panel = (fixture.nativeElement as HTMLElement).querySelector(
+      '.sheet-panel',
+    ) as HTMLElement;
+    expect(panel.style.maxWidth).toBe('');
+  });
+
+  it('constrains and centers the panel when [maxWidth] is set', () => {
+    const fixture = createSheet({ maxWidth: 480 });
+    const panel = (fixture.nativeElement as HTMLElement).querySelector(
+      '.sheet-panel',
+    ) as HTMLElement;
+    expect(panel.style.maxWidth).toBe('480px');
   });
 
   it('close() emits (closed) only after SHEET_ANIMATION_MS', () => {

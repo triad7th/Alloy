@@ -95,7 +95,7 @@ other, the API is probably leaking platform detail — redesign it.
 
 ## UI mirroring (AlloyUI)
 
-UI twins are semantic mirrors, not transliterations. The web and iOS implementations share the same **component names, semantic roles, and behavioral contracts** — apply-on-close sheets, consistent dismissal paths, synchronized auto-hide timing, and identical selected/disabled a11y states — while keeping internals idiomatic per platform.
+UI twins are semantic mirrors, not transliterations. The web and iOS implementations share the same **component names, semantic roles, and behavioral contracts** — apply-on-close sheets, consistent dismissal paths, synchronized auto-hide timing, and identical selected/disabled a11y states — while keeping internals idiomatic per platform. The sheet twins (`SheetComponent` ↔ `GlassSheet`) both accept an optional panel max width (`maxWidth` input / `maxWidth: CGFloat?`), default unconstrained: a constrained panel centers while the backdrop still fills the screen.
 
 **Token generation is the hard-shared layer.** `tokens.json` is the single source of truth for colors, durations, and sizes, fed through `tools/generate-tokens.mjs` to emit:
 - `web/packages/alloy-ui/src/styles/_tokens.scss` (SCSS variables used by components)

@@ -49,6 +49,8 @@ public struct GlassSheet<Content: View>: View {
     /// width (root ignores the safe area), so the header must clear the
     /// Dynamic Island / rounded corners itself.
     var hInset: CGFloat = 0
+    /// Panel max width; nil (default) spans the window. Web twin: `maxWidth`.
+    var maxWidth: CGFloat?
     /// Fires once, after the slide-out completes. Presenters clear their
     /// sheet state (and commit any pending selection) here.
     let onClosed: () -> Void
@@ -56,10 +58,12 @@ public struct GlassSheet<Content: View>: View {
 
     @State private var shown = false
 
-    public init(title: String, hInset: CGFloat = 0, onClosed: @escaping () -> Void,
+    public init(title: String, hInset: CGFloat = 0, maxWidth: CGFloat? = nil,
+                onClosed: @escaping () -> Void,
                 @ViewBuilder content: @escaping (_ dismiss: @escaping () -> Void) -> Content)
     {
-        self.title = title; self.hInset = hInset; self.onClosed = onClosed; self.content = content
+        self.title = title; self.hInset = hInset; self.maxWidth = maxWidth
+        self.onClosed = onClosed; self.content = content
     }
 
     private var panelShape: UnevenRoundedRectangle {
@@ -98,7 +102,7 @@ public struct GlassSheet<Content: View>: View {
                         .padding(.top, 16)
                         .padding(.bottom, 20)
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: maxWidth ?? .infinity)
                 .glassEffect(.regular, in: panelShape)
                 // The X sits in an overlay applied AFTER glassEffect: glass nested
                 // inside another glass surface renders its pressed state as a

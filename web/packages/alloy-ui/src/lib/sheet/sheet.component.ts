@@ -35,6 +35,8 @@ export class SheetComponent implements OnDestroy {
   readonly contained = input(false);
   /** aria-label for the dialog. */
   readonly sheetLabel = input<string>('');
+  /** Panel max width in px; null (default) spans the viewport. */
+  readonly maxWidth = input<number | null>(null);
 
   /** Emitted once, after the exit animation completes. */
   readonly closed = output<void>();
