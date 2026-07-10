@@ -2,7 +2,7 @@ import Foundation
 
 /// Local replica backend on the file system: one JSON file per record under
 /// `<directory>/<collection>/`. Default directory is Application Support.
-public final class LocalStorageBackend: StorageBackend, @unchecked Sendable {
+public actor LocalStorageBackend: StorageBackend {
   private struct Stored: Codable {
     let id: String
     let name: String
@@ -12,7 +12,6 @@ public final class LocalStorageBackend: StorageBackend, @unchecked Sendable {
   }
 
   private let folder: URL
-  private let queue = DispatchQueue(label: "alloy-storage.local")
 
   public init(collection: String, directory: URL? = nil) {
     let base = directory
@@ -43,42 +42,34 @@ public final class LocalStorageBackend: StorageBackend, @unchecked Sendable {
   }
 
   public func list() async throws -> [StorageRecordMeta] {
-    try queue.sync {
-      guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
-      let files = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
-      return try files.filter { $0.pathExtension == "json" }.map { try decode($0).meta }
-    }
+    guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
+    let files = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+    return try files.filter { $0.pathExtension == "json" }.map { try decode($0).meta }
   }
 
   public func read(id: String) async throws -> StorageRecord? {
-    try queue.sync {
-      let url = fileURL(for: id)
-      guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-      return try decode(url)
-    }
+    let url = fileURL(for: id)
+    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+    return try decode(url)
   }
 
   @discardableResult
   public func write(_ record: StorageRecord) async throws -> StorageRecordMeta {
-    try queue.sync {
-      try ensureFolder()
-      let stored = Stored(
-        id: record.id,
-        name: record.name,
-        updatedAtMs: record.updatedAt.timeIntervalSince1970 * 1000,
-        revision: record.revision,
-        payload: record.payload
-      )
-      try JSONEncoder().encode(stored).write(to: fileURL(for: record.id), options: .atomic)
-      return record.meta
-    }
+    try ensureFolder()
+    let stored = Stored(
+      id: record.id,
+      name: record.name,
+      updatedAtMs: record.updatedAt.timeIntervalSince1970 * 1000,
+      revision: record.revision,
+      payload: record.payload
+    )
+    try JSONEncoder().encode(stored).write(to: fileURL(for: record.id), options: .atomic)
+    return record.meta
   }
 
   public func delete(id: String) async throws {
-    try queue.sync {
-      let url = fileURL(for: id)
-      guard FileManager.default.fileExists(atPath: url.path) else { return }
-      try FileManager.default.removeItem(at: url)
-    }
+    let url = fileURL(for: id)
+    guard FileManager.default.fileExists(atPath: url.path) else { return }
+    try FileManager.default.removeItem(at: url)
   }
 }
