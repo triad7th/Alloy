@@ -6,8 +6,9 @@ import SwiftUI
 /// redirect scheme is the reversed client id Google shows you, e.g.
 /// "com.googleusercontent.apps.1234567890-abc". Empty strings = the Drive
 /// card shows these setup steps instead.
-private let googleClientID = ""
-private let googleRedirectScheme = ""
+private let googleClientID =
+    "929183445053-vpi4bqqbhakoaan3tassdi5m0ng9aood.apps.googleusercontent.com"
+private let googleRedirectScheme = "com.googleusercontent.apps.929183445053-vpi4bqqbhakoaan3tassdi5m0ng9aood"
 private let driveScope = "https://www.googleapis.com/auth/drive.file"
 private let driveFolder = "AlloyHarness"
 
