@@ -52,16 +52,20 @@ public final class MemoryTokenVault: TokenVault, @unchecked Sendable {
 /// data is the JSON encoding of `StoredTokens` — durable persistence, the
 /// twin of the web `IndexedDbTokenStore`.
 public final class KeychainTokenVault: TokenVault, @unchecked Sendable {
-  private static let service = "alloy-storage.google"
   private static let account = "tokens"
+  private let service: String
   private let lock = NSLock()
 
-  public init() {}
+  /// `service` is parameterized so tests can round-trip against a scratch
+  /// Keychain entry; production callers keep the default.
+  public init(service: String = "alloy-storage.google") {
+    self.service = service
+  }
 
   public func load() throws -> StoredTokens? {
     #if canImport(Security)
       return try lock.withLock {
-        var query = Self.baseQuery
+        var query = baseQuery
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -84,8 +88,8 @@ public final class KeychainTokenVault: TokenVault, @unchecked Sendable {
         let data = try JSONEncoder().encode(tokens)
         // Replace-or-add: delete any existing item first, then add fresh —
         // simpler and just as correct as SecItemUpdate for a single item.
-        SecItemDelete(Self.baseQuery as CFDictionary)
-        var attrs = Self.baseQuery
+        SecItemDelete(baseQuery as CFDictionary)
+        var attrs = baseQuery
         attrs[kSecValueData as String] = data
         attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
         let status = SecItemAdd(attrs as CFDictionary, nil)
@@ -101,7 +105,7 @@ public final class KeychainTokenVault: TokenVault, @unchecked Sendable {
   public func clear() throws {
     #if canImport(Security)
       try lock.withLock {
-        let status = SecItemDelete(Self.baseQuery as CFDictionary)
+        let status = SecItemDelete(baseQuery as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
           throw StorageError(category: .unreachable, message: "keychain clear failed (\(status))")
         }
@@ -112,11 +116,11 @@ public final class KeychainTokenVault: TokenVault, @unchecked Sendable {
   }
 
   #if canImport(Security)
-    private static var baseQuery: [String: Any] {
+    private var baseQuery: [String: Any] {
       [
         kSecClass as String: kSecClassGenericPassword,
         kSecAttrService as String: service,
-        kSecAttrAccount as String: account,
+        kSecAttrAccount as String: Self.account,
       ]
     }
   #endif
