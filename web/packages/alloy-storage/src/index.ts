@@ -6,3 +6,6 @@ export * from './core/errors.js';
 export * from './backends/browser-storage.js';
 export * from './backends/drive/drive-client.js';
 export * from './backends/drive/drive-backend.js';
+export * from './auth/pkce.js';
+export * from './auth/token-store.js';
+export * from './auth/google-auth.js';
