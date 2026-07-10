@@ -2,8 +2,11 @@
  *  headers for an allowed origin, or null for a disallowed one. */
 export function corsHeaders(request) {
   const origin = request.headers.get('origin') ?? '';
-  const allowed = (process.env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim());
-  if (!allowed.includes(origin)) return null;
+  const allowed = (process.env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!origin || !allowed.includes(origin)) return null;
   return {
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'POST, OPTIONS',

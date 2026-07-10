@@ -70,3 +70,37 @@ test('rejects a missing/invalid body with 400', async () => {
   const res = await token(req('/token', { body: {} }));
   assert.equal(res.status, 400);
 });
+
+test('maps a Google 5xx to 502, keeping CORS headers', async () => {
+  mockGoogle({}, 503);
+  const res = await refresh(req('/refresh', { body: { refreshToken: 'rt' } }));
+  assert.equal(res.status, 502);
+  assert.equal(res.headers.get('access-control-allow-origin'), 'https://score.example');
+});
+
+test('maps a thrown fetch to 502, keeping CORS headers', async () => {
+  globalThis.fetch = async () => {
+    throw new TypeError('fetch failed');
+  };
+  const res = await refresh(req('/refresh', { body: { refreshToken: 'rt' } }));
+  assert.equal(res.status, 502);
+  assert.equal(res.headers.get('access-control-allow-origin'), 'https://score.example');
+});
+
+test('rejects a missing origin when ALLOWED_ORIGINS is unset with 403', async () => {
+  const saved = process.env.ALLOWED_ORIGINS;
+  delete process.env.ALLOWED_ORIGINS;
+  try {
+    mockGoogle({});
+    const res = await token(
+      new Request('https://oauth.example/token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code: 'c', codeVerifier: 'v', redirectUri: 'https://x/cb' }),
+      }),
+    );
+    assert.equal(res.status, 403);
+  } finally {
+    process.env.ALLOWED_ORIGINS = saved;
+  }
+});
