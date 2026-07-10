@@ -11,13 +11,13 @@ import {
 
 /** Fill these in to light up the Drive half of the demo:
  *  1. Google Cloud console → OAuth web client (code flow); add the harness
- *     origin (http://localhost:4200) as an authorized redirect URI.
+ *     origin (http://localhost:4205) as an authorized JS origin + redirect URI.
  *  2. Run the token service locally: `netlify dev` in services/google-oauth
- *     with GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / ALLOWED_ORIGINS set
- *     (ALLOWED_ORIGINS=http://localhost:4200).
+ *     with GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / ALLOWED_ORIGINS set in
+ *     its .env (ALLOWED_ORIGINS=http://localhost:4205).
  *  Empty strings = the Drive card shows these setup steps instead. */
 const GOOGLE_CLIENT_ID =
-  '705555068863-ovkcqfbaf0ldrkl8v63vjsatgtjkdvmo.apps.googleusercontent.com';
+  '929183445053-ifjjaptf6g48orqj2eu8o06macrp752a.apps.googleusercontent.com';
 const TOKEN_SERVICE_URL = 'http://localhost:8888';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_FOLDER = 'AlloyHarness';
