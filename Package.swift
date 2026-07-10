@@ -8,6 +8,7 @@ let package = Package(
     .library(name: "AlloyTime", targets: ["AlloyTime"]),
     .library(name: "AlloyUI", targets: ["AlloyUI"]),
     .library(name: "AlloyAudio", targets: ["AlloyAudio"]),
+    .library(name: "AlloyStorage", targets: ["AlloyStorage"]),
   ],
   targets: [
     .target(name: "AlloyTime", path: "swift/Sources/AlloyTime"),
@@ -19,5 +20,8 @@ let package = Package(
     .target(name: "AlloyAudio", path: "swift/Sources/AlloyAudio"),
     .testTarget(name: "AlloyAudioTests", dependencies: ["AlloyAudio"],
                 path: "swift/Tests/AlloyAudioTests"),
+    .target(name: "AlloyStorage", path: "swift/Sources/AlloyStorage"),
+    .testTarget(name: "AlloyStorageTests", dependencies: ["AlloyStorage"],
+                path: "swift/Tests/AlloyStorageTests"),
   ]
 )
