@@ -15,7 +15,10 @@ export class BrowserStorageBackend implements StorageBackend {
   ) {}
 
   private open(): Promise<IDBDatabase> {
-    this.db ??= openDatabase(`alloy-storage.${this.collection}`, STORE, this.idbFactory);
+    this.db ??= openDatabase(`alloy-storage.${this.collection}`, STORE, this.idbFactory).catch((e) => {
+      this.db = null; // a failed open may be retried on the next call
+      throw e;
+    });
     return this.db;
   }
 
