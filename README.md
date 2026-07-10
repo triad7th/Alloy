@@ -21,7 +21,7 @@ libraries.
 
 ## Structure
 
-```
+```text
 swift/                    Swift package "Alloy" — one product per library
   Sources/AlloyTime/
   Tests/AlloyTimeTests/
@@ -31,7 +31,54 @@ web/                      npm workspace — one package per library
 docs/
   mirroring.md            the twin-API convention both ecosystems follow
   superpowers/specs/      design specs (start with the founding spec)
+examples/
+  web-harness/            Angular preview app (consumes packages from source)
+  apple-harness/          SwiftUI preview app (macOS via SwiftPM, iOS via xcodegen)
 ```
+
+## Running the preview harnesses
+
+Private demo apps for every library surface — never packed, tagged, or
+released. Both consume the libraries **from source**, so edits show up on
+the next build.
+
+**Web** (<http://localhost:4200>):
+
+```sh
+cd examples/web-harness
+npm install   # first time only
+npx ng serve
+```
+
+**macOS** (opens a window; no Xcode project needed):
+
+```sh
+cd examples/apple-harness
+swift run AlloyHarness
+```
+
+**iOS simulator** (generated project; `brew install xcodegen` first time):
+
+```sh
+cd examples/apple-harness
+xcodegen generate
+xcodebuild -project AlloyHarnessIOS.xcodeproj -scheme AlloyHarnessIOS \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
+```
+
+then run the scheme from Xcode, or install/launch by hand:
+
+```sh
+APP=$(find ~/Library/Developer/Xcode/DerivedData -path "*Debug-iphonesimulator/AlloyHarnessIOS.app" | head -1)
+xcrun simctl boot "iPhone 17 Pro"; open -a Simulator
+xcrun simctl install "iPhone 17 Pro" "$APP"
+xcrun simctl launch "iPhone 17 Pro" world.ally.AlloyHarnessIOS
+```
+
+The storage demos' Google Drive halves need one-time OAuth setup — the
+constants at the top of `storage-section.component.ts` (web: client id +
+token-service URL) and `StorageDemoView.swift` (Apple: iOS-type client id +
+redirect scheme) explain what to create in the Google Cloud console.
 
 ## How apps consume Alloy
 

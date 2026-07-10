@@ -55,11 +55,7 @@ struct SynthDemoView: View {
             }
             // Wider than an iPhone screen — scrolls instead of stretching the page.
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 4) {
-                    ForEach(keys, id: \.midi) { key in
-                        keyButton(key.midi, name: key.name)
-                    }
-                }
+                keyboard
             }
         }
         .onAppear {
@@ -71,6 +67,35 @@ struct SynthDemoView: View {
             }
         }
         .onDisappear { engine?.allNotesOff() }
+    }
+
+    private let whiteWidth: CGFloat = 38
+    private let blackWidth: CGFloat = 30
+    private let keyGap: CGFloat = 4
+
+    /// Real piano layout: white keys in a row, black keys overlaid on the
+    /// boundary between their neighbors (drawn last, so they win hit-testing).
+    private var keyboard: some View {
+        let whites = keys.filter { !Pitch.isBlackKey(midi: $0.midi) }
+        var blacks: [(midi: Int, name: String, leftWhites: Int)] = []
+        var whitesSeen = 0
+        for key in keys {
+            if Pitch.isBlackKey(midi: key.midi) {
+                blacks.append((key.midi, key.name, whitesSeen))
+            } else {
+                whitesSeen += 1
+            }
+        }
+        return ZStack(alignment: .topLeading) {
+            HStack(spacing: keyGap) {
+                ForEach(whites, id: \.midi) { keyButton($0.midi, name: $0.name) }
+            }
+            ForEach(blacks, id: \.midi) { black in
+                keyButton(black.midi, name: black.name)
+                    .offset(x: CGFloat(black.leftWhites) * (whiteWidth + keyGap)
+                        - keyGap / 2 - blackWidth / 2)
+            }
+        }
     }
 
     private func keyButton(_ midi: Int, name: String) -> some View {
