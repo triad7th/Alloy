@@ -17,6 +17,7 @@ struct HarnessRootView: View {
                 section("Flag & zone picker") { zoneDemo }
                 section("Synth") { SynthDemoView() }
                 section("Chrome") { ChromeDemoView() }
+                section("Storage") { StorageDemoView() }
             }
             .padding(24)
         }

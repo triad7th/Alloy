@@ -53,9 +53,12 @@ struct SynthDemoView: View {
                     engine?.setInstrument($0)
                 }
             }
-            HStack(spacing: 4) {
-                ForEach(keys, id: \.midi) { key in
-                    keyButton(key.midi, name: key.name)
+            // Wider than an iPhone screen — scrolls instead of stretching the page.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 4) {
+                    ForEach(keys, id: \.midi) { key in
+                        keyButton(key.midi, name: key.name)
+                    }
                 }
             }
         }

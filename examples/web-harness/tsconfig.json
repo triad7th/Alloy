@@ -18,7 +18,8 @@
     "paths": {
       "@allyworld/alloy-time": ["../../web/packages/alloy-time/src/index.ts"],
       "@allyworld/alloy-ui": ["../../web/packages/alloy-ui/src/public-api.ts"],
-      "@allyworld/alloy-audio": ["../../web/packages/alloy-audio/src/index.ts"]
+      "@allyworld/alloy-audio": ["../../web/packages/alloy-audio/src/index.ts"],
+      "@allyworld/alloy-storage": ["../../web/packages/alloy-storage/src/index.ts"]
     },
     "target": "ES2022",
     "module": "ES2022"

@@ -1,0 +1,37 @@
+# iOS preview harness — same sources as the macOS `swift run AlloyHarness`
+# executable, wrapped in an iOS app target for simulator/device preview.
+# The .xcodeproj is generated and disposable (gitignored):
+#   xcodegen generate
+#   xcodebuild -project AlloyHarnessIOS.xcodeproj -scheme AlloyHarnessIOS \
+#     -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
+name: AlloyHarnessIOS
+options:
+  bundleIdPrefix: world.ally
+packages:
+  Alloy:
+    path: ../..
+targets:
+  AlloyHarnessIOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - Sources/AlloyHarness
+    dependencies:
+      - package: Alloy
+        product: AlloyTime
+      - package: Alloy
+        product: AlloyUI
+      - package: Alloy
+        product: AlloyAudio
+      - package: Alloy
+        product: AlloyStorage
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: world.ally.AlloyHarnessIOS
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "6.0"
+        CODE_SIGNING_ALLOWED: NO

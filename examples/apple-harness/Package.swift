@@ -19,6 +19,7 @@ let package = Package(
         .product(name: "AlloyTime", package: "Alloy"),
         .product(name: "AlloyUI", package: "Alloy"),
         .product(name: "AlloyAudio", package: "Alloy"),
+        .product(name: "AlloyStorage", package: "Alloy"),
       ],
       path: "Sources/AlloyHarness"
     )

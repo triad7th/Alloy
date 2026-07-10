@@ -6,3 +6,7 @@ dist/
 .angular/
 *.tgz
 .DS_Store
+
+# examples/apple-harness: xcodegen output + iOS build products (regenerate: xcodegen generate)
+examples/apple-harness/AlloyHarnessIOS.xcodeproj/
+examples/apple-harness/.build-ios/
