@@ -13,3 +13,7 @@ examples/apple-harness/.build-ios/
 
 # local secrets for services (never committed)
 services/google-oauth/.env
+
+# Local Netlify folder
+.netlify
+examples/apple-harness/AlloyHarnessIOS.entitlements
