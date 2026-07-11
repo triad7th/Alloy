@@ -17,3 +17,4 @@ export * from './dsp/lfo.js';
 export * from './dsp/poly-blep-oscillator.js';
 export * from './dsp/svf.js';
 export * from './dsp/fm-generator.js';
+export * from './dsp/additive-generator.js';
