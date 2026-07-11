@@ -4,6 +4,24 @@ import XCTest
 final class PatchTests: XCTestCase {
     private var fixtureData: Data { Data(fixturePatchJSON.utf8) }
 
+    /// Wire-contract pin shared verbatim with patch.spec.ts: a va generator
+    /// may omit pulseWidth (TS type is optional; Swift decodes it as 0.5).
+    private let noPulseWidthPatchJSON = """
+    {
+      "schemaVersion": 1,
+      "meta": { "id": "test.nopw", "name": "No Pulse Width", "category": "melodic" },
+      "layers": [
+        {
+          "keyRange": { "lowMidi": 0, "highMidi": 127 },
+          "velRange": { "low": 0, "high": 1 },
+          "generator": { "kind": "va", "va": { "shape": "saw", "unison": 2, "detuneCents": 12 }, "seed": 3 },
+          "tva": { "level": 0.7, "adsr": { "attack": 0.01, "decay": 0.2, "sustain": 0.6, "release": 0.2 }, "velCurve": 1 }
+        }
+      ],
+      "sends": { "reverb": 0, "delay": 0 }
+    }
+    """
+
     private func decodeFixture() throws -> Patch {
         try JSONDecoder().decode(Patch.self, from: fixtureData)
     }
@@ -65,6 +83,16 @@ final class PatchTests: XCTestCase {
         )
         badVa.layers[0].generator = .va(brokenVaParams, seed: seed)
         XCTAssertFalse(validatePatch(badVa).isEmpty)
+    }
+
+    func testVaGeneratorOmittingPulseWidthDecodesWithDefault() throws {
+        let patch = try JSONDecoder().decode(Patch.self, from: Data(noPulseWidthPatchJSON.utf8))
+        XCTAssertTrue(validatePatch(patch).isEmpty)
+        guard case let .va(vaParams, seed) = patch.layers[0].generator else {
+            return XCTFail("expected va generator on layer 1")
+        }
+        XCTAssertEqual(vaParams.pulseWidth, 0.5)
+        XCTAssertEqual(seed, 3)
     }
 
     func testRoundTripEncodeDecodeStillValidates() throws {

@@ -9,11 +9,23 @@ public struct VaParams: Codable {
     public let detuneCents: Double
     public let pulseWidth: Double
 
+    private enum CodingKeys: String, CodingKey { case shape, unison, detuneCents, pulseWidth }
+
     public init(shape: OscShape, unison: Int, detuneCents: Double, pulseWidth: Double = 0.5) {
         self.shape = shape
         self.unison = unison
         self.detuneCents = detuneCents
         self.pulseWidth = pulseWidth
+    }
+
+    /// pulseWidth is optional on the wire (TS `pulseWidth?: number`);
+    /// 0.5 is the contract default on both platforms.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        shape = try c.decode(OscShape.self, forKey: .shape)
+        unison = try c.decode(Int.self, forKey: .unison)
+        detuneCents = try c.decode(Double.self, forKey: .detuneCents)
+        pulseWidth = try c.decodeIfPresent(Double.self, forKey: .pulseWidth) ?? 0.5
     }
 }
 

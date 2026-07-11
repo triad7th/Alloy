@@ -2,6 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { validatePatch, PATCH_SCHEMA_VERSION, type Patch } from './patch.js';
 import { FIXTURE_PATCH_JSON } from './testing/fixtures.js';
 
+// Wire-contract pin shared verbatim with PatchTests.swift: a va generator
+// may omit pulseWidth (TS type is optional; Swift decodes it as 0.5).
+const NO_PULSE_WIDTH_PATCH_JSON = `{
+  "schemaVersion": 1,
+  "meta": { "id": "test.nopw", "name": "No Pulse Width", "category": "melodic" },
+  "layers": [
+    {
+      "keyRange": { "lowMidi": 0, "highMidi": 127 },
+      "velRange": { "low": 0, "high": 1 },
+      "generator": { "kind": "va", "va": { "shape": "saw", "unison": 2, "detuneCents": 12 }, "seed": 3 },
+      "tva": { "level": 0.7, "adsr": { "attack": 0.01, "decay": 0.2, "sustain": 0.6, "release": 0.2 }, "velCurve": 1 }
+    }
+  ],
+  "sends": { "reverb": 0, "delay": 0 }
+}`;
+
 describe('Patch', () => {
   it('fixture parses and validates clean', () => {
     const patch = JSON.parse(FIXTURE_PATCH_JSON) as Patch;
@@ -30,6 +46,11 @@ describe('Patch', () => {
     ).fm.algorithm.carriers = [9];
     const errors = validatePatch(broken);
     expect(errors.some((e) => e.startsWith('layer 2:'))).toBe(true);
+  });
+
+  it('accepts a va generator that omits pulseWidth', () => {
+    const patch = JSON.parse(NO_PULSE_WIDTH_PATCH_JSON) as Patch;
+    expect(validatePatch(patch)).toEqual([]);
   });
 
   it('rejects bad ranges and generator specifics', () => {
