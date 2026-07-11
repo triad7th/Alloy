@@ -44,7 +44,12 @@ export class WorkletSynthHost {
 
   /**
    * addModule(moduleUrl) then construct + connect the node. The app owns the
-   * module URL (bundlers differ; Angular apps copy dist/worklet/ to assets).
+   * module URL. IMPORTANT: the worklet module's import graph spans the whole
+   * package dist/ (worklet/ -> ../worklet-host-core.js -> ./dsp/*.js), so the
+   * ENTIRE dist/ tree must be served with its layout preserved — e.g. an
+   * angular.json asset glob over the package's dist/, with moduleUrl pointing
+   * at <assets>/worklet/alloy-patch-processor.js. Copying only dist/worklet/
+   * breaks addModule() with a 404 on the relative imports.
    */
   static async create(ctx: MinimalWorkletContext, moduleUrl: string, options?: { maxVoices?: number }): Promise<WorkletSynthHost> {
     await ctx.audioWorklet.addModule(moduleUrl);

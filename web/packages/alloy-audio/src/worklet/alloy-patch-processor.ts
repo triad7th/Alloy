@@ -7,7 +7,10 @@
 // AudioWorkletGlobalScope; the relative import below resolves against this
 // module's own URL, not the page's, so it must stay a plain relative
 // specifier (`../worklet-host-core.js`) — no bundling/rewriting at publish
-// time, or the worklet will fail to load.
+// time, or the worklet will fail to load. The import graph continues into
+// ../dsp/*.js, so apps must serve the package's ENTIRE dist/ tree with its
+// layout preserved (see WorkletSynthHost.create's doc comment), not just
+// this worklet/ directory.
 import { WorkletHostCore, WORKLET_PROCESSOR_NAME, type WorkletInMessage } from '../worklet-host-core.js';
 
 class AlloyPatchProcessor extends AudioWorkletProcessor {

@@ -194,7 +194,10 @@ render-block starts, at most 512 per block (`MAX_COMMANDS_PER_BLOCK` /
 `maxCommandsPerBlock`), invalid patches are dropped with their
 `validatePatch` errors surfaced, zone sets live in render-context-owned
 storage behind the engine's `zoneSetProvider`, and render paths allocate
-nothing and can never throw. The flagship property both platforms pin in
+only the sanctioned drain hand-off plus voice construction at note starts,
+with no throwing path reachable from the shells' fixed 128-frame quantum
+(the engine's >4096-frame guard is unreachable there; the Apple host also
+slices arbitrary callback sizes). The flagship property both platforms pin in
 tests: driving the host path with the golden fixtures is **bit-exactly
 equal** to `renderPatch` (plain equality, no tolerance — same core, same
 schedule order).
