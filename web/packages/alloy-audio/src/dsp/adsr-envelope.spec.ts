@@ -48,6 +48,15 @@ describe('AdsrEnvelope', () => {
     expect(env.nextSample()).toBe(0);
   });
 
+  it('fastRelease overrides the release time constant', () => {
+    const env = new AdsrEnvelope(PARAMS, FS);
+    env.noteOn();
+    renderSamples(env, Math.round(0.2 * FS));
+    env.fastRelease(0.002);
+    renderSamples(env, Math.round(0.05 * FS)); // 25 tau of the fast release
+    expect(env.isActive).toBe(false);
+  });
+
   it('matches the twin reference (first 8 samples of attack)', () => {
     const env = new AdsrEnvelope(PARAMS, FS);
     env.noteOn();

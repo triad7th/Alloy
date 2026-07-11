@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AdsrEnvelope } from './adsr-envelope.js';
-import { FmGenerator, type FmGeneratorParams } from './fm-generator.js';
+import { FmGenerator, type FmGeneratorParams, validateFmGeneratorParams } from './fm-generator.js';
 
 const FS = 48_000;
 const FAST_ADSR = { attack: 0.001, decay: 1, sustain: 1, release: 0.01 };
@@ -92,6 +92,23 @@ describe('FmGenerator', () => {
           FS,
         ),
     ).toThrow();
+  });
+
+  it('validateFmGeneratorParams reports errors instead of throwing', () => {
+    const bad = {
+      operators: [{ ratio: 1, level: 1, adsr: FAST_ADSR }],
+      algorithm: { routes: [], carriers: [0], feedback: { op: 5, amount: 0.3 } },
+    };
+    const errors = validateFmGeneratorParams(bad);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toMatch(/feedback/i);
+  });
+
+  it('constructor rejects out-of-range feedback.op', () => {
+    expect(() => new FmGenerator({
+      operators: [{ ratio: 1, level: 1, adsr: FAST_ADSR }],
+      algorithm: { routes: [], carriers: [0], feedback: { op: 5, amount: 0.3 } },
+    }, FS)).toThrow();
   });
 
   it('matches the twin reference (2-op, feedback)', () => {

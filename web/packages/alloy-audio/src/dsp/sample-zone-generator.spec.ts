@@ -107,6 +107,14 @@ describe('SampleZoneGenerator', () => {
     expect(render(blended, 16)[4]).toBeCloseTo((0.2 * 0.5 + 0.8 * 0.5) * 0.5, 2);
   });
 
+  it('treats a zero-length loop region as a one-shot instead of hanging', () => {
+    const zone = { rootMidi: 69, sampleRate: FS, data: new Float32Array(480).fill(0.5), loopStart: 100, loopEnd: 100 };
+    const gen = new SampleZoneGenerator([{ topVelocity: 1, zones: [zone] }], 0, FS);
+    gen.noteOn(69, 1);
+    render(gen, 600); // must return, not hang
+    expect(gen.finished).toBe(true);
+  });
+
   it('matches the twin reference (octave-down sine, looped)', () => {
     const gen = new SampleZoneGenerator(oneLayer(sineZone(69, 4800, 44, true)), 0, FS);
     gen.noteOn(57, 1);

@@ -62,6 +62,16 @@ final class SvfTests: XCTestCase {
         XCTAssertLessThan(peak, 4)
     }
 
+    func testPassesSignalBeforeSetParamsIsCalled() {
+        let f = Svf(mode: .lowpass, sampleRate: fs)
+        var out: [Double] = []
+        for i in 0..<480 {
+            out.append(f.process(sin(2 * Double.pi * 440 * Double(i) / fs)))
+        }
+        let settled = out[240...]
+        XCTAssertGreaterThan(settled.map(abs).max() ?? 0, 0.9)
+    }
+
     func testMatchesTwinReference() {
         let f = Svf(mode: .lowpass, sampleRate: fs)
         f.setParams(cutoffHz: 1000, q: 0.707)

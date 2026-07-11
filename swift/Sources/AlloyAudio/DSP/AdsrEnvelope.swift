@@ -25,12 +25,14 @@ public final class AdsrEnvelope {
     private var stage = Stage.idle
     private var level = 0.0
     private let params: AdsrParams
+    private let sampleRate: Double
     private let attackCoef: Double
     private let decayCoef: Double
-    private let releaseCoef: Double
+    private var releaseCoef: Double
 
     public init(params: AdsrParams, sampleRate: Double) {
         self.params = params
+        self.sampleRate = sampleRate
         attackCoef = Self.onePoleCoef(tau: params.attack / Self.attackTauFactor, sampleRate: sampleRate)
         decayCoef = Self.onePoleCoef(tau: params.decay, sampleRate: sampleRate)
         releaseCoef = Self.onePoleCoef(tau: params.release, sampleRate: sampleRate)
@@ -42,6 +44,12 @@ public final class AdsrEnvelope {
 
     public func noteOff() {
         if stage != .idle { stage = .release }
+    }
+
+    /// Enter release with an overriding time constant (voice steal / allNotesOff).
+    public func fastRelease(tau: Double) {
+        releaseCoef = Self.onePoleCoef(tau: tau, sampleRate: sampleRate)
+        noteOff()
     }
 
     public func nextSample() -> Double {

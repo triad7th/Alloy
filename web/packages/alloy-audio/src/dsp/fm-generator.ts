@@ -29,6 +29,33 @@ export interface FmGeneratorParams {
   algorithm: FmAlgorithm;
 }
 
+/** Non-throwing validation: empty array = constructible on both platforms. */
+export function validateFmGeneratorParams(params: FmGeneratorParams): string[] {
+  const errors: string[] = [];
+  const opCount = params.operators.length;
+  if (opCount < 1 || opCount > 6) {
+    errors.push(`operator count ${opCount} outside 1..6`);
+  }
+  for (const route of params.algorithm.routes) {
+    if (route.from <= route.to || route.from >= opCount || route.to < 0) {
+      errors.push(`route ${route.from}->${route.to} must flow from a higher to a lower operator index`);
+    }
+  }
+  for (const carrier of params.algorithm.carriers) {
+    if (carrier < 0 || carrier >= opCount) {
+      errors.push(`carrier index ${carrier} out of range`);
+    }
+  }
+  if (params.algorithm.carriers.length === 0) {
+    errors.push('at least one carrier required');
+  }
+  const feedback = params.algorithm.feedback;
+  if (feedback && (feedback.op < 0 || feedback.op >= opCount)) {
+    errors.push(`feedback.op ${feedback.op} out of range`);
+  }
+  return errors;
+}
+
 export class FmGenerator implements ToneGenerator {
   private readonly envelopes: AdsrEnvelope[];
   private readonly phases: number[];
@@ -41,16 +68,9 @@ export class FmGenerator implements ToneGenerator {
     private readonly params: FmGeneratorParams,
     private readonly sampleRate: number,
   ) {
-    const opCount = params.operators.length;
-    for (const route of params.algorithm.routes) {
-      if (route.from <= route.to || route.from >= opCount || route.to < 0) {
-        throw new Error('FM routes must flow from a higher to a lower operator index');
-      }
-    }
-    for (const carrier of params.algorithm.carriers) {
-      if (carrier < 0 || carrier >= opCount) {
-        throw new Error('FM carrier index out of range');
-      }
+    const errors = validateFmGeneratorParams(params);
+    if (errors.length > 0) {
+      throw new Error(errors.join('; '));
     }
     this.envelopes = params.operators.map((op) => new AdsrEnvelope(op.adsr, sampleRate));
     this.phases = params.operators.map(() => 0);

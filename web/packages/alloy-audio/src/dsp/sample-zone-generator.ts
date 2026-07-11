@@ -69,7 +69,10 @@ export class SampleZoneGenerator implements ToneGenerator {
         continue;
       }
       const { data } = read.zone;
-      const loop = read.zone.loopStart !== undefined && read.zone.loopEnd !== undefined;
+      const loop =
+        read.zone.loopStart !== undefined &&
+        read.zone.loopEnd !== undefined &&
+        read.zone.loopEnd > read.zone.loopStart;
       for (let n = 0; n < frames; n++) {
         if (loop) {
           const loopStart = read.zone.loopStart!;

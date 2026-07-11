@@ -48,6 +48,15 @@ final class AdsrEnvelopeTests: XCTestCase {
         XCTAssertEqual(env.nextSample(), 0)
     }
 
+    func testFastReleaseOverridesReleaseTimeConstant() {
+        let env = AdsrEnvelope(params: params, sampleRate: fs)
+        env.noteOn()
+        _ = render(env, Int((0.2 * fs).rounded()))
+        env.fastRelease(tau: 0.002)
+        _ = render(env, Int((0.05 * fs).rounded())) // 25 tau of the fast release
+        XCTAssertFalse(env.isActive)
+    }
+
     func testMatchesTwinReference() {
         let env = AdsrEnvelope(params: params, sampleRate: fs)
         env.noteOn()

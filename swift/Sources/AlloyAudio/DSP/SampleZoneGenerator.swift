@@ -74,7 +74,7 @@ public final class SampleZoneGenerator: ToneGenerator {
         for r in reads.indices {
             if reads[r].ended { continue }
             let zone = reads[r].zone
-            let loop = zone.loopStart != nil && zone.loopEnd != nil
+            let loop = zone.loopStart != nil && zone.loopEnd != nil && zone.loopEnd! > zone.loopStart!
             for n in 0..<frames {
                 if loop {
                     let loopStart = zone.loopStart!

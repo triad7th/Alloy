@@ -64,6 +64,14 @@ describe('Svf', () => {
     expect(peak).toBeLessThan(4);
   });
 
+  it('passes signal before setParams is called (open lowpass default)', () => {
+    const f = new Svf('lowpass', FS);
+    const out: number[] = [];
+    for (let i = 0; i < 480; i++) out.push(f.process(Math.sin((2 * Math.PI * 440 * i) / FS)));
+    const settled = out.slice(240);
+    expect(Math.max(...settled.map(Math.abs))).toBeGreaterThan(0.9);
+  });
+
   it('matches the twin reference (lowpass 1 kHz on a 440 Hz sine)', () => {
     const f = new Svf('lowpass', FS);
     f.setParams(1000, 0.707);

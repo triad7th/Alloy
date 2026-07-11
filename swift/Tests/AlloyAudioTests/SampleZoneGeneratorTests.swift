@@ -113,6 +113,14 @@ final class SampleZoneGeneratorTests: XCTestCase {
         XCTAssertEqual(Double(render(blended, 16)[4]), (0.2 * 0.5 + 0.8 * 0.5) * 0.5, accuracy: 5e-3)
     }
 
+    func testTreatsZeroLengthLoopRegionAsOneShotInsteadOfHanging() {
+        let zone = SampleZoneData(rootMidi: 69, sampleRate: fs, data: [Float](repeating: 0.5, count: 480), loopStart: 100, loopEnd: 100)
+        let gen = SampleZoneGenerator(layers: [VelocityLayerData(topVelocity: 1, zones: [zone])], crossfade: 0, sampleRate: fs)
+        gen.noteOn(midi: 69, velocity: 1)
+        _ = render(gen, 600) // must return, not hang
+        XCTAssertTrue(gen.finished)
+    }
+
     func testMatchesTwinReference() {
         let gen = SampleZoneGenerator(layers: oneLayer(sineZone(rootMidi: 69, length: 4800, cycles: 44, loop: true)), crossfade: 0, sampleRate: fs)
         gen.noteOn(midi: 57, velocity: 1)

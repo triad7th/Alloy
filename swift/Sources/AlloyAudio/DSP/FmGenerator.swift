@@ -57,6 +57,28 @@ public struct FmGeneratorParams {
     }
 }
 
+/// Non-throwing validation: empty array = constructible on both platforms.
+public func validateFmGeneratorParams(_ params: FmGeneratorParams) -> [String] {
+    var errors: [String] = []
+    let opCount = params.operators.count
+    if opCount < 1 || opCount > 6 {
+        errors.append("operator count \(opCount) outside 1..6")
+    }
+    for route in params.algorithm.routes where route.from <= route.to || route.from >= opCount || route.to < 0 {
+        errors.append("route \(route.from)->\(route.to) must flow from a higher to a lower operator index")
+    }
+    for carrier in params.algorithm.carriers where carrier < 0 || carrier >= opCount {
+        errors.append("carrier index \(carrier) out of range")
+    }
+    if params.algorithm.carriers.isEmpty {
+        errors.append("at least one carrier required")
+    }
+    if let feedback = params.algorithm.feedback, feedback.op < 0 || feedback.op >= opCount {
+        errors.append("feedback.op \(feedback.op) out of range")
+    }
+    return errors
+}
+
 public final class FmGenerator: ToneGenerator {
     private let params: FmGeneratorParams
     private let sampleRate: Double
@@ -68,16 +90,9 @@ public final class FmGenerator: ToneGenerator {
     private var keyed = false
 
     public init(params: FmGeneratorParams, sampleRate: Double) {
+        let errors = validateFmGeneratorParams(params)
+        precondition(errors.isEmpty, errors.joined(separator: "; "))
         let opCount = params.operators.count
-        for route in params.algorithm.routes {
-            precondition(
-                route.from > route.to && route.from < opCount && route.to >= 0,
-                "FM routes must flow from a higher to a lower operator index",
-            )
-        }
-        for carrier in params.algorithm.carriers {
-            precondition(carrier >= 0 && carrier < opCount, "FM carrier index out of range")
-        }
         self.params = params
         self.sampleRate = sampleRate
         envelopes = params.operators.map { AdsrEnvelope(params: $0.adsr, sampleRate: sampleRate) }

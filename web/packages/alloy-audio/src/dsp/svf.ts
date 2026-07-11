@@ -1,7 +1,8 @@
 // Topology-preserving-transform state variable filter (Zavalishin, "The
 // Art of VA Filter Design"). Chosen over biquads because it stays stable
 // under audio-rate cutoff modulation — this is the patch TVF, and filter
-// envelopes sweep it constantly. Twin: Svf.swift.
+// envelopes sweep it constantly. Constructed fully open; call setParams to
+// shape. Twin: Svf.swift.
 
 export type SvfMode = 'lowpass' | 'bandpass' | 'highpass';
 
@@ -16,7 +17,9 @@ export class Svf {
   constructor(
     private readonly mode: SvfMode,
     private readonly sampleRate: number,
-  ) {}
+  ) {
+    this.setParams(sampleRate * 0.49, 0.707);
+  }
 
   setParams(cutoffHz: number, q: number): void {
     const clamped = Math.min(Math.max(cutoffHz, 10), this.sampleRate * 0.49);

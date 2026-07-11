@@ -2,6 +2,7 @@ import Foundation
 
 /// Topology-preserving-transform state variable filter (Zavalishin).
 /// Stable under audio-rate cutoff modulation — this is the patch TVF.
+/// Constructed fully open; call setParams to shape.
 /// Twin of web src/dsp/svf.ts (canonical).
 public enum SvfMode {
     case lowpass
@@ -22,6 +23,7 @@ public final class Svf {
     public init(mode: SvfMode, sampleRate: Double) {
         self.mode = mode
         self.sampleRate = sampleRate
+        setParams(cutoffHz: sampleRate * 0.49, q: 0.707)
     }
 
     public func setParams(cutoffHz: Double, q: Double) {

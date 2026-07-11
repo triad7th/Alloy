@@ -77,6 +77,14 @@ final class FmGeneratorTests: XCTestCase {
         }
     }
 
+    func testValidateFmGeneratorParamsReportsErrors() {
+        let bad = FmGeneratorParams(
+            operators: [FmOperatorParams(ratio: 1, level: 1, adsr: fastAdsr)],
+            algorithm: FmAlgorithm(routes: [], carriers: [0], feedback: FmFeedback(op: 5, amount: 0.3)),
+        )
+        XCTAssertFalse(validateFmGeneratorParams(bad).isEmpty)
+    }
+
     func testMatchesTwinReference() {
         var params = twoOp(modLevel: 0.7)
         params = FmGeneratorParams(

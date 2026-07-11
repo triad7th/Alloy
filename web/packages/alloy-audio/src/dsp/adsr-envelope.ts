@@ -28,11 +28,11 @@ export class AdsrEnvelope {
   private level = 0;
   private readonly attackCoef: number;
   private readonly decayCoef: number;
-  private readonly releaseCoef: number;
+  private releaseCoef: number;
 
   constructor(
     private readonly params: AdsrParams,
-    sampleRate: number,
+    private readonly sampleRate: number,
   ) {
     this.attackCoef = onePoleCoef(params.attack / ATTACK_TAU_FACTOR, sampleRate);
     this.decayCoef = onePoleCoef(params.decay, sampleRate);
@@ -51,6 +51,12 @@ export class AdsrEnvelope {
     if (this.stage !== 'idle') {
       this.stage = 'release';
     }
+  }
+
+  /** Enter release with an overriding time constant (voice steal / allNotesOff). */
+  fastRelease(tau: number): void {
+    this.releaseCoef = onePoleCoef(tau, this.sampleRate);
+    this.noteOff();
   }
 
   nextSample(): number {
