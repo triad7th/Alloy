@@ -197,10 +197,13 @@ storage behind the engine's `zoneSetProvider`, and render paths allocate
 only the sanctioned drain hand-off plus voice construction at note starts,
 with no throwing path reachable from the shells' fixed 128-frame quantum
 (the engine's >4096-frame guard is unreachable there; the Apple host also
-slices arbitrary callback sizes). The flagship property both platforms pin in
-tests: driving the host path with the golden fixtures is **bit-exactly
-equal** to `renderPatch` (plain equality, no tolerance — same core, same
-schedule order).
+slices arbitrary callback sizes). Host render signatures are stereo (phase
+2a — see the stereo bus contract below):
+`WorkletHostCore.render(left, right, frames, postReply)` ↔
+`PatchEngineHost.render(intoLeft:right:frames:)`. The flagship property both
+platforms pin in tests: driving the host path with the golden fixtures is
+**bit-exactly equal** to `renderPatch` on BOTH channels (plain equality, no
+tolerance — same core, same schedule order).
 
 **Sanctioned asymmetries (rompler hosts):**
 - Frame domains: worklet messages carry absolute CONTEXT frames
@@ -213,7 +216,78 @@ schedule order).
 - The untestable shells are logic-free by design: the
   `AudioWorkletProcessor` subclass (browser-only globals) and the
   `AVAudioSourceNode` render block each delegate everything to the tested
-  core/host render function.
+  core/host render function. The Apple shell's one added piece of logic
+  (still sanctioned as shell-local, not core) is its channel mapping: L →
+  output channel 0, R → channel 1 on stereo-or-wider outputs (channels past
+  the pair cleared), `(L+R)*0.5` downmix on a single-channel output — the
+  same mapping the worklet shell applies, mirrored rather than shared since
+  there is no cross-platform shell code.
+- `PatchEngineHost.makeSourceNode()` builds its `AVAudioSourceNode` with an
+  explicit stereo `AVAudioFormat` at the host's own sample rate (the
+  `AVSynthEngine` pattern), so a hardware/engine rate mismatch converts
+  through Core Audio instead of silently detuning — closing the 1b-ii
+  deferral. Web has no analogous step: `AudioWorkletProcessor` always runs
+  at the `AudioContext`'s rate, so there is no format to negotiate.
+  One source node per host: a second `makeSourceNode()` call shares the
+  host's engine, transport, and command queue rather than getting an
+  independent one — construct a second `PatchEngineHost` for a second,
+  independently-clocked node. The node's render-thread scratch pair is
+  preallocated at the same 4096-frame cap as the engine slice size (no
+  render-thread regrowth); a callback asking for more frames in one call
+  renders real audio up to the cap and silence for the remainder, and trips
+  an `assertionFailure` in debug builds — this shouldn't happen in practice
+  since hosts hand out block-sized callbacks well under 4096 frames.
+
+**Rompler effects (phase 2a, strict, twin-tested):** `EffectUnit`
+(`process(left, right, frames)` in place; `reset()` clears internal state;
+`process()` must not allocate or throw) plus `InsertSpec` /
+`ChorusParams` / `TremoloParams` under `DSP/Effects/`
+(`dsp/effects/effect-types.ts` ↔ `DSP/Effects/EffectTypes.swift`) —
+`validateInsert` (non-throwing, empty = safe to construct) and
+`createInsert` (the `setPatch`-time factory). `MAX_INSERTS` is 3.
+`Patch.inserts` stays an optional array (`InsertSpec[]` / `[InsertSpec]?`);
+`PATCH_SCHEMA_VERSION` stays 1 — inserts are an additive field, not a schema
+bump, and insert-free patches validate and render identically to before
+phase 2a.
+
+Two insert kinds, both twin-tested against pinned constants
+(`StereoChorus.ts`/`.swift`, `TremoloAutoPan.ts`/`.swift`):
+- **Chorus/ensemble** (`ChorusParams.mode: 'chorus' | 'ensemble'`): sums the
+  incoming stereo pair to mono into one circular delay buffer, then reads
+  back 2 (`chorus`) or 3 (`ensemble`) linearly-interpolated taps whose delay
+  sweeps sinusoidally around `BASE_DELAY_MS` (7 ms), each tap at its own
+  phase offset (`CHORUS_OFFSETS` `[0, 0.25]`; `ENSEMBLE_OFFSETS`
+  `[0, 1/3, 2/3]`) so the taps drift in and out of alignment with each
+  other. `chorus` mode routes tap 0 to L and tap 1 to R directly; `ensemble`
+  mixes all taps down to L/R with fixed weights (`ENSEMBLE_WEIGHTS_L`
+  `[0.55, 0.3, 0.15]` / `ENSEMBLE_WEIGHTS_R` `[0.15, 0.3, 0.55]`). `mix` is
+  a plain per-sample dry/wet crossfade.
+- **Tremolo/auto-pan**: an amplitude LFO applied independently to L and R,
+  with R's phase offset from L's by `spread` half-turns (`Math.PI * spread`
+  / `.pi * spread`) — `spread` 0 keeps both channels in phase (classic
+  tremolo), `spread` 1 puts them a half-cycle apart (hard auto-pan; L and R
+  gains swap peaks and troughs). `depth` scales the LFO's excursion around
+  unity gain.
+
+**Stereo bus contract (`PatchEngine`):** voices stay mono, unchanged from
+phase 1b. Per `process()` segment, the summed mono voice bus is copied to a
+stereo scratch pair at unity — **insert-free ⇒ L === R === the old mono
+output, bit-exact** (the phase 1b golden fixtures are re-pinned on both
+channels rather than re-baselined, and `PATCH_VA`/`PATCH_SAMPLE` stay
+insert-free specifically to pin this bypass path) — then the patch's
+ordered insert chain (`Patch.inserts`, applied in array order) processes the
+pair in place, and the result ADDS into the caller's left/right buffers.
+The insert chain is rebuilt only inside `setPatch` (never inside
+`process()` — no render-thread allocation from insert construction); it is
+one shared chain, never reset on note events, so effect tails (delay lines,
+LFO phase) ring continuously across notes AND across `setPatch` calls —
+voices still sounding on an old patch render through the NEW chain (a
+hardware-like patch transition; per-generation insert chains are an
+explicit non-goal, documented on `setPatch`).
+
+**Sanctioned asymmetries (rompler effects):** none beyond the rompler-core
+and rompler-hosts entries above — `EffectUnit`, `InsertSpec`, and both
+insert kinds are strict twins with identical, pinned numeric constants.
 
 ## AlloyStorage
 

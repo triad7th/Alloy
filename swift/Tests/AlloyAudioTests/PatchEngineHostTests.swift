@@ -163,4 +163,25 @@ final class PatchEngineHostTests: XCTestCase {
         let node = host.makeSourceNode()
         XCTAssertGreaterThanOrEqual(node.numberOfOutputs, 1)
     }
+
+    /// The 1b-ii deferral: an unformatted source node lets the engine assume
+    /// whatever rate the hardware happens to run at, silently detuning on a
+    /// mismatch. An explicit stereo format at the host's own sample rate
+    /// makes Core Audio convert instead.
+    ///
+    /// Asserts on the format via PatchEngineHost.sourceNodeFormat(sampleRate:)
+    /// rather than `node.outputFormat(forBus: 0)`: verified empirically that
+    /// an AVAudioSourceNode's outputFormat(forBus:) does not reflect the
+    /// format passed to its initializer until the node is attached AND
+    /// connected inside a running AVAudioEngine graph — and once connected,
+    /// it reflects the connect(_:to:format:) call's format argument, not the
+    /// initializer's, so it can't discriminate a formatted from a formatless
+    /// node without also duplicating engine wiring in the test. Asserting on
+    /// the value makeSourceNode() actually constructs and passes is the
+    /// reliable way to pin this.
+    func testMakeSourceNodeHasExplicitStereoFormatAtHostRate() {
+        let format = PatchEngineHost.sourceNodeFormat(sampleRate: 48_000)
+        XCTAssertEqual(format.channelCount, 2)
+        XCTAssertEqual(format.sampleRate, 48_000)
+    }
 }
