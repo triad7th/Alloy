@@ -161,6 +161,24 @@ private func makeAuth(
     #expect(status == 400)
   }
 
+  @Test func signInMapsExchangeTransportThrowToExchangeFailedWithNoStatus() async {
+    struct Offline: HTTPTransport {
+      func send(_: URLRequest) async throws -> (Data, HTTPURLResponse) { throw URLError(.notConnectedToInternet) }
+    }
+    let vault = MemoryTokenVault()
+    let config = GoogleAuthConfig(
+      clientId: "cid", scope: "https://www.googleapis.com/auth/drive.file", redirectScheme: "com.example.app")
+    let auth = GoogleAuth(
+      config: config, vault: vault, transport: Offline(), uiSession: EchoStateUI(),
+      now: { nowFixed })
+    guard case .failed(let reason, _, let status) = await auth.signIn() else {
+      Issue.record("expected failed")
+      return
+    }
+    #expect(reason == .exchangeFailed)
+    #expect(status == nil)
+  }
+
   @Test func signInMapsVaultFailureToVaultFailed() async {
     final class FailingVault: TokenVault, @unchecked Sendable {
       func load() throws -> StoredTokens? { nil }

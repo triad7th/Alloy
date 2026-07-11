@@ -165,10 +165,12 @@ describe('GoogleAuth', () => {
     await a.beginSignIn();
     const state = new URL(navigated).searchParams.get('state')!;
 
-    await expect(
-      a.completeSignIn(`https://app.example/oauth?code=c1&state=${state}`)
-    ).resolves.toMatchObject({ outcome: 'failed', reason: 'exchangeFailed' });
+    const first = await a.completeSignIn(`https://app.example/oauth?code=c1&state=${state}`);
+    expect(first).toMatchObject({ outcome: 'failed', reason: 'exchangeFailed' });
     // no HTTP status on a network throw:
+    if (first.outcome === 'failed') {
+      expect('status' in first).toBe(false);
+    }
     const r = await a.completeSignIn(`https://app.example/oauth?code=c1&state=${state}`);
     expect(r).toMatchObject({ outcome: 'failed', reason: 'configurationInvalid' }); // 2nd call: pending entry consumed
     expect(a.state).not.toBe('signedIn');

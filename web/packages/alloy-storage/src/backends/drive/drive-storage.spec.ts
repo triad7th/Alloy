@@ -67,6 +67,28 @@ describe('createDriveStorage', () => {
     );
   });
 
+  it('forwards the top-level fetchFn to GoogleAuth (used for refresh, not just Drive calls)', async () => {
+    const calls: string[] = [];
+    const fetchFn: typeof fetch = async (input) => {
+      calls.push(String(input));
+      return new Response(JSON.stringify({ accessToken: 'at2', expiresIn: 3599 }), { status: 200 });
+    };
+    const store = new MemoryTokenStore();
+    await store.save({ accessToken: 'at', expiresAt: 0, refreshToken: 'rt' });
+    const { auth } = createDriveStorage(config, {
+      auth: {
+        tokenStore: store,
+        now: () => 1_000_000,
+        navigate: () => undefined,
+        session: fakeSession(),
+      },
+      fetchFn,
+      cache: null,
+    });
+    expect(await auth.accessToken()).toBe('at2');
+    expect(calls.some((u) => u.includes('/refresh'))).toBe(true);
+  });
+
   it('honors an explicit scope override', async () => {
     let navigated = '';
     const { auth } = createDriveStorage(

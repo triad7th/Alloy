@@ -1,6 +1,6 @@
 /// Why a sign-in failed — the phase, not user-facing copy.
 public enum SignInFailureReason: String, Sendable {
-  case configurationInvalid // bad auth URL / no auth UI available on this platform
+  case configurationInvalid // bad auth URL / no auth UI available on this platform / auth UI failed
   case stateMismatch // CSRF state check failed, or no code in the callback
   case exchangeFailed // token endpoint rejected or unreachable
   case vaultFailed // token persistence failed (Keychain)

@@ -1,6 +1,6 @@
 /** Why a sign-in failed — the phase, not user-facing copy. */
 export type SignInFailureReason =
-  | 'configurationInvalid' // bad auth URL / missing or corrupt pending-session entry / no auth UI
+  | 'configurationInvalid' // bad auth URL / missing or corrupt pending-session entry / no auth UI / auth UI failed
   | 'stateMismatch' // CSRF state check failed, or no code in the callback
   | 'exchangeFailed' // token endpoint rejected or unreachable
   | 'vaultFailed'; // token persistence failed (IndexedDB / Keychain)

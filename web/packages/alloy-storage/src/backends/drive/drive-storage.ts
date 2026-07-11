@@ -40,7 +40,7 @@ export function createDriveStorage(
       redirectUri: config.redirectUri,
       tokenServiceUrl: config.tokenServiceUrl,
     },
-    deps.auth ?? {}
+    { fetchFn: deps.fetchFn, ...deps.auth }
   );
   const client = deps.fetchFn ? new DriveClient(auth, deps.fetchFn) : new DriveClient(auth);
   const backend =

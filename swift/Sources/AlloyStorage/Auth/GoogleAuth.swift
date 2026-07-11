@@ -207,9 +207,12 @@ public final class GoogleAuth: AuthProvider, @unchecked Sendable {
         detail: "auth UI failed: \(String(describing: error))", status: nil)
     }
 
-    guard
-      let callbackComponents = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
-      let code = callbackComponents.queryItems?.first(where: { $0.name == "code" })?.value
+    guard let callbackComponents = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)
+    else {
+      return .failed(
+        reason: .configurationInvalid, detail: "malformed callback URL", status: nil)
+    }
+    guard let code = callbackComponents.queryItems?.first(where: { $0.name == "code" })?.value
     else {
       return .failed(reason: .stateMismatch, detail: "no code in callback URL", status: nil)
     }
