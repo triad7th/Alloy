@@ -2885,19 +2885,38 @@ export class SampleZoneGenerator implements ToneGenerator {
     }
   }
 
-  /** One or two layers with linear crossfade gains summing to 1. */
+  /**
+   * One or two layers with linear crossfade gains summing to 1. The
+   * crossfade window straddles each boundary symmetrically: a velocity
+   * within crossfade/2 of a boundary blends the layers on either side
+   * (exactly on the boundary -> 50/50). Both directions must be checked
+   * because findIndex lands an on-boundary velocity in the LOWER layer.
+   */
   private pickLayers(velocity: number): Array<{ layer: VelocityLayerData; gain: number }> {
     const idx = this.layers.findIndex((l) => l.topVelocity >= velocity);
     const primary = idx === -1 ? this.layers.length - 1 : idx;
-    if (this.crossfade > 0 && primary > 0) {
-      const boundary = this.layers[primary - 1].topVelocity;
-      const distance = velocity - boundary;
-      if (distance < this.crossfade / 2) {
-        const upperGain = 0.5 + distance / this.crossfade;
-        return [
-          { layer: this.layers[primary], gain: upperGain },
-          { layer: this.layers[primary - 1], gain: 1 - upperGain },
-        ];
+    if (this.crossfade > 0) {
+      if (primary > 0) {
+        const boundary = this.layers[primary - 1].topVelocity;
+        const distance = velocity - boundary;
+        if (distance >= 0 && distance < this.crossfade / 2) {
+          const upperGain = 0.5 + distance / this.crossfade;
+          return [
+            { layer: this.layers[primary], gain: upperGain },
+            { layer: this.layers[primary - 1], gain: 1 - upperGain },
+          ];
+        }
+      }
+      if (primary < this.layers.length - 1) {
+        const boundary = this.layers[primary].topVelocity;
+        const distance = boundary - velocity;
+        if (distance >= 0 && distance < this.crossfade / 2) {
+          const lowerGain = 0.5 + distance / this.crossfade;
+          return [
+            { layer: this.layers[primary], gain: lowerGain },
+            { layer: this.layers[primary + 1], gain: 1 - lowerGain },
+          ];
+        }
       }
     }
     return [{ layer: this.layers[primary], gain: 1 }];
@@ -3063,12 +3082,22 @@ public final class SampleZoneGenerator: ToneGenerator {
 
     private func pickLayers(velocity: Double) -> [(VelocityLayerData, Double)] {
         let primary = layers.firstIndex { $0.topVelocity >= velocity } ?? layers.count - 1
-        if crossfade > 0, primary > 0 {
-            let boundary = layers[primary - 1].topVelocity
-            let distance = velocity - boundary
-            if distance < crossfade / 2 {
-                let upperGain = 0.5 + distance / crossfade
-                return [(layers[primary], upperGain), (layers[primary - 1], 1 - upperGain)]
+        if crossfade > 0 {
+            if primary > 0 {
+                let boundary = layers[primary - 1].topVelocity
+                let distance = velocity - boundary
+                if distance >= 0, distance < crossfade / 2 {
+                    let upperGain = 0.5 + distance / crossfade
+                    return [(layers[primary], upperGain), (layers[primary - 1], 1 - upperGain)]
+                }
+            }
+            if primary < layers.count - 1 {
+                let boundary = layers[primary].topVelocity
+                let distance = boundary - velocity
+                if distance >= 0, distance < crossfade / 2 {
+                    let lowerGain = 0.5 + distance / crossfade
+                    return [(layers[primary], lowerGain), (layers[primary + 1], 1 - lowerGain)]
+                }
             }
         }
         return [(layers[primary], 1)]
