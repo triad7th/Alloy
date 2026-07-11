@@ -148,6 +148,44 @@ builds the equivalent bus inside `AVSynthEngine` from AVFoundation units.
 Sample assets ship with apps, never with Alloy; the shared contract is the
 naming convention (zero-padded MIDI + `.mp3`) and the zone-list arithmetic.
 
+**Rompler core (phase 1b, strict, twin-tested):** the `Patch` wire schema
+(`PatchMeta`, `KeyRange`, `VelRange`, `GeneratorSpec`, `TvfParams`,
+`TvaParams`, `LfoRouting`, `PatchLayer`, `PatchSends`) plus `validatePatch`
+(non-throwing on both platforms — an array of error strings, empty = safe to
+construct voices from); `Voice` (per-note generator → TVF → TVA chain,
+per-sample TVA, control-rate TVF envelope + LFO ticked at an absolute
+samplePos so behavior — including the layer-liveness latch that governs the
+dead-unit skip and the `active`/render-return signal — is identical
+regardless of how render() calls are chunked); `PatchEngine` (polyphonic
+voice pool over a sample-position transport clock, sample-accurate event
+scheduling, voice stealing); `renderPatch` (the offline golden-test/bounce
+harness, fixed 128-frame blocks). Golden-render twin tests pin three 8-sample
+probe windows per patch (one per generator kind: fm, va, organ/additive,
+sample) with `toBeCloseTo(..., 4)` / `XCTAssertEqual(..., accuracy: 1e-4)` —
+looser than the 1e-6 twin-reference tolerance used elsewhere in AlloyAudio
+because the golden patches stack multiple modulated layers, so tiny
+transcendental-function differences between platforms compound over the
+render.
+
+**Sanctioned asymmetries (rompler core):**
+- `PatchEngine.setPatch` throws on validation errors on TS (`Error` joining
+  the messages with `; `) ↔ returns `[String]` on Swift (empty = accepted,
+  `@discardableResult`); Swift callers check the return value instead of
+  catching, matching Swift's non-throwing-by-default idiom for expected
+  rejection paths.
+- `EngineEvent` is a TS discriminated union
+  (`{ frame, kind: 'noteOn' | 'noteOff' | 'allNotesOff', ... }`) ↔ a Swift
+  `struct EngineEvent { let frame: Int; let kind: Kind }` with a nested
+  `Kind` enum carrying associated values (`.noteOn(midi:velocity:)`,
+  `.noteOff(midi:)`, `.allNotesOff`) — same shape, each language's idiomatic
+  sum-type encoding.
+- `validatePatch`'s va-generator seed check: TS validates `seed` is an
+  integer in `0...0xffffffff` at runtime because the wire type is a plain
+  `number`; Swift's `GeneratorSpec.va` seed is typed `UInt32`, so the same
+  range is already enforced by the decoder — Swift adds no runtime check
+  (an unreachable one would be lint-flagged) and instead carries a comment
+  pointing back to this entry.
+
 ## AlloyStorage
 
 Storage abstraction + backends (`@allyworld/alloy-storage` ↔ `AlloyStorage`).
