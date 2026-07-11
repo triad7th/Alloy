@@ -36,6 +36,8 @@ public final class Lfo {
         let fadeSamples = params.fadeIn * sampleRate
         let since = elapsed - delaySamples
         elapsed += 1
+        if since < 0 { return 0 }
+        let gate = fadeSamples <= 0 ? 1 : min(1, since / fadeSamples)
         let raw: Double
         switch params.shape {
         case .sine:
@@ -45,8 +47,6 @@ public final class Lfo {
         }
         phase += params.rateHz / sampleRate
         phase -= phase.rounded(.down)
-        if since < 0 { return 0 }
-        let gate = fadeSamples <= 0 ? 1 : min(1, since / fadeSamples)
         return raw * gate
     }
 

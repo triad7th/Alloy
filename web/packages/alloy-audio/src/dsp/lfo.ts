@@ -30,13 +30,13 @@ export class Lfo {
     const fadeSamples = this.params.fadeIn * this.sampleRate;
     const since = this.elapsed - delaySamples;
     this.elapsed += 1;
-    const raw = this.params.shape === 'sine' ? Math.sin(TWO_PI * this.phase) : triangle(this.phase);
-    this.phase += this.params.rateHz / this.sampleRate;
-    this.phase -= Math.floor(this.phase);
     if (since < 0) {
       return 0;
     }
     const gate = fadeSamples <= 0 ? 1 : Math.min(1, since / fadeSamples);
+    const raw = this.params.shape === 'sine' ? Math.sin(TWO_PI * this.phase) : triangle(this.phase);
+    this.phase += this.params.rateHz / this.sampleRate;
+    this.phase -= Math.floor(this.phase);
     return raw * gate;
   }
 }

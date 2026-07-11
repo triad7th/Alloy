@@ -11,7 +11,20 @@ describe('Lfo', () => {
     for (let i = 0; i < 100; i++) {
       expect(lfo.nextSample()).toBe(0);
     }
-    expect(lfo.nextSample()).not.toBe(0);
+    // Phase is frozen during the delay: the first non-gated sample is
+    // sin(0) = 0, and the wave rises from there.
+    expect(lfo.nextSample()).toBe(0);
+    expect(lfo.nextSample()).toBeGreaterThan(0);
+  });
+
+  it('freezes phase during the delay: starts at 0 and rises after a non-integer-cycle delay', () => {
+    const lfo = new Lfo({ shape: 'sine', rateHz: 5.3, delay: 0.037, fadeIn: 0 }, FS);
+    for (let i = 0; i < 37; i++) {
+      expect(lfo.nextSample()).toBe(0);
+    }
+    const first = lfo.nextSample();
+    expect(first).toBeCloseTo(0, 9);
+    expect(lfo.nextSample()).toBeGreaterThan(first);
   });
 
   it('fades depth in linearly after the delay', () => {

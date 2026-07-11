@@ -10,7 +10,20 @@ final class LfoTests: XCTestCase {
         for _ in 0..<100 {
             XCTAssertEqual(lfo.nextSample(), 0)
         }
-        XCTAssertNotEqual(lfo.nextSample(), 0)
+        // Phase is frozen during the delay: the first non-gated sample is
+        // sin(0) = 0, and the wave rises from there.
+        XCTAssertEqual(lfo.nextSample(), 0)
+        XCTAssertGreaterThan(lfo.nextSample(), 0)
+    }
+
+    func testFrozenPhaseStartsAtZeroAfterNonIntegerCycleDelay() {
+        let lfo = Lfo(params: LfoParams(shape: .sine, rateHz: 5.3, delay: 0.037, fadeIn: 0), sampleRate: fs)
+        for _ in 0..<37 {
+            XCTAssertEqual(lfo.nextSample(), 0)
+        }
+        let first = lfo.nextSample()
+        XCTAssertEqual(first, 0, accuracy: 1e-9)
+        XCTAssertGreaterThan(lfo.nextSample(), first)
     }
 
     func testLinearFadeIn() {
