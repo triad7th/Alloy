@@ -4,13 +4,13 @@
 /// all access onto the render thread via its command queue. (The web
 /// alloy-audio twin has no explicit mixer — WebAudio nodes sum natively.)
 public final class VoiceMixer {
-    private var voices: [Voice] = []
+    private var voices: [MixerVoice] = []
 
     public init() {}
 
     public var activeCount: Int { voices.count }
 
-    public func add(_ voice: Voice) {
+    public func add(_ voice: MixerVoice) {
         voices.append(voice)
     }
 

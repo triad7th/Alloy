@@ -2,7 +2,7 @@
 import XCTest
 
 /// Renders a constant level for a fixed number of render calls, then ends.
-private final class FakeVoice: Voice {
+private final class FakeVoice: MixerVoice {
     let level: Float
     var callsLeft: Int
     init(level: Float, calls: Int) {

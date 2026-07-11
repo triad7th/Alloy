@@ -202,9 +202,9 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
     /// always passes currentTime; quantization is one render quantum).
     private final class ChannelVoicePlayer: VoicePlayer {
         private let channel: Channel
-        private let makeVoice: (Int, Double, Double) -> Voice
+        private let makeVoice: (Int, Double, Double) -> MixerVoice
 
-        init(channel: Channel, makeVoice: @escaping (Int, Double, Double) -> Voice) {
+        init(channel: Channel, makeVoice: @escaping (Int, Double, Double) -> MixerVoice) {
             self.channel = channel
             self.makeVoice = makeVoice
         }
@@ -220,10 +220,10 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
         }
 
         private final class Handle: ActiveVoiceHandle {
-            private let voice: Voice
+            private let voice: MixerVoice
             private let queue: ChannelCommandQueue
 
-            init(voice: Voice, queue: ChannelCommandQueue) {
+            init(voice: MixerVoice, queue: ChannelCommandQueue) {
                 self.voice = voice
                 self.queue = queue
             }

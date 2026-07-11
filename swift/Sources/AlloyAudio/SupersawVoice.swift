@@ -5,7 +5,7 @@ import Foundation
 /// at 0), mixed at 1/sqrt(unison), through a lowpass whose cutoff decays
 /// from baseHz+envHz to baseHz, into a linear-attack / exponential-decay
 /// amp. Mono per voice — width and space come from the master chain sends.
-public final class SupersawVoice: Voice {
+public final class SupersawVoice: MixerVoice {
     private static let coefficientUpdateInterval = 32
 
     private let spec: SupersawVoiceSpec

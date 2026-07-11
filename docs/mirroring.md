@@ -137,10 +137,11 @@ scheduling primitives (`setValueAtTime` / `linearRampToValueAtTime` /
 delay values).
 
 **Sanctioned naming exception:** TS `ActiveVoice` ↔ Swift
-`ActiveVoiceHandle` (name-clash avoidance with the render-loop `Voice`
-protocol, which is Swift-only).
+`ActiveVoiceHandle` (name-clash avoidance with the render-loop voice
+protocol, which is Swift-only — renamed `MixerVoice` in phase 1b when the
+twin patch `Voice` class claimed the canonical name on both platforms).
 
-**Documented asymmetries:** the render-loop layer (`Voice`, `VoiceMixer`,
+**Documented asymmetries:** the render-loop layer (`MixerVoice`, `VoiceMixer`,
 `ChannelCommandQueue`) is Swift-only — the browser exposes no user-visible
 audio thread. `MasterChain`/`generateImpulseResponse` are web-only — Swift
 builds the equivalent bus inside `AVSynthEngine` from AVFoundation units.

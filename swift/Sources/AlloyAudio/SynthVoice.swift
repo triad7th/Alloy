@@ -4,7 +4,7 @@ import Foundation
 /// through a linear-attack / linear-decay-to-sustain gain; key-up is a
 /// snapshot then LINEAR ramp to 0 ending exactly at `at + fade` (unlike the
 /// exponential releases of the supersaw and sampled voices).
-public final class SynthVoice: Voice {
+public final class SynthVoice: MixerVoice {
     private let config: SynthVoiceConfig
     private let velocity: Double
     private let sampleRate: Double

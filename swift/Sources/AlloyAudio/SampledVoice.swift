@@ -5,7 +5,7 @@ import Foundation
 /// sample-rate ratio) with linear interpolation. The recording carries its
 /// own attack and natural decay; only the key-up release is shaped here.
 /// Gain is clamp01(velocity) — NOT VOICE_PEAK-scaled.
-public final class SampledVoice: Voice {
+public final class SampledVoice: MixerVoice {
     private let samples: [Float]
     private let readIncrement: Double
     private let releaseSeconds: Double

@@ -3,7 +3,7 @@ import XCTest
 
 /// Renders `voice` from its current position and returns per-window peak
 /// levels — a cheap envelope follower for asserting envelope shape.
-func windowPeaks(_ voice: Voice, windows: Int, windowFrames: Int) -> [Double] {
+func windowPeaks(_ voice: MixerVoice, windows: Int, windowFrames: Int) -> [Double] {
     var peaks: [Double] = []
     for _ in 0..<windows {
         var buffer = [Float](repeating: 0, count: windowFrames)
