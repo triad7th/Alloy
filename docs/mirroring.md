@@ -169,6 +169,16 @@ the StorageError table run the same scenarios and instants on both platforms):
   clears stored tokens → `expired` (web keys on 401 from the token service,
   Swift on Google 4xx since Google returns 400 for invalid_grant); 5xx and
   network failures keep the refresh token)
+- `ShareStatus` / `Shareable` (`shareStatus`/`share`/`unshare` in the app's
+  record-id namespace; `nativeRef` is the backend-native link handle; share
+  is idempotent, missing record → notFound; local backends deliberately do
+  not implement it — TS `isShareable()` ↔ Swift `as? any Shareable`)
+- `DrivePublic.fetchSharedFile` ↔ `fetchSharedFile` (auth-free public fetch:
+  `alt=media` + API key; 404→notFound, 403→auth; injected fetch/transport)
+- Drive permission wire format (create anyone-reader POST, `fields=
+  permissions(id,type)` check, find-then-DELETE) — kept NON-public on both
+  platforms (TS `@internal` doc, Swift `internal`), per the capability-only
+  decision in the sharing spec
 
 **Semantic regime** (same behavior, platform-appropriate shape):
 

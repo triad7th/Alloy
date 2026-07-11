@@ -41,6 +41,7 @@ struct StorageDemoView: View {
     @State private var authState = AuthState.signedOut
     @State private var driveStatus = ""
     @State private var driveMetas: [StorageRecordMeta] = []
+    @State private var shareInfo: ShareStatus?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -128,6 +129,18 @@ struct StorageDemoView: View {
                         demoButton("Sign out") { signOut() }
                     }
                 }
+                if authState == .signedIn {
+                    HStack(spacing: 8) {
+                        demoButton("Share status") { await shareRefresh() }
+                        demoButton(shareInfo?.shared == true ? "Unshare" : "Share") { await shareToggle() }
+                    }
+                    if let info = shareInfo {
+                        Text(info.shared
+                            ? "shared — anyone with the link can view  \(info.nativeRef)"
+                            : "not shared")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
                 statusText(driveStatus)
                 metaList(driveMetas)
             }
@@ -169,6 +182,26 @@ struct StorageDemoView: View {
             driveStatus = describe(error)
             authState = StorageDemo.auth?.state ?? .signedOut
         }
+    }
+
+    private func shareRefresh() async {
+        guard let shareable = StorageDemo.drive as (any Shareable)? else { return }
+        do {
+            shareInfo = try await shareable.shareStatus(id: recID)
+            driveStatus = shareInfo == nil ? "record not on Drive yet" : "share status refreshed"
+        } catch { driveStatus = describe(error) }
+    }
+
+    private func shareToggle() async {
+        guard let shareable = StorageDemo.drive as (any Shareable)? else { return }
+        do {
+            if shareInfo?.shared == true {
+                try await shareable.unshare(id: recID)
+            } else {
+                _ = try await shareable.share(id: recID)
+            }
+            await shareRefresh()
+        } catch { driveStatus = describe(error) }
     }
 
     // MARK: shared bits

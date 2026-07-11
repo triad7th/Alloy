@@ -5,7 +5,9 @@ import {
   DriveBackend,
   DriveClient,
   GoogleAuth,
+  isShareable,
   StorageError,
+  type ShareStatus,
   type StorageRecordMeta,
 } from '@allyworld/alloy-storage';
 
@@ -97,6 +99,20 @@ const DRIVE_FOLDER = 'AlloyHarness';
                 <button (click)="driveSignOut()">Sign out</button>
               }
             </div>
+            @if (authState() === 'signedIn') {
+              <div class="btn-row">
+                <button (click)="shareRefresh()">Share status</button>
+                <button (click)="shareToggle()">
+                  {{ shareInfo()?.shared ? 'Unshare' : 'Share' }}
+                </button>
+              </div>
+              @if (shareInfo(); as info) {
+                <p class="status">
+                  {{ info.shared ? 'shared — anyone with the link can view' : 'not shared' }}
+                  <code>{{ info.nativeRef }}</code>
+                </p>
+              }
+            }
             <p class="status">{{ driveStatus() }}</p>
             @if (driveMetas().length > 0) {
               <table class="meta-table">
@@ -216,6 +232,7 @@ export class StorageSectionComponent {
   readonly authState = signal<'signedOut' | 'signedIn' | 'expired'>('signedOut');
   readonly driveStatus = signal('');
   readonly driveMetas = signal<StorageRecordMeta[]>([]);
+  readonly shareInfo = signal<ShareStatus | null>(null);
 
   constructor() {
     void this.localRefresh();
@@ -315,6 +332,30 @@ export class StorageSectionComponent {
     } catch (e) {
       this.driveStatus.set(this.describe(e));
       this.syncAuthState();
+    }
+  }
+
+  async shareRefresh(): Promise<void> {
+    if (!this.drive || !isShareable(this.drive)) return;
+    try {
+      this.shareInfo.set(await this.drive.shareStatus(this.recId()));
+      this.driveStatus.set(this.shareInfo() ? 'share status refreshed' : 'record not on Drive yet');
+    } catch (e) {
+      this.driveStatus.set(this.describe(e));
+    }
+  }
+
+  async shareToggle(): Promise<void> {
+    if (!this.drive || !isShareable(this.drive)) return;
+    try {
+      if (this.shareInfo()?.shared) {
+        await this.drive.unshare(this.recId());
+      } else {
+        await this.drive.share(this.recId());
+      }
+      await this.shareRefresh();
+    } catch (e) {
+      this.driveStatus.set(this.describe(e));
     }
   }
 
