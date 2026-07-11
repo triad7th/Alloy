@@ -1,6 +1,6 @@
 {
   "name": "@allyworld/alloy-storage",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "description": "Storage abstraction + backends for the Ally app series (web twin of AlloyStorage)",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/triad7th/Alloy.git" },
