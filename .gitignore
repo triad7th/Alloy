@@ -17,3 +17,4 @@ services/google-oauth/.env
 # Local Netlify folder
 .netlify
 examples/apple-harness/AlloyHarnessIOS.entitlements
+services/google-oauth/deno.lock
