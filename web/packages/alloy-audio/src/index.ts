@@ -14,3 +14,4 @@ export * from './dsp/dsp-types.js';
 export * from './dsp/prng.js';
 export * from './dsp/adsr-envelope.js';
 export * from './dsp/lfo.js';
+export * from './dsp/poly-blep-oscillator.js';
