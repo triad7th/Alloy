@@ -123,6 +123,10 @@ Patch
 Modulation routing is fixed but parameterized: velocity→cutoff,
 velocity→FM index, env→cutoff, LFO→pitch/amp/pan, key-tracking→cutoff.
 
+Schema headroom for the roadmap: `meta.category` distinguishes melodic vs
+kit patches, and the versioned schema leaves room for later drum-kit
+per-key maps and a fifth `model` generator kind without breaking changes.
+
 First-wave mapping (schema sanity check):
 
 - **Acoustic piano**: 3 crossfaded velocity sample layers, vel→cutoff
@@ -225,11 +229,54 @@ Each phase independently shippable:
 6. **GM buildout** — content-driven, tier by tier; budgets from the table
    above bind here.
 
-## Non-goals
+## Roadmap (beyond the phased plan)
+
+Direction after phase 6, recorded here so early design choices don't
+foreclose it. Ordered roughly by dependency, not priority; none of it is in
+scope for the current phases.
+
+**Drums at XV expansion-card level.** Polished studio drums in the same
+Japanese-synth aesthetic — tight, processed, zero room noise, the SRX-style
+"finished record" sound. Engine implications reserved in the patch schema
+now: drum-kit patches (per-key zone/level/pan/tune maps), exclusive groups
+(hi-hat choke), optional round-robin per key, and per-key insert sends.
+
+**MIDI input from physical devices.** Web MIDI API on web, CoreMIDI on
+Apple, feeding the existing note-on/off surface. Velocity curves per patch
+already exist; add sustain/sostenuto pedal (CC64/66), pitch bend, and mod
+wheel → LFO depth routing to the modulation set.
+
+**MIDI file playback, then sequencing.** A Standard MIDI File player over
+the engine (GM program → factory bank mapping comes free with `gmProgram`
+in patch meta), later a sequencer. Both live above the engine as separate
+libraries/apps — the engine's job stays note events in, audio out.
+
+**MIDI over LAN/WiFi.** RTP-MIDI (Apple Network MIDI session) and/or
+WebRTC data-channel transport so devices can drive the module remotely.
+
+**Physical modeling engine.** A fifth generator kind (`model`) in the patch
+schema: waveguide/modal models for plucked/struck/blown tones and
+piano-resonance modeling (sympathetic strings, damper behavior) layered
+under sampled pianos. The generator abstraction is designed so this slots
+in without schema surgery.
+
+**Desktop pro-audio: macOS/Windows standalones, ASIO, VST3/AU.** A
+standalone module app and plugin builds (AU on macOS, VST3 + ASIO on
+Windows) — the true Virtual Sound Canvas replacement, including a virtual
+MIDI destination so any GM MIDI file player on the system can drive it.
+This is the one roadmap item that breaks the current two-platform scope:
+plugins and Windows need a third, native rendition of the DSP core
+(C++ or Rust, likely JUCE-hosted) sharing the same numeric contract and
+golden-render fixtures. That is an explicit future scope decision to be
+made when we get there — the determinism-first core design is what makes a
+third rendition feasible at all.
+
+## Non-goals (for the phased plan above)
 
 - Kontakt-style sampled realism, room tone, or player noise.
-- React bindings, Linux, Windows (per platform scope).
+- React bindings and Linux (per platform scope). Windows appears only as
+  the desktop/plugin roadmap item above, not in the engine phases.
 - Resampling hardware ROMs for shipped content.
 - User-facing synthesis-editing UI (patches are factory-authored data).
-- MIDI file playback / sequencing — the engine plays notes; sequencing is an
-  app concern.
+- MIDI playback/sequencing inside the engine itself — roadmap items build
+  these above the engine; the engine plays note events.
