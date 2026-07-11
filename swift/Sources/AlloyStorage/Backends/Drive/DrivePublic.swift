@@ -11,11 +11,16 @@ public enum DrivePublic {
     apiKey: String,
     transport: any HTTPTransport = URLSessionTransport()
   ) async throws -> String {
-    var allowed = CharacterSet.alphanumerics
-    allowed.insert(charactersIn: "-_.!~*'()")
-    let encodedKey = apiKey.addingPercentEncoding(withAllowedCharacters: allowed) ?? apiKey
+    // nativeRef arrives from viewer-page URLs (untrusted input); percent-encode
+    // it like the API key so a crafted ref can't redirect the GET.
+    let encodedRef =
+      nativeRef.addingPercentEncoding(withAllowedCharacters: PercentEncoding.encodeURIComponentAllowed)
+      ?? nativeRef
+    let encodedKey =
+      apiKey.addingPercentEncoding(withAllowedCharacters: PercentEncoding.encodeURIComponentAllowed)
+      ?? apiKey
     let url = URL(string:
-      "https://www.googleapis.com/drive/v3/files/\(nativeRef)?alt=media&key=\(encodedKey)")!
+      "https://www.googleapis.com/drive/v3/files/\(encodedRef)?alt=media&key=\(encodedKey)")!
     let data: Data
     let response: HTTPURLResponse
     do {

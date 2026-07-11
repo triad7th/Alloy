@@ -18,6 +18,14 @@ describe('fetchSharedFile', () => {
     expect(calls[0]).toBe('https://www.googleapis.com/drive/v3/files/d1?alt=media&key=KEY-9');
   });
 
+  it('percent-encodes a crafted nativeRef so it cannot redirect the request', async () => {
+    const calls: string[] = [];
+    await fetchSharedFile('d1/../evil?x=', 'k', fakeFetch(200, '', calls));
+    expect(calls[0]).toBe(
+      'https://www.googleapis.com/drive/v3/files/d1%2F..%2Fevil%3Fx%3D?alt=media&key=k'
+    );
+  });
+
   it('maps 404 to notFound (sharing revoked) and 403 to auth (bad API key)', async () => {
     await expect(fetchSharedFile('d1', 'k', fakeFetch(404, ''))).rejects.toMatchObject({
       category: 'notFound',

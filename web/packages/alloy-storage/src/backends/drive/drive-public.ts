@@ -14,7 +14,11 @@ export async function fetchSharedFile(
 ): Promise<string> {
   let res: Response;
   try {
-    res = await fetchFn(`${API}/files/${nativeRef}?alt=media&key=${encodeURIComponent(apiKey)}`);
+    // nativeRef arrives from viewer-page URLs (untrusted input); percent-encode
+    // it like the API key so a crafted ref can't redirect the GET.
+    res = await fetchFn(
+      `${API}/files/${encodeURIComponent(nativeRef)}?alt=media&key=${encodeURIComponent(apiKey)}`
+    );
   } catch (e) {
     throw new StorageError('unreachable', String(e));
   }

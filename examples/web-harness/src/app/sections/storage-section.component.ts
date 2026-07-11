@@ -342,6 +342,7 @@ export class StorageSectionComponent {
       this.driveStatus.set(this.shareInfo() ? 'share status refreshed' : 'record not on Drive yet');
     } catch (e) {
       this.driveStatus.set(this.describe(e));
+      this.syncAuthState();
     }
   }
 
@@ -356,6 +357,7 @@ export class StorageSectionComponent {
       await this.shareRefresh();
     } catch (e) {
       this.driveStatus.set(this.describe(e));
+      this.syncAuthState();
     }
   }
 

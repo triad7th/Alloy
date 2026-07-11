@@ -44,6 +44,17 @@ import Testing
     #expect(permURL.contains("/files/d1/permissions?fields=permissions(id,type)"))
   }
 
+  @Test func legacyAllyscoreIdRecordsAreShareableWithCorrectNativeRef() async throws {
+    let legacyHit =
+      #"{"files":[{"id":"d2","name":"b.allyscore","appProperties":{"allyscoreId":"b","savedAt":"1751980000000"}}]}"#
+    let (b, _) = backend([
+      .init(matches: { $0.url!.absoluteString.contains("files?q=") }, body: legacyHit, status: 200),
+      .init(matches: { $0.url!.absoluteString.contains("/permissions?fields=") },
+            body: #"{"permissions":[]}"#, status: 200),
+    ])
+    #expect(try await b.shareStatus(id: "b") == ShareStatus(shared: false, nativeRef: "d2"))
+  }
+
   @Test func shareOnMissingRecordThrowsNotFound() async {
     let (b, _) = backend([
       .init(matches: { $0.url!.absoluteString.contains("files?q=") }, body: fileMiss, status: 200)

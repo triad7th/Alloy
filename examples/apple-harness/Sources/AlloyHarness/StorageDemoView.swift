@@ -185,15 +185,20 @@ struct StorageDemoView: View {
     }
 
     private func shareRefresh() async {
-        guard let shareable = StorageDemo.drive as (any Shareable)? else { return }
+        guard let drive: any StorageBackend = StorageDemo.drive else { return }
+        guard let shareable = drive as? any Shareable else { return }
         do {
             shareInfo = try await shareable.shareStatus(id: recID)
             driveStatus = shareInfo == nil ? "record not on Drive yet" : "share status refreshed"
-        } catch { driveStatus = describe(error) }
+        } catch {
+            driveStatus = describe(error)
+            authState = StorageDemo.auth?.state ?? .signedOut
+        }
     }
 
     private func shareToggle() async {
-        guard let shareable = StorageDemo.drive as (any Shareable)? else { return }
+        guard let drive: any StorageBackend = StorageDemo.drive else { return }
+        guard let shareable = drive as? any Shareable else { return }
         do {
             if shareInfo?.shared == true {
                 try await shareable.unshare(id: recID)
@@ -201,7 +206,10 @@ struct StorageDemoView: View {
                 _ = try await shareable.share(id: recID)
             }
             await shareRefresh()
-        } catch { driveStatus = describe(error) }
+        } catch {
+            driveStatus = describe(error)
+            authState = StorageDemo.auth?.state ?? .signedOut
+        }
     }
 
     // MARK: shared bits

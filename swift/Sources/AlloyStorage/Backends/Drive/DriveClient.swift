@@ -58,17 +58,11 @@ public final class DriveClient: Sendable {
     return data
   }
 
-  /// The exact unreserved set of JS encodeURIComponent: ASCII alphanumerics
-  /// plus -_.!~*'() — CharacterSet.alphanumerics would wrongly pass Unicode
-  /// letters/digits (é, CJK, Cyrillic) through unencoded.
-  private static let queryAllowed = CharacterSet(
-    charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()")
-
   /// Percent-encode a Drive query, quotes included (twin of TS encodeQuery:
   /// encodeURIComponent leaves ' unencoded, then one pass replaces it — %27
   /// is always wire-valid).
   private func encodeQuery(_ raw: String) -> String {
-    raw.addingPercentEncoding(withAllowedCharacters: Self.queryAllowed)!
+    raw.addingPercentEncoding(withAllowedCharacters: PercentEncoding.encodeURIComponentAllowed)!
       .replacingOccurrences(of: "'", with: "%27")
   }
 
@@ -181,10 +175,10 @@ public final class DriveClient: Sendable {
   /// Shareable mechanism — internal on purpose; not part of the public surface.
   /// Twin of TS DriveClient.createPublicPermission.
   func createPublicPermission(fileId: String) async throws {
-    let body = try! JSONSerialization.data(withJSONObject: ["role": "reader", "type": "anyone"])
     _ = try await call(
       "\(api)/files/\(fileId)/permissions", method: "POST",
-      headers: ["Content-Type": "application/json"], body: body)
+      headers: ["Content-Type": "application/json"],
+      body: jsonBody(["role": "reader", "type": "anyone"]))
   }
 
   private struct PermissionList: Decodable {

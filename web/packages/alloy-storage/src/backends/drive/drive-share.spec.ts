@@ -1,7 +1,8 @@
+import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it, vi } from 'vitest';
 import type { DriveClient, DriveFileMeta } from './drive-client.js';
-import type { StorageBackend } from '../../core/backend.js';
 import { isShareable } from '../../core/shareable.js';
+import { BrowserStorageBackend } from '../browser-storage.js';
 import { DriveBackend } from './drive-backend.js';
 
 /** Twin fixture: swift/Tests/AlloyStorageTests/DriveShareTests.swift runs the
@@ -31,13 +32,7 @@ const FILE: DriveFileMeta = { id: 'd1', name: 'a.json', appProperties: { alloyId
 describe('DriveBackend Shareable', () => {
   it('is detected by isShareable; local backends are not', () => {
     expect(isShareable(new DriveBackend(fakeClient(), 'App', memStorage()))).toBe(true);
-    const localBackend: StorageBackend = {
-      list: vi.fn(),
-      read: vi.fn(),
-      write: vi.fn(),
-      delete: vi.fn(),
-    };
-    expect(isShareable(localBackend)).toBe(false);
+    expect(isShareable(new BrowserStorageBackend('t', new IDBFactory()))).toBe(false);
     expect(isShareable(null)).toBe(false);
   });
 

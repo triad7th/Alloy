@@ -16,6 +16,16 @@ import Testing
     #expect(transport.requests[0].value(forHTTPHeaderField: "Authorization") == nil)
   }
 
+  @Test func percentEncodesCraftedNativeRef() async throws {
+    let transport = ScriptedTransport([
+      .init(matches: { _ in true }, body: "", status: 200)
+    ])
+    _ = try await DrivePublic.fetchSharedFile(
+      nativeRef: "d1/../evil?x=", apiKey: "k", transport: transport)
+    #expect(transport.requests[0].url!.absoluteString
+      == "https://www.googleapis.com/drive/v3/files/d1%2F..%2Fevil%3Fx%3D?alt=media&key=k")
+  }
+
   @Test(arguments: [(404, StorageError.Category.notFound), (403, .auth)])
   func mapsFailureStatuses(status: Int, category: StorageError.Category) async {
     let transport = ScriptedTransport([.init(matches: { _ in true }, body: "", status: status)])
