@@ -25,3 +25,26 @@ let fixturePatchJSON = """
   "sends": { "reverb": 0.2, "delay": 0 }
 }
 """
+
+/// Single-layer patch carrying an insert chain (chorus + tremolo): the wire
+/// pin for the optional `inserts` field. Copied verbatim from web
+/// src/dsp/testing/fixtures.ts (FIXTURE_INSERTS_PATCH_JSON).
+let fixtureInsertsPatchJSON = """
+{
+  "schemaVersion": 1,
+  "meta": { "id": "test.inserts", "name": "Insert Chain", "category": "melodic" },
+  "layers": [
+    {
+      "keyRange": { "lowMidi": 0, "highMidi": 127 },
+      "velRange": { "low": 0, "high": 1 },
+      "generator": { "kind": "additive", "partials": [ { "ratio": 1, "level": 1 } ] },
+      "tva": { "level": 0.8, "adsr": { "attack": 0.005, "decay": 0.3, "sustain": 0.7, "release": 0.25 }, "velCurve": 1 }
+    }
+  ],
+  "sends": { "reverb": 0, "delay": 0 },
+  "inserts": [
+    { "kind": "chorus", "chorus": { "mode": "ensemble", "rateHz": 0.9, "depthMs": 2.5, "mix": 0.4 } },
+    { "kind": "tremolo", "tremolo": { "rateHz": 5.5, "depth": 0.6, "spread": 1 } }
+  ]
+}
+"""

@@ -92,14 +92,14 @@ export class WorkletHostCore {
 
   /**
    * Drain <= MAX_COMMANDS_PER_BLOCK queued messages, then engine.process into
-   * out (ADDS; caller passes the pre-zeroed worklet buffer). postReply
+   * left/right (ADDS; caller passes the pre-zeroed worklet buffers). postReply
    * collects any patchRejected replies. `frames` must be <= 4096 (the
    * engine's block cap); the worklet shell's fixed 128-frame quantum always
    * satisfies this — unlike the Apple host, this core does not slice.
    */
-  render(out: Float32Array, frames: number, postReply: (reply: WorkletOutMessage) => void): void {
+  render(left: Float32Array, right: Float32Array, frames: number, postReply: (reply: WorkletOutMessage) => void): void {
     this.drain(postReply);
-    this.engine.process(out, frames);
+    this.engine.process(left, right, frames);
   }
 
   private drain(postReply: (reply: WorkletOutMessage) => void): void {

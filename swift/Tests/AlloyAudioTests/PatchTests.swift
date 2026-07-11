@@ -95,6 +95,54 @@ final class PatchTests: XCTestCase {
         XCTAssertEqual(seed, 3)
     }
 
+    func testFixtureWithoutInsertsStillValidates() throws {
+        // Backward-compat pin: `inserts` is optional and schemaVersion stays
+        // 1, so every pre-2a patch JSON must keep decoding and validating.
+        let patch = try decodeFixture()
+        XCTAssertNil(patch.inserts)
+        XCTAssertTrue(validatePatch(patch).isEmpty)
+    }
+
+    func testRejectsMoreThanMaxInserts() throws {
+        var patch = try decodeFixture()
+        let chorus = InsertSpec.chorus(ChorusParams(mode: .chorus, rateHz: 1, depthMs: 3, mix: 0.5))
+        patch.inserts = [chorus, chorus, chorus, chorus]
+        XCTAssertTrue(validatePatch(patch).contains("too many inserts (4 > 3)"))
+    }
+
+    func testPrefixesInsertValidationErrorsWithTheirOneBasedIndex() throws {
+        var patch = try decodeFixture()
+        patch.inserts = [.chorus(ChorusParams(mode: .chorus, rateHz: 0, depthMs: 25, mix: 1.5))]
+        let errors = validatePatch(patch)
+        XCTAssertGreaterThanOrEqual(errors.count, 3)
+        XCTAssertTrue(errors.allSatisfy { $0.hasPrefix("insert 1: ") })
+    }
+
+    func testInsertsFixtureDecodesValidatesAndRoundTrips() throws {
+        // Same JSON string as the TS spec ('inserts fixture parses,
+        // validates clean, and round-trips').
+        let patch = try JSONDecoder().decode(Patch.self, from: Data(fixtureInsertsPatchJSON.utf8))
+        XCTAssertTrue(validatePatch(patch).isEmpty)
+        XCTAssertEqual(patch.inserts?.count, 2)
+
+        let encoded = try JSONEncoder().encode(patch)
+        let decoded = try JSONDecoder().decode(Patch.self, from: encoded)
+        XCTAssertTrue(validatePatch(decoded).isEmpty)
+        guard case let .chorus(chorus)? = decoded.inserts?[0] else {
+            return XCTFail("expected a chorus insert at position 1")
+        }
+        XCTAssertEqual(chorus.mode, .ensemble)
+        XCTAssertEqual(chorus.rateHz, 0.9)
+        XCTAssertEqual(chorus.depthMs, 2.5)
+        XCTAssertEqual(chorus.mix, 0.4)
+        guard case let .tremolo(tremolo)? = decoded.inserts?[1] else {
+            return XCTFail("expected a tremolo insert at position 2")
+        }
+        XCTAssertEqual(tremolo.rateHz, 5.5)
+        XCTAssertEqual(tremolo.depth, 0.6)
+        XCTAssertEqual(tremolo.spread, 1)
+    }
+
     func testRoundTripEncodeDecodeStillValidates() throws {
         let patch = try decodeFixture()
         let encoded = try JSONEncoder().encode(patch)

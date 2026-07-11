@@ -27,29 +27,45 @@ final class PatchEngineTests: XCTestCase {
         )
     }
 
-    private func process(_ engine: PatchEngine, _ frames: Int) -> [Float] {
-        var out = [Float](repeating: 0, count: frames)
-        engine.process(into: &out, frames: frames)
-        return out
+    /// Stereo render helper; most scheduling tests assert on the left
+    /// channel (insert-free rendering is unity mono→stereo, so L carries the
+    /// old mono expectations verbatim).
+    private func processStereo(_ engine: PatchEngine, _ frames: Int) -> (left: [Float], right: [Float]) {
+        var left = [Float](repeating: 0, count: frames)
+        var right = [Float](repeating: 0, count: frames)
+        engine.process(intoLeft: &left, right: &right, frames: frames)
+        return (left, right)
     }
 
-    /// Renders totalFrames in fixed-size blocks, returning the concatenated buffer.
-    private func processBlocks(_ engine: PatchEngine, _ totalFrames: Int, _ block: Int) -> [Float] {
-        var out = [Float](repeating: 0, count: totalFrames)
-        var buf = [Float](repeating: 0, count: block)
+    private func process(_ engine: PatchEngine, _ frames: Int) -> [Float] {
+        processStereo(engine, frames).left
+    }
+
+    /// Renders totalFrames in fixed-size blocks, returning the concatenated stereo buffers.
+    private func processBlocksStereo(_ engine: PatchEngine, _ totalFrames: Int, _ block: Int) -> (left: [Float], right: [Float]) {
+        var outL = [Float](repeating: 0, count: totalFrames)
+        var outR = [Float](repeating: 0, count: totalFrames)
+        var bufL = [Float](repeating: 0, count: block)
+        var bufR = [Float](repeating: 0, count: block)
         var offset = 0
         while offset < totalFrames {
             let n = min(block, totalFrames - offset)
             for i in 0..<n {
-                buf[i] = 0
+                bufL[i] = 0
+                bufR[i] = 0
             }
-            engine.process(into: &buf, frames: n)
+            engine.process(intoLeft: &bufL, right: &bufR, frames: n)
             for i in 0..<n {
-                out[offset + i] = buf[i]
+                outL[offset + i] = bufL[i]
+                outR[offset + i] = bufR[i]
             }
             offset += n
         }
-        return out
+        return (outL, outR)
+    }
+
+    private func processBlocks(_ engine: PatchEngine, _ totalFrames: Int, _ block: Int) -> [Float] {
+        processBlocksStereo(engine, totalFrames, block).left
     }
 
     private func maxAbs(_ samples: [Float], _ from: Int, _ to: Int) -> Float {
@@ -196,8 +212,8 @@ final class PatchEngineTests: XCTestCase {
     // 8. renderPatch determinism: two calls with identical args → identical buffers.
     func testRenderPatchIsDeterministicAcrossRepeatRenders() throws {
         let patch = try fixturePatch()
-        let a = renderPatch(patch: patch, events: renderEvents, totalFrames: 4800, sampleRate: fs)
-        let b = renderPatch(patch: patch, events: renderEvents, totalFrames: 4800, sampleRate: fs)
+        let a = renderPatch(patch: patch, events: renderEvents, totalFrames: 4800, sampleRate: fs).left
+        let b = renderPatch(patch: patch, events: renderEvents, totalFrames: 4800, sampleRate: fs).left
         XCTAssertEqual(a.count, 4800)
         XCTAssertGreaterThan(maxAbs(a, 0, 4800), 0)
         XCTAssertEqual(a, b)
@@ -207,7 +223,7 @@ final class PatchEngineTests: XCTestCase {
     //    (chunk determinism is pinned by the Voice tests).
     func testRenderPatchMatchesAManualEngineLoopAtADifferentBlockSize() throws {
         let patch = try fixturePatch()
-        let harness = renderPatch(patch: patch, events: renderEvents, totalFrames: 4800, sampleRate: fs)
+        let harness = renderPatch(patch: patch, events: renderEvents, totalFrames: 4800, sampleRate: fs).left
         let engine = PatchEngine(sampleRate: fs)
         engine.setPatch(patch)
         for event in renderEvents {
@@ -215,5 +231,51 @@ final class PatchEngineTests: XCTestCase {
         }
         let manual = processBlocks(engine, 4800, 48)
         XCTAssertEqual(manual, harness)
+    }
+
+    // 10. Mono compatibility contract: an insert-free patch renders identical
+    //     L and R (the mono→stereo copy is unity), pinned exactly.
+    func testRendersIdenticalLeftAndRightChannelsWithoutInserts() {
+        let engine = PatchEngine(sampleRate: fs)
+        engine.setPatch(makePatch())
+        engine.schedule(EngineEvent(frame: 0, kind: .noteOn(midi: 60, velocity: 1)))
+        let (left, right) = processBlocksStereo(engine, 4800, 128)
+        XCTAssertGreaterThan(maxAbs(left, 0, 4800), 0)
+        XCTAssertEqual(left, right)
+    }
+
+    // 11. Insert-chain wiring: a fully-wet chorus insert decorrelates the
+    //     channels (taps 90° apart) — L must differ from R after warmup.
+    func testRunsTheInsertChainSoAChorusPatchDecorrelatesLeftFromRight() {
+        var patch = makePatch()
+        patch.inserts = [.chorus(ChorusParams(mode: .chorus, rateHz: 0.8, depthMs: 3, mix: 1))]
+        let engine = PatchEngine(sampleRate: fs)
+        engine.setPatch(patch)
+        engine.schedule(EngineEvent(frame: 0, kind: .noteOn(midi: 60, velocity: 1)))
+        let (left, right) = processBlocksStereo(engine, 4800, 128)
+        var maxDiff: Float = 0
+        for i in 1000..<4800 {
+            maxDiff = max(maxDiff, abs(left[i] - right[i]))
+        }
+        XCTAssertGreaterThan(maxDiff, 0.01)
+    }
+
+    // 12. Chain continuity across setPatch (document-pinning test): the insert
+    //     chain is rebuilt only in setPatch, so a voice sounding across the
+    //     swap renders through the NEW patch's chain — no throw, still audible.
+    func testKeepsRenderingASoundingVoiceThroughTheNewInsertChainAfterSetPatch() {
+        var chorusPatch = makePatch()
+        chorusPatch.inserts = [.chorus(ChorusParams(mode: .chorus, rateHz: 0.8, depthMs: 3, mix: 0.5))]
+        let engine = PatchEngine(sampleRate: fs)
+        XCTAssertEqual(engine.setPatch(chorusPatch), [])
+        engine.schedule(EngineEvent(frame: 0, kind: .noteOn(midi: 60, velocity: 1)))
+        let before = processBlocksStereo(engine, 1024, 128)
+        XCTAssertGreaterThan(maxAbs(before.left, 0, 1024), 0)
+        var tremoloPatch = makePatch()
+        tremoloPatch.inserts = [.tremolo(TremoloParams(rateHz: 5, depth: 0.5, spread: 1))]
+        XCTAssertEqual(engine.setPatch(tremoloPatch), [])
+        let after = processBlocksStereo(engine, 1024, 128)
+        XCTAssertGreaterThan(maxAbs(after.left, 0, 1024), 0)
+        XCTAssertGreaterThan(maxAbs(after.right, 0, 1024), 0)
     }
 }

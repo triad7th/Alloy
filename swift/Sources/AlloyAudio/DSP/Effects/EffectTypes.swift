@@ -11,12 +11,12 @@ public protocol EffectUnit: AnyObject {
     func reset()
 }
 
-public enum ChorusMode {
+public enum ChorusMode: String, Codable {
     case chorus
     case ensemble
 }
 
-public struct ChorusParams {
+public struct ChorusParams: Codable {
     public var mode: ChorusMode
     /// LFO rate.
     public var rateHz: Double
@@ -33,7 +33,7 @@ public struct ChorusParams {
     }
 }
 
-public struct TremoloParams {
+public struct TremoloParams: Codable {
     public var rateHz: Double
     public var depth: Double
     /// 0 = tremolo .. 1 = auto-pan.
@@ -46,11 +46,30 @@ public struct TremoloParams {
     }
 }
 
-/// PLAIN in Task 1 — no Codable until the schema (and the `kind`-keyed wire
-/// format) lands in Task 3.
-public enum InsertSpec {
+/// Wire format keyed on `kind` with a `chorus`/`tremolo` payload field,
+/// matching the TS JSON exactly (GeneratorSpec's Codable pattern).
+public enum InsertSpec: Codable {
     case chorus(ChorusParams)
     case tremolo(TremoloParams)
+
+    private enum CodingKeys: String, CodingKey { case kind, chorus, tremolo }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        switch try c.decode(String.self, forKey: .kind) {
+        case "chorus": self = try .chorus(c.decode(ChorusParams.self, forKey: .chorus))
+        case "tremolo": self = try .tremolo(c.decode(TremoloParams.self, forKey: .tremolo))
+        default: throw DecodingError.dataCorruptedError(forKey: .kind, in: c, debugDescription: "unknown insert kind")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .chorus(params): try c.encode("chorus", forKey: .kind); try c.encode(params, forKey: .chorus)
+        case let .tremolo(params): try c.encode("tremolo", forKey: .kind); try c.encode(params, forKey: .tremolo)
+        }
+    }
 }
 
 public let MAX_INSERTS = 3

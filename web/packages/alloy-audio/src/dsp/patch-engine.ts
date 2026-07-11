@@ -1,10 +1,15 @@
 // PatchEngine: polyphonic voice pool over a sample-position transport clock.
 // Events are scheduled at absolute frames and applied sample-accurately:
 // process() renders segment-wise up to each due event's exact offset, applies
-// every event at that frame in schedule order, and continues. Rendering ADDS
-// into the caller's buffer through one preallocated segment scratch, so the
-// engine allocates only when voices start. Twin: PatchEngine.swift.
+// every event at that frame in schedule order, and continues. Voices stay
+// mono; per segment the summed voice bus is copied to a stereo scratch pair
+// at unity (insert-free ⇒ L === R === the old mono output), the patch's
+// insert chain processes it in place, and the result ADDS into the caller's
+// left/right buffers — all through preallocated scratches, so the engine
+// allocates only when voices start (and in setPatch, the drain context,
+// where the chain is rebuilt). Twin: PatchEngine.swift.
 
+import { createInsert, type EffectUnit } from './effects/effect-types.js';
 import { validatePatch, type Patch } from './patch.js';
 import { Voice, type ZoneSetProvider } from './voice.js';
 
@@ -43,8 +48,13 @@ export class PatchEngine {
   private frameCount = 0;
   private readonly maxVoices: number;
   private readonly zoneSetProvider: ZoneSetProvider | undefined;
-  /** Per-segment mix buffer; voices add into it, process() adds it into out. */
+  /** Per-segment mono mix buffer; voices add into it. */
   private readonly scratch = new Float32Array(MAX_BLOCK_FRAMES);
+  /** Per-segment stereo pair the insert chain processes in place. */
+  private readonly scratchL = new Float32Array(MAX_BLOCK_FRAMES);
+  private readonly scratchR = new Float32Array(MAX_BLOCK_FRAMES);
+  /** Insert chain; rebuilt only in setPatch (see its doc comment). */
+  private inserts: EffectUnit[] = [];
 
   constructor(
     private readonly sampleRate: number,
@@ -56,7 +66,12 @@ export class PatchEngine {
 
   /**
    * Throws on validatePatch errors (joined with '; '). New notes use the new
-   * patch; sounding voices finish on the old one.
+   * patch; sounding voices finish on the old one. The insert chain is
+   * rebuilt here (the drain context — never in process) from the new patch;
+   * it is one shared chain and effects are never reset on notes, so tails
+   * ring across notes AND across setPatch: voices still sounding on the old
+   * patch render through the NEW chain (hardware-like patch transition;
+   * per-generation chains are an explicit non-goal).
    */
   setPatch(patch: Patch): void {
     const errors = validatePatch(patch);
@@ -64,6 +79,7 @@ export class PatchEngine {
       throw new Error(errors.join('; '));
     }
     this.patch = patch;
+    this.inserts = (patch.inserts ?? []).map((spec) => createInsert(spec, this.sampleRate));
   }
 
   /** Sample-position transport clock: frames rendered since construction. */
@@ -89,8 +105,8 @@ export class PatchEngine {
     this.queue.splice(i, 0, event);
   }
 
-  /** Renders the next `frames` samples ADDING into out[0..frames); advances the transport. */
-  process(out: Float32Array, frames: number): void {
+  /** Renders the next `frames` samples ADDING into left/right[0..frames); advances the transport. */
+  process(left: Float32Array, right: Float32Array, frames: number): void {
     if (frames > MAX_BLOCK_FRAMES) {
       throw new Error(`process frames ${frames} exceeds ${MAX_BLOCK_FRAMES}`);
     }
@@ -108,7 +124,7 @@ export class PatchEngine {
           end = rel;
         }
       }
-      this.renderSegment(out, pos, end - pos);
+      this.renderSegment(left, right, pos, end - pos);
       pos = end;
     }
     this.frameCount += frames;
@@ -180,14 +196,27 @@ export class PatchEngine {
     this.voices.splice(earliestReleased !== -1 ? earliestReleased : earliest, 1);
   }
 
-  /** Zero the scratch segment, have every voice add into it, add it into out; reap silent voices. */
-  private renderSegment(out: Float32Array, offset: number, length: number): void {
+  /**
+   * Zero the mono scratch segment, have every voice add into it, copy it to
+   * the stereo scratch pair at unity, run the insert chain in patch order,
+   * add the pair into left/right; reap silent voices. The chain runs even
+   * over voice-silent segments so effect tails keep ringing.
+   */
+  private renderSegment(left: Float32Array, right: Float32Array, offset: number, length: number): void {
     this.scratch.fill(0, 0, length);
     for (const entry of this.voices) {
       entry.alive = entry.voice.render(this.scratch, length);
     }
     for (let i = 0; i < length; i++) {
-      out[offset + i] += this.scratch[i];
+      this.scratchL[i] = this.scratch[i];
+      this.scratchR[i] = this.scratch[i];
+    }
+    for (const insert of this.inserts) {
+      insert.process(this.scratchL, this.scratchR, length);
+    }
+    for (let i = 0; i < length; i++) {
+      left[offset + i] += this.scratchL[i];
+      right[offset + i] += this.scratchR[i];
     }
     let kept = 0;
     for (const entry of this.voices) {
@@ -206,7 +235,7 @@ const RENDER_BLOCK_FRAMES = 128;
 /**
  * Offline render harness — the golden-test and future bounce path. Fresh
  * engine, schedule all, process in 128-frame blocks (last block short),
- * return the full buffer.
+ * return the full stereo buffer pair.
  */
 export function renderPatch(
   patch: Patch,
@@ -214,16 +243,17 @@ export function renderPatch(
   totalFrames: number,
   sampleRate: number,
   zoneSetProvider?: ZoneSetProvider,
-): Float32Array {
+): { left: Float32Array; right: Float32Array } {
   const engine = new PatchEngine(sampleRate, { zoneSetProvider });
   engine.setPatch(patch);
   for (const event of events) {
     engine.schedule(event);
   }
-  const out = new Float32Array(totalFrames);
+  const left = new Float32Array(totalFrames);
+  const right = new Float32Array(totalFrames);
   for (let offset = 0; offset < totalFrames; offset += RENDER_BLOCK_FRAMES) {
     const n = Math.min(RENDER_BLOCK_FRAMES, totalFrames - offset);
-    engine.process(out.subarray(offset, offset + n), n);
+    engine.process(left.subarray(offset, offset + n), right.subarray(offset, offset + n), n);
   }
-  return out;
+  return { left, right };
 }

@@ -82,10 +82,14 @@ final class GoldenRenderTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line,
     ) {
+        // NOTE: mono-era assertions run against the left channel — no golden
+        // patch carries inserts yet, so L == R == the old mono output and
+        // every twin array stays valid verbatim. Task 4 re-baselines these
+        // goldens as true stereo (FM/ORGAN gain inserts there).
         // Determinism: two renders must be byte-identical.
         let events = goldenEvents()
-        let a = renderPatch(patch: patch, events: events, totalFrames: GOLDEN_FRAMES, sampleRate: GOLDEN_FS, zoneSetProvider: zoneSetProvider)
-        let b = renderPatch(patch: patch, events: events, totalFrames: GOLDEN_FRAMES, sampleRate: GOLDEN_FS, zoneSetProvider: zoneSetProvider)
+        let a = renderPatch(patch: patch, events: events, totalFrames: GOLDEN_FRAMES, sampleRate: GOLDEN_FS, zoneSetProvider: zoneSetProvider).left
+        let b = renderPatch(patch: patch, events: events, totalFrames: GOLDEN_FRAMES, sampleRate: GOLDEN_FS, zoneSetProvider: zoneSetProvider).left
         XCTAssertEqual(a.count, GOLDEN_FRAMES, file: file, line: line)
         for i in 0..<GOLDEN_FRAMES {
             XCTAssertEqual(b[i], a[i], file: file, line: line)

@@ -116,9 +116,13 @@ const CASES: GoldenCase[] = [
 describe('golden patch renders', () => {
   for (const { name, patch, provider, at0, at12000, at30000 } of CASES) {
     describe(name, () => {
+      // NOTE: mono-era assertions run against the left channel — no golden
+      // patch carries inserts yet, so L === R === the old mono output and
+      // every twin array below stays valid verbatim. Task 4 re-baselines
+      // these goldens as true stereo (FM/ORGAN gain inserts there).
       it('renders deterministically across repeat calls', () => {
-        const a = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider);
-        const b = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider);
+        const a = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider).left;
+        const b = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider).left;
         expect(a.length).toBe(GOLDEN_FRAMES);
         for (let i = 0; i < GOLDEN_FRAMES; i++) {
           expect(b[i]).toBe(a[i]);
@@ -126,13 +130,13 @@ describe('golden patch renders', () => {
       });
 
       it('is non-silent during the sustain window and silent after the release tail', () => {
-        const out = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider);
+        const out = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider).left;
         expect(rms(out, 6000, 12000)).toBeGreaterThan(0.01);
         expect(rms(out, GOLDEN_FRAMES - 1000, GOLDEN_FRAMES)).toBeLessThan(0.01);
       });
 
       it('matches the twin reference at three probe windows', () => {
-        const out = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider);
+        const out = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider).left;
         expect(at0).toHaveLength(8);
         expect(at12000).toHaveLength(8);
         expect(at30000).toHaveLength(8);

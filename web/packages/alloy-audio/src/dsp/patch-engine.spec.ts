@@ -29,20 +29,37 @@ function makePatch(layers: PatchLayer[] = [additiveLayer()]): Patch {
   };
 }
 
-function process(engine: PatchEngine, frames: number): Float32Array {
-  const out = new Float32Array(frames);
-  engine.process(out, frames);
-  return out;
+/** Stereo render helper; most scheduling tests assert on the left channel
+ * (insert-free rendering is unity mono→stereo, so L carries the old mono
+ * expectations verbatim). */
+function processStereo(engine: PatchEngine, frames: number): { left: Float32Array; right: Float32Array } {
+  const left = new Float32Array(frames);
+  const right = new Float32Array(frames);
+  engine.process(left, right, frames);
+  return { left, right };
 }
 
-/** Renders totalFrames in fixed-size blocks, returning the concatenated buffer. */
-function processBlocks(engine: PatchEngine, totalFrames: number, block: number): Float32Array {
-  const out = new Float32Array(totalFrames);
+function process(engine: PatchEngine, frames: number): Float32Array {
+  return processStereo(engine, frames).left;
+}
+
+/** Renders totalFrames in fixed-size blocks, returning the concatenated stereo buffers. */
+function processBlocksStereo(
+  engine: PatchEngine,
+  totalFrames: number,
+  block: number,
+): { left: Float32Array; right: Float32Array } {
+  const left = new Float32Array(totalFrames);
+  const right = new Float32Array(totalFrames);
   for (let offset = 0; offset < totalFrames; offset += block) {
     const n = Math.min(block, totalFrames - offset);
-    engine.process(out.subarray(offset, offset + n), n);
+    engine.process(left.subarray(offset, offset + n), right.subarray(offset, offset + n), n);
   }
-  return out;
+  return { left, right };
+}
+
+function processBlocks(engine: PatchEngine, totalFrames: number, block: number): Float32Array {
+  return processBlocksStereo(engine, totalFrames, block).left;
 }
 
 function maxAbs(samples: ArrayLike<number>, from: number, to: number): number {
@@ -71,7 +88,7 @@ describe('PatchEngine', () => {
     process(engine, 256);
     expect(engine.frame).toBe(512);
     // Blocks are capped by the preallocated segment scratch.
-    expect(() => engine.process(new Float32Array(4097), 4097)).toThrow();
+    expect(() => engine.process(new Float32Array(4097), new Float32Array(4097), 4097)).toThrow();
   });
 
   // 2. Sample-accurate scheduling: noteOn at frame 100 → out[0..99] all exactly 0,
@@ -196,8 +213,8 @@ describe('PatchEngine', () => {
   // 8. renderPatch determinism: two calls with identical args → byte-identical buffers.
   it('renderPatch is deterministic across repeat renders', () => {
     const patch = JSON.parse(FIXTURE_PATCH_JSON) as Patch;
-    const a = renderPatch(patch, RENDER_EVENTS, 4800, FS);
-    const b = renderPatch(patch, RENDER_EVENTS, 4800, FS);
+    const a = renderPatch(patch, RENDER_EVENTS, 4800, FS).left;
+    const b = renderPatch(patch, RENDER_EVENTS, 4800, FS).left;
     expect(a.length).toBe(4800);
     expect(maxAbs(a, 0, 4800)).toBeGreaterThan(0);
     for (let i = 0; i < 4800; i++) {
@@ -209,7 +226,7 @@ describe('PatchEngine', () => {
   //    (chunk determinism is pinned by the Voice tests).
   it('renderPatch matches a manual engine loop at a different block size', () => {
     const patch = JSON.parse(FIXTURE_PATCH_JSON) as Patch;
-    const harness = renderPatch(patch, RENDER_EVENTS, 4800, FS);
+    const harness = renderPatch(patch, RENDER_EVENTS, 4800, FS).left;
     const engine = new PatchEngine(FS);
     engine.setPatch(patch);
     for (const event of RENDER_EVENTS) {
@@ -219,5 +236,53 @@ describe('PatchEngine', () => {
     for (let i = 0; i < 4800; i++) {
       expect(manual[i]).toBe(harness[i]);
     }
+  });
+
+  // 10. Mono compatibility contract: an insert-free patch renders identical
+  //     L and R (the mono→stereo copy is unity), pinned exactly.
+  it('renders identical left and right channels without inserts', () => {
+    const engine = new PatchEngine(FS);
+    engine.setPatch(makePatch());
+    engine.schedule({ frame: 0, kind: 'noteOn', midi: 60, velocity: 1 });
+    const { left, right } = processBlocksStereo(engine, 4800, 128);
+    expect(maxAbs(left, 0, 4800)).toBeGreaterThan(0);
+    for (let i = 0; i < 4800; i++) {
+      expect(right[i]).toBe(left[i]);
+    }
+  });
+
+  // 11. Insert-chain wiring: a fully-wet chorus insert decorrelates the
+  //     channels (taps 90° apart) — L must differ from R after warmup.
+  it('runs the insert chain so a chorus patch decorrelates left from right', () => {
+    const patch = makePatch();
+    patch.inserts = [{ kind: 'chorus', chorus: { mode: 'chorus', rateHz: 0.8, depthMs: 3, mix: 1 } }];
+    const engine = new PatchEngine(FS);
+    engine.setPatch(patch);
+    engine.schedule({ frame: 0, kind: 'noteOn', midi: 60, velocity: 1 });
+    const { left, right } = processBlocksStereo(engine, 4800, 128);
+    let maxDiff = 0;
+    for (let i = 1000; i < 4800; i++) {
+      maxDiff = Math.max(maxDiff, Math.abs(left[i] - right[i]));
+    }
+    expect(maxDiff).toBeGreaterThan(0.01);
+  });
+
+  // 12. Chain continuity across setPatch (document-pinning test): the insert
+  //     chain is rebuilt only in setPatch, so a voice sounding across the
+  //     swap renders through the NEW patch's chain — no throw, still audible.
+  it('keeps rendering a sounding voice through the new insert chain after setPatch', () => {
+    const chorusPatch = makePatch();
+    chorusPatch.inserts = [{ kind: 'chorus', chorus: { mode: 'chorus', rateHz: 0.8, depthMs: 3, mix: 0.5 } }];
+    const engine = new PatchEngine(FS);
+    engine.setPatch(chorusPatch);
+    engine.schedule({ frame: 0, kind: 'noteOn', midi: 60, velocity: 1 });
+    const before = processBlocksStereo(engine, 1024, 128);
+    expect(maxAbs(before.left, 0, 1024)).toBeGreaterThan(0);
+    const tremoloPatch = makePatch();
+    tremoloPatch.inserts = [{ kind: 'tremolo', tremolo: { rateHz: 5, depth: 0.5, spread: 1 } }];
+    expect(() => engine.setPatch(tremoloPatch)).not.toThrow();
+    const after = processBlocksStereo(engine, 1024, 128);
+    expect(maxAbs(after.left, 0, 1024)).toBeGreaterThan(0);
+    expect(maxAbs(after.right, 0, 1024)).toBeGreaterThan(0);
   });
 });

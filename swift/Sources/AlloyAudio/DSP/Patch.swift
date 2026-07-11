@@ -178,12 +178,24 @@ public struct Patch: Codable {
     public var layers: [PatchLayer]
     /// Consumed in phase 2.
     public var sends: PatchSends
+    /// Ordered stereo insert chain after the mono voice bus (0..MAX_INSERTS).
+    /// Optional on the wire (synthesized Codable decodes it via
+    /// decodeIfPresent and omits nil on encode), so pre-2a patch JSON keeps
+    /// decoding at schemaVersion 1.
+    public var inserts: [InsertSpec]?
 
-    public init(schemaVersion: Int, meta: PatchMeta, layers: [PatchLayer], sends: PatchSends) {
+    public init(
+        schemaVersion: Int,
+        meta: PatchMeta,
+        layers: [PatchLayer],
+        sends: PatchSends,
+        inserts: [InsertSpec]? = nil,
+    ) {
         self.schemaVersion = schemaVersion
         self.meta = meta
         self.layers = layers
         self.sends = sends
+        self.inserts = inserts
     }
 }
 
@@ -235,6 +247,16 @@ public func validatePatch(_ patch: Patch) -> [String] {
             }
             if !(crossfade >= 0) {
                 errors.append("\(prefix)sample.crossfade \(crossfade) must be >= 0")
+            }
+        }
+    }
+    if let inserts = patch.inserts {
+        if inserts.count > MAX_INSERTS {
+            errors.append("too many inserts (\(inserts.count) > \(MAX_INSERTS))")
+        }
+        for (i, insert) in inserts.enumerated() {
+            for e in validateInsert(insert) {
+                errors.append("insert \(i + 1): \(e)")
             }
         }
     }

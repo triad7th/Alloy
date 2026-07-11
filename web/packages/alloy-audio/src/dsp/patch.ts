@@ -4,6 +4,7 @@
 
 import { type AdsrParams } from './adsr-envelope.js';
 import { type AdditivePartial } from './additive-generator.js';
+import { MAX_INSERTS, validateInsert, type InsertSpec } from './effects/effect-types.js';
 import { validateFmGeneratorParams, type FmGeneratorParams } from './fm-generator.js';
 import { type LfoParams } from './lfo.js';
 import { type SvfMode } from './svf.js';
@@ -76,6 +77,8 @@ export interface Patch {
   meta: PatchMeta;
   layers: PatchLayer[]; // 1..4
   sends: { reverb: number; delay: number }; // consumed in phase 2
+  /** Ordered stereo insert chain after the mono voice bus (0..MAX_INSERTS). */
+  inserts?: InsertSpec[];
 }
 
 /** Non-throwing validation; empty = safe to construct voices from on both platforms. */
@@ -128,5 +131,15 @@ export function validatePatch(patch: Patch): string[] {
         break;
     }
   });
+  if (patch.inserts) {
+    if (patch.inserts.length > MAX_INSERTS) {
+      errors.push(`too many inserts (${patch.inserts.length} > ${MAX_INSERTS})`);
+    }
+    patch.inserts.forEach((insert, i) => {
+      for (const e of validateInsert(insert)) {
+        errors.push(`insert ${i + 1}: ${e}`);
+      }
+    });
+  }
   return errors;
 }

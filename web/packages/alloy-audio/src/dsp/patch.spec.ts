@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { validatePatch, PATCH_SCHEMA_VERSION, type Patch } from './patch.js';
-import { FIXTURE_PATCH_JSON } from './testing/fixtures.js';
+import type { InsertSpec } from './effects/effect-types.js';
+import { FIXTURE_INSERTS_PATCH_JSON, FIXTURE_PATCH_JSON } from './testing/fixtures.js';
 
 // Wire-contract pin shared verbatim with PatchTests.swift: a va generator
 // may omit pulseWidth (TS type is optional; Swift decodes it as 0.5).
@@ -61,6 +62,40 @@ describe('Patch', () => {
     const badVa = structuredClone(base);
     (badVa.layers[0].generator as { kind: 'va'; va: { unison: number } }).va.unison = 0;
     expect(validatePatch(badVa)).not.toEqual([]);
+  });
+
+  it('keeps validating the 1b fixture, which has no inserts field', () => {
+    // Backward-compat pin: `inserts` is optional and schemaVersion stays 1,
+    // so every pre-2a patch JSON must keep validating verbatim.
+    const patch = JSON.parse(FIXTURE_PATCH_JSON) as Patch;
+    expect(patch.inserts).toBeUndefined();
+    expect(validatePatch(patch)).toEqual([]);
+  });
+
+  it('rejects more than MAX_INSERTS inserts', () => {
+    const base = JSON.parse(FIXTURE_PATCH_JSON) as Patch;
+    const chorus: InsertSpec = { kind: 'chorus', chorus: { mode: 'chorus', rateHz: 1, depthMs: 3, mix: 0.5 } };
+    const errors = validatePatch({ ...base, inserts: [chorus, chorus, chorus, chorus] });
+    expect(errors).toContain('too many inserts (4 > 3)');
+  });
+
+  it('prefixes insert validation errors with their 1-based index', () => {
+    const base = JSON.parse(FIXTURE_PATCH_JSON) as Patch;
+    const bad: InsertSpec = { kind: 'chorus', chorus: { mode: 'chorus', rateHz: 0, depthMs: 25, mix: 1.5 } };
+    const errors = validatePatch({ ...base, inserts: [bad] });
+    expect(errors.length).toBeGreaterThanOrEqual(3);
+    expect(errors.every((e) => e.startsWith('insert 1: '))).toBe(true);
+  });
+
+  it('inserts fixture parses, validates clean, and round-trips', () => {
+    const patch = JSON.parse(FIXTURE_INSERTS_PATCH_JSON) as Patch;
+    expect(validatePatch(patch)).toEqual([]);
+    expect(patch.inserts).toHaveLength(2);
+    expect(patch.inserts?.[0]).toEqual({ kind: 'chorus', chorus: { mode: 'ensemble', rateHz: 0.9, depthMs: 2.5, mix: 0.4 } });
+    expect(patch.inserts?.[1]).toEqual({ kind: 'tremolo', tremolo: { rateHz: 5.5, depth: 0.6, spread: 1 } });
+    const reparsed = JSON.parse(JSON.stringify(patch)) as Patch;
+    expect(validatePatch(reparsed)).toEqual([]);
+    expect(reparsed.inserts).toEqual(patch.inserts);
   });
 
   it('rejects a va seed that is negative or non-integer', () => {

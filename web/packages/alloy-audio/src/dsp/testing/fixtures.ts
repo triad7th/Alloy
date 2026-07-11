@@ -1,6 +1,29 @@
 // Shared fixture data for DSP twin tests (patch.spec.ts, voice.spec.ts).
 // Not exported from the package barrel — test-only.
 
+/**
+ * Single-layer patch carrying an insert chain (chorus + tremolo): the wire
+ * pin for the optional `inserts` field. Shared verbatim with
+ * PatchFixtures.swift (fixtureInsertsPatchJSON).
+ */
+export const FIXTURE_INSERTS_PATCH_JSON = `{
+  "schemaVersion": 1,
+  "meta": { "id": "test.inserts", "name": "Insert Chain", "category": "melodic" },
+  "layers": [
+    {
+      "keyRange": { "lowMidi": 0, "highMidi": 127 },
+      "velRange": { "low": 0, "high": 1 },
+      "generator": { "kind": "additive", "partials": [ { "ratio": 1, "level": 1 } ] },
+      "tva": { "level": 0.8, "adsr": { "attack": 0.005, "decay": 0.3, "sustain": 0.7, "release": 0.25 }, "velCurve": 1 }
+    }
+  ],
+  "sends": { "reverb": 0, "delay": 0 },
+  "inserts": [
+    { "kind": "chorus", "chorus": { "mode": "ensemble", "rateHz": 0.9, "depthMs": 2.5, "mix": 0.4 } },
+    { "kind": "tremolo", "tremolo": { "rateHz": 5.5, "depth": 0.6, "spread": 1 } }
+  ]
+}`;
+
 /** Two-layer patch (va + fm) exercising every field of the Task 2 schema. */
 export const FIXTURE_PATCH_JSON = `{
   "schemaVersion": 1,

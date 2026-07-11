@@ -43,6 +43,15 @@ function maxAbs(samples: ArrayLike<number>, from: number, to: number): number {
   return peak;
 }
 
+/** Stereo render helper; these patches are insert-free so L === R and the
+ * scheduling assertions read the left channel. */
+function render(core: WorkletHostCore, frames: number, postReply: (reply: WorkletOutMessage) => void = () => {}): Float32Array {
+  const left = new Float32Array(frames);
+  const right = new Float32Array(frames);
+  core.render(left, right, frames, postReply);
+  return left;
+}
+
 describe('WorkletHostCore', () => {
   // 1. setPatch then noteOn then render: non-silent output.
   it('renders non-silent output after setPatch + noteOn', () => {
@@ -50,8 +59,7 @@ describe('WorkletHostCore', () => {
     const replies: WorkletOutMessage[] = [];
     core.onMessage({ type: 'setPatch', patch: makePatch() });
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1 });
-    const out = new Float32Array(256);
-    core.render(out, 256, (reply) => replies.push(reply));
+    const out = render(core, 256, (reply) => replies.push(reply));
     expect(replies).toHaveLength(0);
     expect(maxAbs(out, 0, 256)).toBeGreaterThan(0);
   });
@@ -63,16 +71,14 @@ describe('WorkletHostCore', () => {
     const replies: WorkletOutMessage[] = [];
     core.onMessage({ type: 'setPatch', patch: makePatch([]) }); // 0 layers: invalid
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1 });
-    const rejected = new Float32Array(256);
-    core.render(rejected, 256, (reply) => replies.push(reply));
+    const rejected = render(core, 256, (reply) => replies.push(reply));
     expect(replies).toHaveLength(1);
     expect(replies[0]).toEqual({ type: 'patchRejected', errors: expect.arrayContaining([expect.stringContaining('layer count')]) });
     expect(maxAbs(rejected, 0, 256)).toBe(0);
 
     core.onMessage({ type: 'setPatch', patch: makePatch() });
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1 });
-    const recovered = new Float32Array(256);
-    core.render(recovered, 256, (reply) => replies.push(reply));
+    const recovered = render(core, 256, (reply) => replies.push(reply));
     expect(maxAbs(recovered, 0, 256)).toBeGreaterThan(0);
   });
 
@@ -82,8 +88,7 @@ describe('WorkletHostCore', () => {
     const core = new WorkletHostCore(FS, 1000);
     core.onMessage({ type: 'setPatch', patch: makePatch() });
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1, atFrame: 1100 });
-    const out = new Float32Array(256);
-    core.render(out, 256, () => {});
+    const out = render(core, 256);
     for (let i = 0; i < 100; i++) {
       expect(out[i]).toBe(0);
     }
@@ -95,8 +100,7 @@ describe('WorkletHostCore', () => {
     const core = new WorkletHostCore(FS, 1000);
     core.onMessage({ type: 'setPatch', patch: makePatch() });
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1, atFrame: 500 });
-    const out = new Float32Array(256);
-    core.render(out, 256, () => {});
+    const out = render(core, 256);
     expect(maxAbs(out, 0, 8)).toBeGreaterThan(0);
   });
 
@@ -118,8 +122,7 @@ describe('WorkletHostCore', () => {
     core.onMessage({ type: 'setZoneSet', id: 'golden.sine', layers });
     core.onMessage({ type: 'setPatch', patch: PATCH_SAMPLE });
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1 });
-    const resolved = new Float32Array(1024);
-    core.render(resolved, 1024, () => {});
+    const resolved = render(core, 1024);
     expect(maxAbs(resolved, 0, 1024)).toBeGreaterThan(0);
 
     // No setZoneSet for 'golden.sine' on this core: unresolved zoneSetId is
@@ -127,8 +130,10 @@ describe('WorkletHostCore', () => {
     const unresolvedCore = new WorkletHostCore(FS, 0);
     unresolvedCore.onMessage({ type: 'setPatch', patch: PATCH_SAMPLE });
     unresolvedCore.onMessage({ type: 'noteOn', midi: 60, velocity: 1 });
-    const silent = new Float32Array(1024);
-    expect(() => unresolvedCore.render(silent, 1024, () => {})).not.toThrow();
+    let silent = new Float32Array(0);
+    expect(() => {
+      silent = render(unresolvedCore, 1024);
+    }).not.toThrow();
     expect(maxAbs(silent, 0, 1024)).toBe(0);
   });
 
@@ -143,11 +148,9 @@ describe('WorkletHostCore', () => {
     // 1 setPatch + (MAX_COMMANDS_PER_BLOCK + 1) noteOns queued.
     const totalQueued = MAX_COMMANDS_PER_BLOCK + 2;
     expect(core.pendingMessageCount).toBe(totalQueued);
-    const first = new Float32Array(128);
-    core.render(first, 128, () => {});
+    render(core, 128);
     expect(core.pendingMessageCount).toBe(totalQueued - MAX_COMMANDS_PER_BLOCK);
-    const second = new Float32Array(128);
-    core.render(second, 128, () => {});
+    render(core, 128);
     expect(core.pendingMessageCount).toBe(0);
   });
 
@@ -157,7 +160,7 @@ describe('WorkletHostCore', () => {
     ['fm', PATCH_FM],
     ['organ', PATCH_ORGAN],
   ])('flagship equality: %s', (_name, patch) => {
-    it('matches renderPatch exactly when driven in 128-frame blocks over the wire protocol', () => {
+    it('matches renderPatch exactly on both channels when driven in 128-frame blocks over the wire protocol', () => {
       const expected = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS);
 
       const core = new WorkletHostCore(GOLDEN_FS, 0);
@@ -176,29 +179,37 @@ describe('WorkletHostCore', () => {
         }
       }
 
-      const actual = new Float32Array(GOLDEN_FRAMES);
+      const actualLeft = new Float32Array(GOLDEN_FRAMES);
+      const actualRight = new Float32Array(GOLDEN_FRAMES);
       for (let offset = 0; offset < GOLDEN_FRAMES; offset += 128) {
         const n = Math.min(128, GOLDEN_FRAMES - offset);
-        const block = new Float32Array(n); // zero-filled, as worklet buffers arrive
-        core.render(block, n, () => {
+        const blockLeft = new Float32Array(n); // zero-filled, as worklet buffers arrive
+        const blockRight = new Float32Array(n);
+        core.render(blockLeft, blockRight, n, () => {
           throw new Error('unexpected patchRejected during flagship render');
         });
-        actual.set(block, offset);
+        actualLeft.set(blockLeft, offset);
+        actualRight.set(blockRight, offset);
       }
 
-      let mismatchIndex = -1;
-      for (let i = 0; i < GOLDEN_FRAMES; i++) {
-        if (actual[i] !== expected[i]) {
-          mismatchIndex = i;
-          break;
+      for (const [channel, actual, wanted] of [
+        ['left', actualLeft, expected.left],
+        ['right', actualRight, expected.right],
+      ] as const) {
+        let mismatchIndex = -1;
+        for (let i = 0; i < GOLDEN_FRAMES; i++) {
+          if (actual[i] !== wanted[i]) {
+            mismatchIndex = i;
+            break;
+          }
         }
+        expect(
+          mismatchIndex,
+          mismatchIndex === -1
+            ? 'no mismatch'
+            : `${channel} mismatch at frame ${mismatchIndex}: actual=${actual[mismatchIndex]} expected=${wanted[mismatchIndex]}`,
+        ).toBe(-1);
       }
-      expect(
-        mismatchIndex,
-        mismatchIndex === -1
-          ? 'no mismatch'
-          : `mismatch at frame ${mismatchIndex}: actual=${actual[mismatchIndex]} expected=${expected[mismatchIndex]}`,
-      ).toBe(-1);
     });
   });
 });
