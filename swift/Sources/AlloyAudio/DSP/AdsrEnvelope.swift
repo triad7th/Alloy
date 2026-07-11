@@ -28,6 +28,7 @@ public final class AdsrEnvelope {
     private let sampleRate: Double
     private let attackCoef: Double
     private let decayCoef: Double
+    private let baseReleaseCoef: Double
     private var releaseCoef: Double
 
     public init(params: AdsrParams, sampleRate: Double) {
@@ -35,12 +36,17 @@ public final class AdsrEnvelope {
         self.sampleRate = sampleRate
         attackCoef = Self.onePoleCoef(tau: params.attack / Self.attackTauFactor, sampleRate: sampleRate)
         decayCoef = Self.onePoleCoef(tau: params.decay, sampleRate: sampleRate)
-        releaseCoef = Self.onePoleCoef(tau: params.release, sampleRate: sampleRate)
+        baseReleaseCoef = Self.onePoleCoef(tau: params.release, sampleRate: sampleRate)
+        releaseCoef = baseReleaseCoef
     }
 
     public var isActive: Bool { stage != .idle }
 
-    public func noteOn() { stage = .attack }
+    /// Also un-stickies a prior fastRelease: the next release uses params.release again.
+    public func noteOn() {
+        stage = .attack
+        releaseCoef = baseReleaseCoef
+    }
 
     public func noteOff() {
         if stage != .idle { stage = .release }

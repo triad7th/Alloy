@@ -57,6 +57,21 @@ describe('AdsrEnvelope', () => {
     expect(env.isActive).toBe(false);
   });
 
+  it('does not let fastRelease stick past the next noteOn', () => {
+    const params = { attack: 0.001, decay: 0.05, sustain: 0.5, release: 0.2 };
+    const env = new AdsrEnvelope(params, FS);
+    env.noteOn();
+    renderSamples(env, Math.round(0.1 * FS)); // settle into sustain
+    env.fastRelease(0.002);
+    renderSamples(env, Math.round(0.05 * FS)); // 25 tau of the fast release -> idle
+    expect(env.isActive).toBe(false);
+    env.noteOn(); // must restore the original (slow) release coefficient
+    renderSamples(env, Math.round(0.1 * FS)); // settle into sustain again
+    env.noteOff();
+    renderSamples(env, Math.round(0.05 * FS)); // would have fully released under the fast tau
+    expect(env.isActive).toBe(true); // still releasing at params.release's slow pace
+  });
+
   it('matches the twin reference (first 8 samples of attack)', () => {
     const env = new AdsrEnvelope(PARAMS, FS);
     env.noteOn();

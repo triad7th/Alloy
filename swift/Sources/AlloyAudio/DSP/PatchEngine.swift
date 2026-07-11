@@ -62,7 +62,7 @@ public final class PatchEngine {
 
     public init(sampleRate: Double, maxVoices: Int = 64, zoneSetProvider: ZoneSetProvider? = nil) {
         self.sampleRate = sampleRate
-        self.maxVoices = maxVoices
+        self.maxVoices = max(1, maxVoices)
         self.zoneSetProvider = zoneSetProvider
     }
 

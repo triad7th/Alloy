@@ -219,6 +219,12 @@ public func validatePatch(_ patch: Patch) -> [String] {
             if !(va.unison >= 1) {
                 errors.append("\(prefix)va.unison \(va.unison) must be >= 1")
             }
+            // No seed range check here: the TS twin validates seed is an
+            // integer in 0...0xffffffff because its wire type is `number`.
+            // Swift's GeneratorSpec.va seed is UInt32, so the same range is
+            // enforced by the type system at decode time — an equivalent
+            // runtime check would be unreachable and rejected by lint.
+
         case let .additive(partials):
             if partials.count < 1 {
                 errors.append("\(prefix)additive requires at least one partial")

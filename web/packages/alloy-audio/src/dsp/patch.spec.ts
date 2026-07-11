@@ -62,4 +62,17 @@ describe('Patch', () => {
     (badVa.layers[0].generator as { kind: 'va'; va: { unison: number } }).va.unison = 0;
     expect(validatePatch(badVa)).not.toEqual([]);
   });
+
+  it('rejects a va seed that is negative or non-integer', () => {
+    const base = JSON.parse(FIXTURE_PATCH_JSON) as Patch;
+    const negativeSeed = structuredClone(base);
+    (negativeSeed.layers[0].generator as { kind: 'va'; seed: number }).seed = -1;
+    const negativeErrors = validatePatch(negativeSeed);
+    expect(negativeErrors.some((e) => e === 'layer 1: va seed must be a uint32')).toBe(true);
+
+    const fractionalSeed = structuredClone(base);
+    (fractionalSeed.layers[0].generator as { kind: 'va'; seed: number }).seed = 1.5;
+    const fractionalErrors = validatePatch(fractionalSeed);
+    expect(fractionalErrors.some((e) => e === 'layer 1: va seed must be a uint32')).toBe(true);
+  });
 });

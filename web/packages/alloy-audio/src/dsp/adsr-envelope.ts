@@ -28,6 +28,7 @@ export class AdsrEnvelope {
   private level = 0;
   private readonly attackCoef: number;
   private readonly decayCoef: number;
+  private readonly baseReleaseCoef: number;
   private releaseCoef: number;
 
   constructor(
@@ -36,15 +37,18 @@ export class AdsrEnvelope {
   ) {
     this.attackCoef = onePoleCoef(params.attack / ATTACK_TAU_FACTOR, sampleRate);
     this.decayCoef = onePoleCoef(params.decay, sampleRate);
-    this.releaseCoef = onePoleCoef(params.release, sampleRate);
+    this.baseReleaseCoef = onePoleCoef(params.release, sampleRate);
+    this.releaseCoef = this.baseReleaseCoef;
   }
 
   get isActive(): boolean {
     return this.stage !== 'idle';
   }
 
+  /** Also un-stickies a prior fastRelease: the next release uses params.release again. */
   noteOn(): void {
     this.stage = 'attack';
+    this.releaseCoef = this.baseReleaseCoef;
   }
 
   noteOff(): void {

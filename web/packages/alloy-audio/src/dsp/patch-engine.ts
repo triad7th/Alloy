@@ -50,7 +50,7 @@ export class PatchEngine {
     private readonly sampleRate: number,
     options?: PatchEngineOptions,
   ) {
-    this.maxVoices = options?.maxVoices ?? DEFAULT_MAX_VOICES;
+    this.maxVoices = Math.max(1, options?.maxVoices ?? DEFAULT_MAX_VOICES);
     this.zoneSetProvider = options?.zoneSetProvider;
   }
 

@@ -156,6 +156,16 @@ describe('PatchEngine', () => {
     expect(engine.activeVoiceCount).toBe(0);
   });
 
+  // 5b. maxVoices clamp: a caller-supplied 0 (or negative) is clamped to 1,
+  //     never to "unlimited" or to a pool that can't hold a single voice.
+  it('clamps maxVoices to at least 1', () => {
+    const engine = new PatchEngine(FS, { maxVoices: 0 });
+    engine.setPatch(makePatch());
+    engine.schedule({ frame: 0, kind: 'noteOn', midi: 60, velocity: 1 });
+    process(engine, 10);
+    expect(engine.activeVoiceCount).toBe(1);
+  });
+
   // 6. allNotesOff: three notes, allNotesOff@2400, render 0.15 s more
   //    (quickRelease tau 8 ms → 18 tau) → activeVoiceCount === 0.
   it('allNotesOff quick-releases every voice', () => {

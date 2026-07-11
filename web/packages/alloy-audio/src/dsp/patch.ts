@@ -109,6 +109,9 @@ export function validatePatch(patch: Patch): string[] {
         if (!(generator.va.unison >= 1)) {
           errors.push(`${prefix}va.unison ${generator.va.unison} must be >= 1`);
         }
+        if (!Number.isInteger(generator.seed) || generator.seed < 0 || generator.seed > 0xffffffff) {
+          errors.push(`${prefix}va seed must be a uint32`);
+        }
         break;
       case 'additive':
         if (generator.partials.length < 1) {

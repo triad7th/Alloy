@@ -57,6 +57,21 @@ final class AdsrEnvelopeTests: XCTestCase {
         XCTAssertFalse(env.isActive)
     }
 
+    func testDoesNotLetFastReleaseStickPastTheNextNoteOn() {
+        let params = AdsrParams(attack: 0.001, decay: 0.05, sustain: 0.5, release: 0.2)
+        let env = AdsrEnvelope(params: params, sampleRate: fs)
+        env.noteOn()
+        _ = render(env, Int((0.1 * fs).rounded())) // settle into sustain
+        env.fastRelease(tau: 0.002)
+        _ = render(env, Int((0.05 * fs).rounded())) // 25 tau of the fast release -> idle
+        XCTAssertFalse(env.isActive)
+        env.noteOn() // must restore the original (slow) release coefficient
+        _ = render(env, Int((0.1 * fs).rounded())) // settle into sustain again
+        env.noteOff()
+        _ = render(env, Int((0.05 * fs).rounded())) // would have fully released under the fast tau
+        XCTAssertTrue(env.isActive) // still releasing at params.release's slow pace
+    }
+
     func testMatchesTwinReference() {
         let env = AdsrEnvelope(params: params, sampleRate: fs)
         env.noteOn()
