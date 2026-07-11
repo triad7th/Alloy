@@ -25,7 +25,7 @@ public struct DriveStorageConfig: Sendable {
 /// One-call wiring of the Drive stack: GoogleAuth → DriveClient → DriveBackend.
 /// The client is internal plumbing; apps keep the two objects they use.
 /// Sugar, not a seal — the individual initializers remain public.
-public struct DriveStorage {
+public struct DriveStorage: Sendable {
   public let auth: GoogleAuth
   public let backend: DriveBackend
 

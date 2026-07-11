@@ -55,6 +55,13 @@ import Testing
     #expect(capture.lastURL?.absoluteString.contains("custom-scope") == true)
   }
 
+  @Test func isSendableForStaticStorage() {
+    // Compile-time check: consumers hold DriveStorage in static lets under
+    // Swift 6 strict concurrency (e.g. the harness's StorageDemo enum).
+    func requiresSendable<T: Sendable>(_: T.Type) {}
+    requiresSendable(DriveStorage.self)
+  }
+
   /// CRITICAL controller amendment guard: DriveStorage.init must mirror
   /// GoogleAuth.init's `uiSession: (any AuthUISession)? = GoogleAuth.defaultUISession()`
   /// default — NOT `nil` — so that a caller who omits `uiSession` still gets
