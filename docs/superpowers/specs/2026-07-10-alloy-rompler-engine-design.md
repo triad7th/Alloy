@@ -299,7 +299,33 @@ golden-render fixtures. That is an explicit future scope decision to be
 made when we get there — the determinism-first core design is what makes a
 third rendition feasible at all.
 
-## Non-goals (for the phased plan above)
+### Long-term vision: DAW-level MIDI/audio recording
+
+Not in the short- or mid-term plan, but the system is designed knowing this
+may come. The end of this road is a DAW-class environment: multi-track MIDI
+recording against the transport clock, audio recording (mic/line input),
+sample-accurate punch-in/out, and mixdown.
+
+What today's design must (and does) keep true so this stays reachable:
+
+- **One master timebase.** The sample-position transport clock is the
+  timeline for everything — playback, future recording, punch points. No
+  second clock is ever introduced.
+- **Deterministic offline rendering.** Because the DSP core is pure and
+  deterministic, the same engine can render faster than real time — bounce,
+  freeze, and export come almost free later.
+- **Symmetric audio path.** The host boundary is designed as pull-based
+  block I/O; adding an *input* stream (worklet input / AVAudioSourceNode's
+  sibling sink) is an extension of the host, not a core redesign.
+- **Events as data.** Note events are already timestamped values crossing a
+  port — a MIDI recording is just capturing that stream; playback of a
+  recording replays it. No engine change, only a store above it.
+- **Mixer growth path.** The per-patch channel → sends → master structure
+  is a mixing console in miniature; tracks later map onto channels without
+  reshaping the graph.
+
+The rule this imposes on every intermediate phase: never design an API that
+assumes real-time-only, output-only, single-consumer audio.
 
 - Kontakt-style sampled realism, room tone, or player noise.
 - React bindings and Linux (per platform scope). Windows appears only as
