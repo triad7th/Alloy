@@ -92,4 +92,51 @@ describe('DriveClient', () => {
     const q = decodeURIComponent(calls[0].url);
     expect(q).toContain("value='it\\'s'");
   });
+
+  it('createPublicPermission POSTs the anyone-reader body', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new DriveClient(auth, fakeFetch([{ match: () => true, response: {} }], calls));
+    await client.createPublicPermission('f9');
+    expect(calls[0].url).toBe('https://www.googleapis.com/drive/v3/files/f9/permissions');
+    expect(calls[0].init?.method).toBe('POST');
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ role: 'reader', type: 'anyone' });
+  });
+
+  it('hasPublicPermission filters the permission list for type anyone', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new DriveClient(
+      auth,
+      fakeFetch(
+        [{ match: () => true, response: { permissions: [{ id: 'p1', type: 'user' }, { id: 'p2', type: 'anyone' }] } }],
+        calls
+      )
+    );
+    expect(await client.hasPublicPermission('f9')).toBe(true);
+    expect(calls[0].url).toContain('/files/f9/permissions?fields=permissions(id,type)');
+  });
+
+  it('deletePublicPermission deletes the anyone permission, or issues no DELETE when absent', async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    const client = new DriveClient(
+      auth,
+      fakeFetch(
+        [
+          { match: (u) => u.includes('?fields='), response: { permissions: [{ id: 'p2', type: 'anyone' }] } },
+          { match: (_u, i) => i?.method === 'DELETE', response: '' },
+        ],
+        calls
+      )
+    );
+    await client.deletePublicPermission('f9');
+    expect(calls[1].url).toBe('https://www.googleapis.com/drive/v3/files/f9/permissions/p2');
+    expect(calls[1].init?.method).toBe('DELETE');
+
+    const noAnyone: Array<{ url: string; init?: RequestInit }> = [];
+    const client2 = new DriveClient(
+      auth,
+      fakeFetch([{ match: () => true, response: { permissions: [{ id: 'p1', type: 'user' }] } }], noAnyone)
+    );
+    await client2.deletePublicPermission('f9');
+    expect(noAnyone.length).toBe(1); // only the lookup — no DELETE issued
+  });
 });

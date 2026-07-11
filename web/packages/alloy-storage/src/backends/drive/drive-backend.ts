@@ -1,6 +1,7 @@
 import type { StorageBackend } from '../../core/backend.js';
 import type { StorageRecord, StorageRecordMeta } from '../../core/record.js';
 import { StorageError } from '../../core/errors.js';
+import type { Shareable, ShareStatus } from '../../core/shareable.js';
 import type { DriveClient, DriveFileMeta } from './drive-client.js';
 
 const CACHE_PREFIX = 'alloy-storage.folderId.';
@@ -22,7 +23,7 @@ function toMeta(file: DriveFileMeta): StorageRecordMeta | null {
 /** StorageBackend on the user's own Google Drive (drive.file scope), scoped to
  *  one folder path. Folder id caching + 404 re-resolve and per-id write chains
  *  are ported from AllyScore's DriveScoreStore. */
-export class DriveBackend implements StorageBackend {
+export class DriveBackend implements StorageBackend, Shareable {
   private folderId: string | null = null;
   private folderPromise: Promise<string> | null = null;
   /** Per-id promise chains: a later write always lands after earlier ones. */
@@ -113,6 +114,32 @@ export class DriveBackend implements StorageBackend {
     return this.withFolder(async (folderId) => {
       const file = await this.client.findByAlloyId(folderId, id);
       if (file) await this.client.deleteFile(file.id);
+    });
+  }
+
+  async shareStatus(id: string): Promise<ShareStatus | null> {
+    return this.withFolder(async (folderId) => {
+      const file = await this.client.findByAlloyId(folderId, id);
+      if (!file) return null;
+      return { shared: await this.client.hasPublicPermission(file.id), nativeRef: file.id };
+    });
+  }
+
+  async share(id: string): Promise<ShareStatus> {
+    return this.withFolder(async (folderId) => {
+      const file = await this.client.findByAlloyId(folderId, id);
+      if (!file) throw new StorageError('notFound', `no record '${id}' to share`);
+      if (!(await this.client.hasPublicPermission(file.id))) {
+        await this.client.createPublicPermission(file.id);
+      }
+      return { shared: true, nativeRef: file.id };
+    });
+  }
+
+  async unshare(id: string): Promise<void> {
+    return this.withFolder(async (folderId) => {
+      const file = await this.client.findByAlloyId(folderId, id);
+      if (file) await this.client.deletePublicPermission(file.id);
     });
   }
 }

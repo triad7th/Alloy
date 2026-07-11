@@ -161,4 +161,30 @@ export class DriveClient {
   async deleteFile(fileId: string): Promise<void> {
     await this.call(`${API}/files/${fileId}`, { method: 'DELETE' });
   }
+
+  /** @internal Shareable mechanism — not part of the supported public surface. */
+  async createPublicPermission(fileId: string): Promise<void> {
+    await this.call(`${API}/files/${fileId}/permissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'reader', type: 'anyone' }),
+    });
+  }
+
+  private async anyonePermissionId(fileId: string): Promise<string | null> {
+    const res = await this.call(`${API}/files/${fileId}/permissions?fields=permissions(id,type)`);
+    const body = (await res.json()) as { permissions?: Array<{ id: string; type: string }> };
+    return body.permissions?.find((p) => p.type === 'anyone')?.id ?? null;
+  }
+
+  /** @internal Shareable mechanism — not part of the supported public surface. */
+  async hasPublicPermission(fileId: string): Promise<boolean> {
+    return (await this.anyonePermissionId(fileId)) !== null;
+  }
+
+  /** @internal Shareable mechanism — not part of the supported public surface. */
+  async deletePublicPermission(fileId: string): Promise<void> {
+    const id = await this.anyonePermissionId(fileId);
+    if (id) await this.call(`${API}/files/${fileId}/permissions/${id}`, { method: 'DELETE' });
+  }
 }
