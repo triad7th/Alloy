@@ -27,6 +27,7 @@ let GOLDEN_FRAMES = 36_000
 let GOLDEN_FS = 48_000.0
 
 /// Single fm layer: the Task 2 fixture's FM layer promoted to full key/vel range.
+/// Carries a chorus insert (Task 4), so its render is true stereo: L != R.
 func patchFM() -> Patch {
     Patch(
         schemaVersion: PATCH_SCHEMA_VERSION,
@@ -46,6 +47,7 @@ func patchFM() -> Patch {
             ),
         ],
         sends: PatchSends(reverb: 0, delay: 0),
+        inserts: [.chorus(ChorusParams(mode: .ensemble, rateHz: 0.7, depthMs: 2.2, mix: 0.35))],
     )
 }
 
@@ -81,6 +83,7 @@ func patchVA() -> Patch {
 }
 
 /// Single additive layer (drawbar-organ partial bank) + amplitude-tremolo mod.
+/// Carries a tremolo insert (Task 4), so its render is true stereo: L != R.
 func patchOrgan() -> Patch {
     Patch(
         schemaVersion: PATCH_SCHEMA_VERSION,
@@ -102,6 +105,7 @@ func patchOrgan() -> Patch {
             ),
         ],
         sends: PatchSends(reverb: 0, delay: 0),
+        inserts: [.tremolo(TremoloParams(rateHz: 6.8, depth: 0.4, spread: 0.8))],
     )
 }
 

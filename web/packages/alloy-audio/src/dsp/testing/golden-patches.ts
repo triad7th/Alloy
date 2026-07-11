@@ -24,7 +24,8 @@ export const GOLDEN_EVENTS: EngineEvent[] = [
 export const GOLDEN_FRAMES = 36_000;
 export const GOLDEN_FS = 48_000;
 
-/** Single fm layer: the Task 2 fixture's FM layer promoted to full key/vel range. */
+/** Single fm layer: the Task 2 fixture's FM layer promoted to full key/vel range.
+ * Carries a chorus insert (Task 4), so its render is true stereo: L !== R. */
 export const PATCH_FM: Patch = {
   schemaVersion: PATCH_SCHEMA_VERSION,
   meta: { id: 'golden.fm', name: 'Golden FM', category: 'melodic' },
@@ -46,6 +47,7 @@ export const PATCH_FM: Patch = {
     },
   ],
   sends: { reverb: 0, delay: 0 },
+  inserts: [{ kind: 'chorus', chorus: { mode: 'ensemble', rateHz: 0.7, depthMs: 2.2, mix: 0.35 } }],
 };
 
 /** Single va layer + tvf + mod: the Task 2 fixture's VA layer (already full range). */
@@ -77,7 +79,8 @@ export const PATCH_VA: Patch = {
   sends: { reverb: 0, delay: 0 },
 };
 
-/** Single additive layer (drawbar-organ partial bank) + amplitude-tremolo mod. */
+/** Single additive layer (drawbar-organ partial bank) + amplitude-tremolo mod.
+ * Carries a tremolo insert (Task 4), so its render is true stereo: L !== R. */
 export const PATCH_ORGAN: Patch = {
   schemaVersion: PATCH_SCHEMA_VERSION,
   meta: { id: 'golden.organ', name: 'Golden Organ', category: 'melodic' },
@@ -101,6 +104,7 @@ export const PATCH_ORGAN: Patch = {
     },
   ],
   sends: { reverb: 0, delay: 0 },
+  inserts: [{ kind: 'tremolo', tremolo: { rateHz: 6.8, depth: 0.4, spread: 0.8 } }],
 };
 
 /** Single sample layer over the baked golden.sine zone set. */

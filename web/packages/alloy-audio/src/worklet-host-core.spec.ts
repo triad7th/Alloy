@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { type AdsrParams } from './dsp/adsr-envelope.js';
 import { PATCH_SCHEMA_VERSION, type Patch, type PatchLayer } from './dsp/patch.js';
 import { renderPatch } from './dsp/patch-engine.js';
-import { GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, GOLDEN_ZONES, PATCH_FM, PATCH_ORGAN, PATCH_SAMPLE } from './dsp/testing/golden-patches.js';
+import {
+  GOLDEN_EVENTS,
+  GOLDEN_FRAMES,
+  GOLDEN_FS,
+  GOLDEN_ZONES,
+  PATCH_FM,
+  PATCH_ORGAN,
+  PATCH_SAMPLE,
+  goldenZoneSetProvider,
+} from './dsp/testing/golden-patches.js';
 import {
   MAX_COMMANDS_PER_BLOCK,
   WorkletHostCore,
@@ -105,10 +114,12 @@ describe('WorkletHostCore', () => {
   });
 
   // 5. Zone set: setZoneSet with a WireZone built from the golden sine
-  // recipe + a sample patch -> non-silent render; unknown zoneSetId patch
-  // renders silence without error.
-  it('resolves setZoneSet through the engine and silently produces no sound for an unknown zone set', () => {
-    const core = new WorkletHostCore(FS, 0);
+  // recipe + the golden sample patch, driven through the wire protocol in
+  // 128-frame blocks, must match renderPatch exactly on both channels
+  // (same flagship pattern as case 7, extended to the setZoneSet path).
+  // A second core with no setZoneSet for 'golden.sine' renders silence
+  // without error (progressive-loading, not an error path).
+  it('resolves setZoneSet through the engine and matches renderPatch exactly on both channels', () => {
     const layers: WireZoneLayer[] = GOLDEN_ZONES.map((layer) => ({
       topVelocity: layer.topVelocity,
       zones: layer.zones.map((zone) => ({
@@ -119,12 +130,60 @@ describe('WorkletHostCore', () => {
         loopEnd: zone.loopEnd,
       })),
     }));
+
+    const expected = renderPatch(PATCH_SAMPLE, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, goldenZoneSetProvider);
+
+    const core = new WorkletHostCore(GOLDEN_FS, 0);
     core.onMessage({ type: 'setZoneSet', id: 'golden.sine', layers });
     core.onMessage({ type: 'setPatch', patch: PATCH_SAMPLE });
-    core.onMessage({ type: 'noteOn', midi: 60, velocity: 1 });
-    const resolved = render(core, 1024);
-    expect(maxAbs(resolved, 0, 1024)).toBeGreaterThan(0);
+    for (const event of GOLDEN_EVENTS) {
+      switch (event.kind) {
+        case 'noteOn':
+          core.onMessage({ type: 'noteOn', midi: event.midi, velocity: event.velocity, atFrame: event.frame });
+          break;
+        case 'noteOff':
+          core.onMessage({ type: 'noteOff', midi: event.midi, atFrame: event.frame });
+          break;
+        case 'allNotesOff':
+          core.onMessage({ type: 'allNotesOff', atFrame: event.frame });
+          break;
+      }
+    }
 
+    const actualLeft = new Float32Array(GOLDEN_FRAMES);
+    const actualRight = new Float32Array(GOLDEN_FRAMES);
+    for (let offset = 0; offset < GOLDEN_FRAMES; offset += 128) {
+      const n = Math.min(128, GOLDEN_FRAMES - offset);
+      const blockLeft = new Float32Array(n);
+      const blockRight = new Float32Array(n);
+      core.render(blockLeft, blockRight, n, () => {
+        throw new Error('unexpected patchRejected during setZoneSet flagship render');
+      });
+      actualLeft.set(blockLeft, offset);
+      actualRight.set(blockRight, offset);
+    }
+
+    for (const [channel, actual, wanted] of [
+      ['left', actualLeft, expected.left],
+      ['right', actualRight, expected.right],
+    ] as const) {
+      let mismatchIndex = -1;
+      for (let i = 0; i < GOLDEN_FRAMES; i++) {
+        if (actual[i] !== wanted[i]) {
+          mismatchIndex = i;
+          break;
+        }
+      }
+      expect(
+        mismatchIndex,
+        mismatchIndex === -1
+          ? 'no mismatch'
+          : `${channel} mismatch at frame ${mismatchIndex}: actual=${actual[mismatchIndex]} expected=${wanted[mismatchIndex]}`,
+      ).toBe(-1);
+    }
+  });
+
+  it('silently produces no sound for an unknown zone set', () => {
     // No setZoneSet for 'golden.sine' on this core: unresolved zoneSetId is
     // progressive-loading silence, not an error.
     const unresolvedCore = new WorkletHostCore(FS, 0);
