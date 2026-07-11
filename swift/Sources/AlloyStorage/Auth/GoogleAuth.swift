@@ -20,6 +20,7 @@ private let freshMarginSeconds: TimeInterval = 5 * 60
 /// Seam over `ASWebAuthenticationSession` — the in-process analogue of the
 /// web twin's page-redirect model. Returns the callback URL Google (or the
 /// user, by cancelling) hands back.
+/// Throws CancellationError when the user cancels the auth UI.
 public protocol AuthUISession: Sendable {
   func authenticate(url: URL, callbackScheme: String) async throws -> URL
 }
@@ -68,17 +69,20 @@ public final class GoogleAuth: AuthProvider, @unchecked Sendable {
   private let lock = NSLock()
   private var _state: AuthState = .signedOut
 
+  /// `uiSession` defaults to the platform `ASWebAuthenticationSession`
+  /// wrapper where available; passing `nil` explicitly means "no auth UI"
+  /// (`signIn` then reports `.failed(.configurationInvalid)`).
   public init(
     config: GoogleAuthConfig,
     vault: any TokenVault = KeychainTokenVault(),
     transport: any HTTPTransport = URLSessionTransport(),
-    uiSession: (any AuthUISession)? = nil,
+    uiSession: (any AuthUISession)? = GoogleAuth.defaultUISession(),
     now: @escaping () -> Date = { Date() }
   ) {
     self.config = config
     self.vault = vault
     self.transport = transport
-    self.uiSession = uiSession ?? Self.defaultUISession()
+    self.uiSession = uiSession
     self.now = now
   }
 
@@ -90,10 +94,13 @@ public final class GoogleAuth: AuthProvider, @unchecked Sendable {
     lock.withLock { _state = newValue }
   }
 
+  /// The platform's default auth UI (`ASWebAuthenticationSession` wrapper),
+  /// or `nil` where AuthenticationServices is unavailable. Used as the
+  /// `init` default for `uiSession`.
   #if canImport(AuthenticationServices)
-    private static func defaultUISession() -> (any AuthUISession)? { DefaultAuthUISession() }
+    public static func defaultUISession() -> (any AuthUISession)? { DefaultAuthUISession() }
   #else
-    private static func defaultUISession() -> (any AuthUISession)? { nil }
+    public static func defaultUISession() -> (any AuthUISession)? { nil }
   #endif
 
   public func accessToken() async -> String? {
@@ -161,8 +168,12 @@ public final class GoogleAuth: AuthProvider, @unchecked Sendable {
   /// `beginSignIn` + `completeSignIn` collapsed into one call, since
   /// `ASWebAuthenticationSession` returns the callback URL directly instead
   /// of requiring a redirect page.
-  public func signIn() async -> Bool {
-    guard let uiSession else { return false }
+  public func signIn() async -> SignInResult {
+    guard let uiSession else {
+      return .failed(
+        reason: .configurationInvalid,
+        detail: "no auth UI session available on this platform", status: nil)
+    }
 
     let verifier = PKCE.generateCodeVerifier()
     let challenge = PKCE.codeChallenge(verifier)
@@ -181,21 +192,30 @@ public final class GoogleAuth: AuthProvider, @unchecked Sendable {
       URLQueryItem(name: "prompt", value: "consent"), // Google only reissues refresh tokens on consent
       URLQueryItem(name: "state", value: requestState),
     ]
-    guard let authURL = authComponents.url else { return false }
+    guard let authURL = authComponents.url else {
+      return .failed(reason: .configurationInvalid, detail: "could not build auth URL", status: nil)
+    }
 
     let callbackURL: URL
     do {
       callbackURL = try await uiSession.authenticate(url: authURL, callbackScheme: config.redirectScheme)
+    } catch is CancellationError {
+      return .cancelled
     } catch {
-      return false
+      return .failed(
+        reason: .configurationInvalid,
+        detail: "auth UI failed: \(String(describing: error))", status: nil)
     }
 
     guard
       let callbackComponents = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false),
-      let code = callbackComponents.queryItems?.first(where: { $0.name == "code" })?.value,
-      callbackComponents.queryItems?.first(where: { $0.name == "state" })?.value == requestState
+      let code = callbackComponents.queryItems?.first(where: { $0.name == "code" })?.value
     else {
-      return false
+      return .failed(reason: .stateMismatch, detail: "no code in callback URL", status: nil)
+    }
+    guard callbackComponents.queryItems?.first(where: { $0.name == "state" })?.value == requestState
+    else {
+      return .failed(reason: .stateMismatch, detail: "state parameter mismatch", status: nil)
     }
 
     let request = tokenRequest([
@@ -211,21 +231,33 @@ public final class GoogleAuth: AuthProvider, @unchecked Sendable {
     do {
       (data, response) = try await transport.send(request)
     } catch {
-      return false
+      return .failed(
+        reason: .exchangeFailed,
+        detail: "token exchange unreachable: \(String(describing: error))", status: nil)
     }
-    guard (200..<300).contains(response.statusCode),
-      let decoded = try? JSONDecoder().decode(GoogleTokenResponse.self, from: data)
-    else {
-      return false
+    guard (200..<300).contains(response.statusCode) else {
+      return .failed(
+        reason: .exchangeFailed, detail: "Google rejected the exchange",
+        status: response.statusCode)
+    }
+    guard let decoded = try? JSONDecoder().decode(GoogleTokenResponse.self, from: data) else {
+      return .failed(
+        reason: .exchangeFailed, detail: "undecodable token response",
+        status: response.statusCode)
     }
 
     let tokens = StoredTokens(
       accessToken: decoded.accessToken,
       expiresAt: now().addingTimeInterval(decoded.expiresIn),
       refreshToken: decoded.refreshToken)
-    guard (try? vault.save(tokens)) != nil else { return false }
+    do {
+      try vault.save(tokens)
+    } catch {
+      return .failed(
+        reason: .vaultFailed, detail: String(describing: error), status: nil)
+    }
     setState(.signedIn)
-    return true
+    return .success
   }
 
   /// Clears the vault and state synchronously, then fires a detached
@@ -279,9 +311,13 @@ public final class GoogleAuth: AuthProvider, @unchecked Sendable {
           self?.currentSession = nil
           if let callbackURL {
             continuation.resume(returning: callbackURL)
+          } else if let error, (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin {
+            continuation.resume(throwing: CancellationError())
+          } else if let error {
+            continuation.resume(throwing: error)
           } else {
-            continuation.resume(
-              throwing: error ?? StorageError(category: .auth, message: "sign-in was cancelled"))
+            // No URL and no error: treat as user cancel.
+            continuation.resume(throwing: CancellationError())
           }
         }
         session.prefersEphemeralWebBrowserSession = false
