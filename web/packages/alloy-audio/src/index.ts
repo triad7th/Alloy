@@ -10,3 +10,5 @@ export * from './synth-voice-player.js';
 export * from './supersaw-player.js';
 export * from './sampled-voice-player.js';
 export * from './web-synth-engine.js';
+export * from './dsp/dsp-types.js';
+export * from './dsp/prng.js';
