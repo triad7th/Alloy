@@ -9,24 +9,20 @@ import SwiftUI
 private let googleClientID =
     "929183445053-vpi4bqqbhakoaan3tassdi5m0ng9aood.apps.googleusercontent.com"
 private let googleRedirectScheme = "com.googleusercontent.apps.929183445053-vpi4bqqbhakoaan3tassdi5m0ng9aood"
-private let driveScope = "https://www.googleapis.com/auth/drive.file"
 private let driveFolder = "AlloyHarness"
 
-/// Shared instances — GoogleAuth/DriveBackend hold token + folder caches, so
+/// Shared instance — GoogleAuth/DriveBackend hold token + folder caches, so
 /// they must outlive SwiftUI view-struct re-creation.
 private enum StorageDemo {
     static let local = LocalStorageBackend(collection: "harness")
-    static let auth: GoogleAuth? = {
+    static let drive: DriveStorage? = {
         guard !googleClientID.isEmpty, !googleRedirectScheme.isEmpty else { return nil }
-        return GoogleAuth(config: GoogleAuthConfig(
+        return DriveStorage(config: DriveStorageConfig(
             clientId: googleClientID,
-            scope: driveScope,
-            redirectScheme: googleRedirectScheme
+            redirectScheme: googleRedirectScheme,
+            folderPath: driveFolder
         ))
     }()
-    static let drive: DriveBackend? = auth.map {
-        DriveBackend(client: DriveClient(auth: $0), folderPath: driveFolder)
-    }
 }
 
 /// AlloyStorage demo: LocalStorageBackend (Application Support JSON files —
@@ -51,7 +47,7 @@ struct StorageDemoView: View {
         }
         .task {
             await refreshLocal()
-            if let auth = StorageDemo.auth {
+            if let auth = StorageDemo.drive?.auth {
                 _ = await auth.accessToken() // silent resume from Keychain
                 authState = auth.state
             }
@@ -113,7 +109,7 @@ struct StorageDemoView: View {
     @ViewBuilder
     private var driveCard: some View {
         card("Google Drive") {
-            if StorageDemo.auth == nil {
+            if StorageDemo.drive?.auth == nil {
                 Text(
                     "Not configured. Set googleClientID and googleRedirectScheme in "
                         + "StorageDemoView.swift (iOS-type OAuth client, no secret needed)."
@@ -162,51 +158,57 @@ struct StorageDemoView: View {
     }
 
     private func signIn() async {
-        guard let auth = StorageDemo.auth else { return }
-        let ok = await auth.signIn()
+        guard let auth = StorageDemo.drive?.auth else { return }
+        let result = await auth.signIn()
         authState = auth.state
-        driveStatus = ok ? "signed in" : "sign-in failed / cancelled"
+        switch result {
+        case .success: driveStatus = "signed in"
+        case .cancelled: driveStatus = "sign-in cancelled"
+        case .failed(let reason, let detail, let status):
+            driveStatus = "sign-in failed — \(reason.rawValue): \(detail)"
+                + (status.map { " (HTTP \($0))" } ?? "")
+        }
     }
 
     private func signOut() {
-        StorageDemo.auth?.signOut()
-        authState = StorageDemo.auth?.state ?? .signedOut
+        StorageDemo.drive?.auth.signOut()
+        authState = StorageDemo.drive?.auth.state ?? .signedOut
         driveMetas = []
         driveStatus = "signed out"
     }
 
     private func saveDrive() async {
-        guard let drive = StorageDemo.drive else { return }
+        guard let drive = StorageDemo.drive?.backend else { return }
         do {
             _ = try await drive.write(record())
             driveStatus = "saved '\(recID)' to Drive:/\(driveFolder)"
             await refreshDrive()
         } catch {
             driveStatus = describe(error)
-            authState = StorageDemo.auth?.state ?? .signedOut
+            authState = StorageDemo.drive?.auth.state ?? .signedOut
         }
     }
 
     private func refreshDrive() async {
-        guard let drive = StorageDemo.drive else { return }
+        guard let drive = StorageDemo.drive?.backend else { return }
         do {
             driveMetas = try await drive.list()
             driveStatus = "listed Drive:/\(driveFolder)"
         } catch {
             driveStatus = describe(error)
-            authState = StorageDemo.auth?.state ?? .signedOut
+            authState = StorageDemo.drive?.auth.state ?? .signedOut
         }
     }
 
     private func shareRefresh() async {
-        guard let drive: any StorageBackend = StorageDemo.drive else { return }
+        guard let drive: any StorageBackend = StorageDemo.drive?.backend else { return }
         guard let shareable = drive as? any Shareable else { return }
         do {
             shareInfo = try await shareable.shareStatus(id: recID)
             driveStatus = shareInfo == nil ? "record not on Drive yet" : "share status refreshed"
         } catch {
             driveStatus = describe(error)
-            authState = StorageDemo.auth?.state ?? .signedOut
+            authState = StorageDemo.drive?.auth.state ?? .signedOut
         }
     }
 
@@ -233,7 +235,7 @@ struct StorageDemoView: View {
     }
 
     private func shareToggle() async {
-        guard let drive: any StorageBackend = StorageDemo.drive else { return }
+        guard let drive: any StorageBackend = StorageDemo.drive?.backend else { return }
         guard let shareable = drive as? any Shareable else { return }
         do {
             if shareInfo?.shared == true {
@@ -244,7 +246,7 @@ struct StorageDemoView: View {
             await shareRefresh()
         } catch {
             driveStatus = describe(error)
-            authState = StorageDemo.auth?.state ?? .signedOut
+            authState = StorageDemo.drive?.auth.state ?? .signedOut
         }
     }
 

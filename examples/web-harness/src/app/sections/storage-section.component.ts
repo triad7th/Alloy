@@ -2,9 +2,7 @@ import { DatePipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import {
   BrowserStorageBackend,
-  DriveBackend,
-  DriveClient,
-  GoogleAuth,
+  createDriveStorage,
   isShareable,
   StorageError,
   type ShareStatus,
@@ -21,7 +19,6 @@ import {
 const GOOGLE_CLIENT_ID: string =
   '929183445053-ifjjaptf6g48orqj2eu8o06macrp752a.apps.googleusercontent.com';
 const TOKEN_SERVICE_URL: string = 'http://localhost:8888';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const DRIVE_FOLDER = 'AlloyHarness';
 
 /** Section 5: AlloyStorage. Local half exercises BrowserStorageBackend
@@ -235,17 +232,16 @@ export class StorageSectionComponent {
   readonly localMetas = signal<StorageRecordMeta[]>([]);
 
   readonly driveConfigured = GOOGLE_CLIENT_ID !== '' && TOKEN_SERVICE_URL !== '';
-  private readonly auth = this.driveConfigured
-    ? new GoogleAuth({
+  private readonly driveStorage = this.driveConfigured
+    ? createDriveStorage({
         clientId: GOOGLE_CLIENT_ID,
-        scope: DRIVE_SCOPE,
         redirectUri: `${location.origin}/`,
         tokenServiceUrl: TOKEN_SERVICE_URL,
+        folderPath: DRIVE_FOLDER,
       })
     : null;
-  private readonly drive = this.auth
-    ? new DriveBackend(new DriveClient(this.auth), DRIVE_FOLDER)
-    : null;
+  private readonly auth = this.driveStorage?.auth ?? null;
+  private readonly drive = this.driveStorage?.backend ?? null;
 
   readonly authState = signal<'signedOut' | 'signedIn' | 'expired'>('signedOut');
   readonly driveStatus = signal('');
@@ -403,9 +399,15 @@ export class StorageSectionComponent {
   private async finishRedirectIfPending(): Promise<void> {
     const params = new URL(location.href).searchParams;
     if (params.has('code') && params.has('state')) {
-      const ok = await this.auth!.completeSignIn(location.href);
+      const result = await this.auth!.completeSignIn(location.href);
       history.replaceState(null, '', location.pathname); // clean the URL
-      this.driveStatus.set(ok ? 'signed in' : 'sign-in failed');
+      this.driveStatus.set(
+        result.outcome === 'success'
+          ? 'signed in'
+          : result.outcome === 'cancelled'
+            ? 'sign-in cancelled'
+            : `sign-in failed — ${result.reason}: ${result.detail}`
+      );
     } else {
       // A prior session's refresh token may still be valid — probe silently.
       await this.auth!.accessToken();

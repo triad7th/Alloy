@@ -179,6 +179,13 @@ the StorageError table run the same scenarios and instants on both platforms):
   permissions(id,type)` check, find-then-DELETE) — kept NON-public on both
   platforms (TS `@internal` doc, Swift `internal`), per the capability-only
   decision in the sharing spec
+- `SignInResult` / `SignInFailureReason` (success | cancelled |
+  failed(reason, detail, status?); returned by web `completeSignIn` ↔ Apple
+  `signIn`; `cancelled` is Apple-only in practice — the web redirect flow
+  has no cancel signal) (edge asymmetry: an undecodable 2xx token response
+  reports exchangeFailed WITH status on Apple; on web the JSON parse
+  happens inside post() so it folds into the no-status unreachable path —
+  detail strings are unmirrored by design)
 
 **Semantic regime** (same behavior, platform-appropriate shape):
 
@@ -191,5 +198,9 @@ the StorageError table run the same scenarios and instants on both platforms):
   redirect via the shared `services/google-oauth` token function — web needs a
   confidential client) ↔ Apple `signIn()` (in-process
   `ASWebAuthenticationSession`, iOS-type client, no backend, no secret)
+- One-call wiring: `createDriveStorage(config, deps?)` ↔ `DriveStorage(config:…)`
+  — config fields differ per platform exactly as GoogleAuthConfig does
+  (web: redirectUri + tokenServiceUrl; Apple: redirectScheme); scope
+  defaults to drive.file on both
 - `CryptoKit`/`AuthenticationServices`/`Security` imports are confined to
   `Auth/`; everything else stays Foundation + Observation.
