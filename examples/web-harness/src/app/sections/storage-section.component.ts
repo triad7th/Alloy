@@ -107,10 +107,18 @@ const DRIVE_FOLDER = 'AlloyHarness';
                 </button>
               </div>
               @if (shareInfo(); as info) {
-                <p class="status">
-                  {{ info.shared ? 'shared — anyone with the link can view' : 'not shared' }}
-                  <code>{{ info.nativeRef }}</code>
-                </p>
+                @if (info.shared) {
+                  <p class="status">shared — anyone with the link can view</p>
+                  <div class="btn-row">
+                    <input class="share-link" readonly [value]="driveLink(info.nativeRef)"
+                      (focus)="asInput($event).select()" />
+                    <button (click)="copyLink(info.nativeRef)">
+                      {{ copied() ? 'Copied ✓' : 'Copy link' }}
+                    </button>
+                  </div>
+                } @else {
+                  <p class="status">not shared <code>{{ info.nativeRef }}</code></p>
+                }
               }
             }
             <p class="status">{{ driveStatus() }}</p>
@@ -194,6 +202,16 @@ const DRIVE_FOLDER = 'AlloyHarness';
       opacity: 0.75;
       min-height: 1.1em;
     }
+    .share-link {
+      flex: 1;
+      min-width: 200px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      color: inherit;
+      padding: 0.4rem 0.55rem;
+      font-size: 0.8rem;
+    }
     .meta-table {
       border-collapse: collapse;
       font-size: 0.8rem;
@@ -233,6 +251,26 @@ export class StorageSectionComponent {
   readonly driveStatus = signal('');
   readonly driveMetas = signal<StorageRecordMeta[]>([]);
   readonly shareInfo = signal<ShareStatus | null>(null);
+  readonly copied = signal(false);
+  private copyTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /** Drive's universal viewer link — works for any anyone-with-link file.
+   *  Apps build their own link format (that's app policy); the harness uses
+   *  Drive's so manual QA can verify sharing end-to-end in an incognito tab. */
+  driveLink(nativeRef: string): string {
+    return `https://drive.google.com/file/d/${nativeRef}/view`;
+  }
+
+  async copyLink(nativeRef: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.driveLink(nativeRef));
+      this.copied.set(true);
+      if (this.copyTimeout !== null) clearTimeout(this.copyTimeout);
+      this.copyTimeout = setTimeout(() => this.copied.set(false), 1500);
+    } catch {
+      /* clipboard unavailable — the focused input still allows manual copy */
+    }
+  }
 
   constructor() {
     void this.localRefresh();

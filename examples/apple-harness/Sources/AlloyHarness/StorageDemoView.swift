@@ -42,6 +42,7 @@ struct StorageDemoView: View {
     @State private var driveStatus = ""
     @State private var driveMetas: [StorageRecordMeta] = []
     @State private var shareInfo: ShareStatus?
+    @State private var linkCopied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -135,10 +136,23 @@ struct StorageDemoView: View {
                         demoButton(shareInfo?.shared == true ? "Unshare" : "Share") { await shareToggle() }
                     }
                     if let info = shareInfo {
-                        Text(info.shared
-                            ? "shared — anyone with the link can view  \(info.nativeRef)"
-                            : "not shared")
-                            .font(.footnote).foregroundStyle(.secondary)
+                        if info.shared {
+                            Text("shared — anyone with the link can view")
+                                .font(.footnote).foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                Text(driveLink(info.nativeRef))
+                                    .font(.footnote.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .textSelection(.enabled)
+                                demoButton(linkCopied ? "Copied ✓" : "Copy link") {
+                                    copyLink(info.nativeRef)
+                                }
+                            }
+                        } else {
+                            Text("not shared").font(.footnote).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 statusText(driveStatus)
@@ -193,6 +207,28 @@ struct StorageDemoView: View {
         } catch {
             driveStatus = describe(error)
             authState = StorageDemo.auth?.state ?? .signedOut
+        }
+    }
+
+    /// Drive's universal viewer link — works for any anyone-with-link file.
+    /// Apps build their own link format (that's app policy); the harness uses
+    /// Drive's so manual QA can verify sharing end-to-end in a browser.
+    private func driveLink(_ nativeRef: String) -> String {
+        "https://drive.google.com/file/d/\(nativeRef)/view"
+    }
+
+    private func copyLink(_ nativeRef: String) {
+        let link = driveLink(nativeRef)
+        #if canImport(UIKit)
+            UIPasteboard.general.string = link
+        #elseif canImport(AppKit)
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(link, forType: .string)
+        #endif
+        linkCopied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            linkCopied = false
         }
     }
 
