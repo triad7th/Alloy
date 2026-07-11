@@ -96,11 +96,7 @@ public func createInsert(_ spec: InsertSpec, sampleRate: Double) -> EffectUnit {
     switch spec {
     case let .chorus(chorus):
         return StereoChorus(params: chorus, sampleRate: sampleRate)
-    case .tremolo:
-        // TremoloAutoPan lands in Task 2. createInsert is only reachable
-        // through validated patches, and no patch can carry a tremolo
-        // insert until Task 3 wires inserts into the schema, so this arm is
-        // unreachable in practice for the whole of Task 1.
-        preconditionFailure("tremolo lands in task 2")
+    case let .tremolo(tremolo):
+        return TremoloAutoPan(params: tremolo, sampleRate: sampleRate)
     }
 }

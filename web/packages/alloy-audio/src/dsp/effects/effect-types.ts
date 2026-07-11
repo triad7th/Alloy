@@ -3,6 +3,7 @@
 // Twin: EffectTypes.swift.
 
 import { StereoChorus } from './stereo-chorus.js';
+import { TremoloAutoPan } from './tremolo-auto-pan.js';
 
 /** Stereo in-place processor. process() must not allocate or throw. */
 export interface EffectUnit {
@@ -78,10 +79,6 @@ export function createInsert(spec: InsertSpec, sampleRate: number): EffectUnit {
     case 'chorus':
       return new StereoChorus(spec.chorus, sampleRate);
     case 'tremolo':
-      // TremoloAutoPan lands in Task 2. createInsert is only reachable
-      // through validated patches, and no patch can carry a tremolo insert
-      // until Task 3 wires inserts into the schema, so this arm is
-      // unreachable in practice for the whole of Task 1.
-      throw new Error('tremolo lands in task 2');
+      return new TremoloAutoPan(spec.tremolo, sampleRate);
   }
 }
