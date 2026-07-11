@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { GoogleAuth, type GoogleAuthConfig } from './google-auth';
-import { IndexedDbTokenStore, MemoryTokenStore, type StoredTokens } from './token-store';
+import { IndexedDbTokenStore, MemoryTokenStore, type StoredTokens, type TokenStore } from './token-store';
 
 const NOW = 1751980000000;
 const config: GoogleAuthConfig = {
@@ -19,6 +19,11 @@ function fakeSession(): Storage {
     setItem: (k: string, v: string) => void m.set(k, v),
     removeItem: (k: string) => void m.delete(k),
   } as Storage;
+}
+
+/** The CSRF state GoogleAuth stashed in the pending-session entry. */
+function stateOf(session: Storage): string {
+  return (JSON.parse(session.getItem('alloy-storage.auth.pending')!) as { state: string }).state;
 }
 
 function jsonFetch(handler: (url: string, init?: RequestInit) => { status: number; body: unknown }) {
@@ -138,8 +143,8 @@ describe('GoogleAuth', () => {
     expect(authUrl.searchParams.get('prompt')).toBe('consent');
     const state = authUrl.searchParams.get('state')!;
 
-    const ok = await a.completeSignIn(`https://app.example/oauth?code=c1&state=${state}`);
-    expect(ok).toBe(true);
+    const result = await a.completeSignIn(`https://app.example/oauth?code=c1&state=${state}`);
+    expect(result).toEqual({ outcome: 'success' });
     expect(a.state).toBe('signedIn');
     const sent = JSON.parse(String(calls[0].init?.body));
     expect(calls[0].url).toBe('https://oauth.example/token');
@@ -149,7 +154,7 @@ describe('GoogleAuth', () => {
     expect((await tokenStore.load())?.refreshToken).toBe('rt');
   });
 
-  it('completeSignIn resolves false (never throws) when the token exchange fetch throws', async () => {
+  it('completeSignIn reports exchangeFailed (never throws) when the fetch throws', async () => {
     let navigated = '';
     const session = fakeSession();
     const failing: typeof fetch = async () => {
@@ -160,9 +165,12 @@ describe('GoogleAuth', () => {
     await a.beginSignIn();
     const state = new URL(navigated).searchParams.get('state')!;
 
-    await expect(a.completeSignIn(`https://app.example/oauth?code=c1&state=${state}`)).resolves.toBe(
-      false
-    );
+    await expect(
+      a.completeSignIn(`https://app.example/oauth?code=c1&state=${state}`)
+    ).resolves.toMatchObject({ outcome: 'failed', reason: 'exchangeFailed' });
+    // no HTTP status on a network throw:
+    const r = await a.completeSignIn(`https://app.example/oauth?code=c1&state=${state}`);
+    expect(r).toMatchObject({ outcome: 'failed', reason: 'configurationInvalid' }); // 2nd call: pending entry consumed
     expect(a.state).not.toBe('signedIn');
   });
 
@@ -172,8 +180,60 @@ describe('GoogleAuth', () => {
     const { setup } = auth({ fetch: fn, session });
     const a = await setup();
     await a.beginSignIn();
-    expect(await a.completeSignIn('https://app.example/oauth?code=c1&state=WRONG')).toBe(false);
+    expect(await a.completeSignIn('https://app.example/oauth?code=c1&state=WRONG')).toMatchObject({
+      outcome: 'failed',
+      reason: 'stateMismatch',
+    });
     expect(calls.length).toBe(0);
+  });
+
+  it('completeSignIn without a pending session entry reports configurationInvalid', async () => {
+    const { setup } = auth({});
+    const a = await setup();
+    expect(await a.completeSignIn('https://app.example/oauth?code=c1&state=x')).toMatchObject({
+      outcome: 'failed',
+      reason: 'configurationInvalid',
+    });
+    expect(a.state).not.toBe('signedIn');
+  });
+
+  it('completeSignIn maps a token-service rejection to exchangeFailed with the HTTP status', async () => {
+    const { fn } = jsonFetch(() => ({ status: 401, body: { error: 'invalid_grant' } }));
+    const session = fakeSession();
+    const { setup } = auth({ fetch: fn, session });
+    const a = await setup();
+    await a.beginSignIn();
+    const result = await a.completeSignIn(
+      `https://app.example/oauth?code=c1&state=${stateOf(session)}`
+    );
+    expect(result).toMatchObject({ outcome: 'failed', reason: 'exchangeFailed', status: 401 });
+  });
+
+  it('completeSignIn maps a failing token store to vaultFailed with the underlying message', async () => {
+    const { fn } = jsonFetch(() => ({
+      status: 200,
+      body: { accessToken: 'at', refreshToken: 'rt', expiresIn: 3599 },
+    }));
+    const session = fakeSession();
+    const failingStore: TokenStore = {
+      load: async () => null,
+      save: async () => {
+        throw new Error('quota exceeded');
+      },
+      clear: async () => undefined,
+    };
+    const a = new GoogleAuth(config, {
+      tokenStore: failingStore,
+      fetchFn: fn,
+      now: () => NOW,
+      navigate: () => undefined,
+      session,
+    });
+    await a.beginSignIn();
+    const result = await a.completeSignIn(`https://app.example/oauth?code=c1&state=${stateOf(session)}`);
+    expect(result).toMatchObject({ outcome: 'failed', reason: 'vaultFailed' });
+    expect((result as { detail: string }).detail).toContain('quota exceeded');
+    expect(a.state).not.toBe('signedIn');
   });
 
   it('signOut clears the store and state', async () => {

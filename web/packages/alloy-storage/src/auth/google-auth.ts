@@ -1,4 +1,5 @@
 import type { AuthProvider, AuthState } from '../core/auth.js';
+import type { SignInResult, SignInFailureReason } from '../core/sign-in-result.js';
 import { codeChallenge, generateCodeVerifier } from './pkce.js';
 import { IndexedDbTokenStore, type StoredTokens, type TokenStore } from './token-store.js';
 
@@ -72,35 +73,62 @@ export class GoogleAuth implements AuthProvider {
     this.navigate(url.toString());
   }
 
-  /** Call on the redirect page. Returns false on state mismatch / missing code,
-   *  and — per contract (mirrored by the Swift twin) — on ANY thrown error:
-   *  a corrupted session entry (JSON.parse) or a network-failed exchange
-   *  (this.post) must resolve false, never reject. */
-  async completeSignIn(callbackUrl: string): Promise<boolean> {
+  /** Call on the redirect page. Never throws — every failure is a named
+   *  SignInResult reason (the web redirect flow has no cancel signal, so
+   *  `cancelled` never occurs here; an abandoned redirect simply never
+   *  calls this). */
+  async completeSignIn(callbackUrl: string): Promise<SignInResult> {
+    const failed = (
+      reason: SignInFailureReason,
+      detail: string,
+      status?: number
+    ): SignInResult =>
+      status === undefined
+        ? { outcome: 'failed', reason, detail }
+        : { outcome: 'failed', reason, detail, status };
+
     const pending = this.session.getItem(SESSION_KEY);
-    this.session.removeItem(SESSION_KEY);
-    if (!pending) return false;
+    this.session.removeItem(SESSION_KEY); // one-shot: consumed before validation
+    if (!pending) return failed('configurationInvalid', 'no pending sign-in session');
+
+    let verifier: string;
+    let state: string;
+    let code: string | null;
+    let callbackState: string | null;
     try {
-      const { verifier, state } = JSON.parse(pending) as { verifier: string; state: string };
+      ({ verifier, state } = JSON.parse(pending) as { verifier: string; state: string });
       const params = new URL(callbackUrl).searchParams;
-      const code = params.get('code');
-      if (!code || params.get('state') !== state) return false;
-      const res = await this.post('/token', {
+      code = params.get('code');
+      callbackState = params.get('state');
+    } catch (e) {
+      return failed('configurationInvalid', `corrupt session entry or callback URL: ${String(e)}`);
+    }
+    if (!code) return failed('stateMismatch', 'no code in callback URL');
+    if (callbackState !== state) return failed('stateMismatch', 'state parameter mismatch');
+
+    let res: Awaited<ReturnType<GoogleAuth['post']>>;
+    try {
+      res = await this.post('/token', {
         code,
         codeVerifier: verifier,
         redirectUri: this.config.redirectUri,
       });
-      if (!res.ok) return false;
+    } catch (e) {
+      return failed('exchangeFailed', `token exchange unreachable: ${String(e)}`);
+    }
+    if (!res.ok) return failed('exchangeFailed', 'token service rejected the exchange', res.status);
+
+    try {
       await this.tokenStore.save({
         accessToken: res.data.accessToken,
         expiresAt: this.now() + res.data.expiresIn * 1000,
         refreshToken: res.data.refreshToken ?? null,
       });
-      this._state = 'signedIn';
-      return true;
-    } catch {
-      return false;
+    } catch (e) {
+      return failed('vaultFailed', e instanceof Error ? e.message : String(e));
     }
+    this._state = 'signedIn';
+    return { outcome: 'success' };
   }
 
   async accessToken(): Promise<string | null> {
