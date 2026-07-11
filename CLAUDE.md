@@ -81,6 +81,14 @@ Pure data tables are generated, never hand-duplicated.
 - Swift: `cd swift && swift build && swift test`
 - Web: `cd web && npm ci && npm test` (Vitest)
 
+Alloy's official dev-serve port is **4205** (the `examples/web-harness`
+preview app; `ng serve` defaults to it via its `angular.json`). Each Ally
+project owns a fixed port so several can run side by side: AllyClock 4200,
+AllyPiano 4201, AllyScore 4202, Alloy 4205. The official port belongs to
+the human dev: if it is already serving, never kill or reuse that server —
+agents doing their own debugging or checking start their own instance on a
+free port with `--port`.
+
 ## Testing guidance
 
 - Twin tests: same fixed instants, zone ids, and expected outputs on both
