@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// Auto-hiding chrome state: visible on interaction, hides after a delay.
 /// Semantic mirror of the web `AutoHideDirective` (visible / reveal / hold /
@@ -59,5 +60,16 @@ public final class AutoHideModel {
             guard !Task.isCancelled else { return }
             self?.visible = false
         }
+    }
+}
+
+@MainActor
+public extension View {
+    /// Binds visibility to the shared chrome model: fade + unhittable while
+    /// hidden (mirror of the web `AutoHideDirective` host bindings).
+    func chromeAutoHides(_ chrome: AutoHideModel) -> some View {
+        opacity(chrome.effectivelyVisible ? 1 : 0)
+            .allowsHitTesting(chrome.effectivelyVisible)
+            .animation(.easeInOut(duration: AlloyTokens.chromeFade), value: chrome.effectivelyVisible)
     }
 }

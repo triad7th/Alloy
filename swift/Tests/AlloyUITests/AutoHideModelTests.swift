@@ -1,4 +1,5 @@
 @testable import AlloyUI
+import SwiftUI
 import XCTest
 
 @available(iOS 26.0, macOS 26.0, tvOS 26.0, watchOS 26.0, *)
@@ -40,6 +41,11 @@ final class AutoHideModelTests: XCTestCase {
         XCTAssertTrue(model.effectivelyVisible) // revealed on lift
         await tick(0.15)
         XCTAssertFalse(model.effectivelyVisible) // re-armed and hid again
+    }
+
+    func test_chromeAutoHidesModifierApplies() {
+        let model = AutoHideModel(delay: 10)
+        _ = Text("chrome").chromeAutoHides(model)
     }
 
     func test_holdStillPreventsHiding() async {
