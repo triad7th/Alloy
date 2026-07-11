@@ -98,6 +98,12 @@ same output (within cross-compiler float epsilon).
 Processing is block-based (128-sample blocks, matching WebAudio's render
 quantum), with no per-sample allocation and voice stealing at the cap.
 
+The host owns a **sample-position transport clock** as the engine's master
+timebase: all events (note on/off, patch changes, future clicks/one-shots)
+are scheduled at absolute sample offsets, never wall-clock timers. This is
+cheap to build in from day one and is the foundation the AllyMetronome and
+AllyStation roadmap items stand on.
+
 **Performance envelope**: 64-voice polyphony with full FX at < 25% of one
 core on a mid-tier phone.
 
@@ -253,6 +259,28 @@ libraries/apps — the engine's job stays note events in, audio out.
 
 **MIDI over LAN/WiFi.** RTP-MIDI (Apple Network MIDI session) and/or
 WebRTC data-channel transport so devices can drive the module remotely.
+
+**AllyMetronome adoption — precision playback engine.** The engine becomes
+AllyMetronome's sound source, which imposes its hardest real-time
+requirement: metronome-grade timing. Concretely: a sample-accurate
+transport clock owned by the DSP host (sample position is the master
+timebase — never wall-clock timers), lookahead event scheduling so clicks
+land on exact sample offsets regardless of main-thread jitter, drift-free
+long-run playback, and a **precise one-shot player** for raw WAV/MP3
+buffers (click sounds, count-ins) alongside patch voices. The current
+design already schedules note events by sample timestamp; this item
+hardens that path into a public, tested contract (clicks placed with zero
+sample error over hours of runtime).
+
+**AllyStation adoption — rhythm-game / DAW-level playback.** A potential
+rhythm game raises the bar from "notes on time" to "audio is the game
+clock": streamed backing-track playback whose sample position drives the
+gameplay/visual timeline, low-latency one-shot SFX triggering through the
+same precise player, and **latency calibration** — the engine reports
+output latency (`AudioContext.outputLatency` / AVAudioSession IO latency)
+and supports a user tap-calibration offset so judged input aligns with
+what the player hears. Same engine, same transport clock; the game sits
+above it exactly like the MIDI player does.
 
 **Physical modeling engine.** A fifth generator kind (`model`) in the patch
 schema: waveguide/modal models for plucked/struck/blown tones and
