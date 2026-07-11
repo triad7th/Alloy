@@ -23,3 +23,4 @@ export * from './dsp/sample-zone-generator.js';
 export * from './dsp/patch.js';
 export * from './dsp/voice.js';
 export * from './dsp/patch-engine.js';
+export * from './worklet-host-core.js';
