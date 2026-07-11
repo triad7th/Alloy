@@ -3,7 +3,7 @@ import Foundation
 /// Sine partial bank (drawbar organs are a 9-partial preset of this).
 /// Sustained kind: never self-finishes; the voice TVA ends the note.
 /// Twin of web src/dsp/additive-generator.ts (canonical).
-public struct AdditivePartial {
+public struct AdditivePartial: Codable {
     public let ratio: Double
     public let level: Double
 

@@ -3,7 +3,7 @@ import Foundation
 /// Phase-modulation operator stack (DX-style "FM"). Twin of web
 /// src/dsp/fm-generator.ts (canonical). Modulators sit at higher indices
 /// than the operators they modulate (single high-to-low pass per sample).
-public struct FmOperatorParams {
+public struct FmOperatorParams: Codable {
     public let ratio: Double
     public let level: Double
     public let adsr: AdsrParams
@@ -15,7 +15,7 @@ public struct FmOperatorParams {
     }
 }
 
-public struct FmRoute {
+public struct FmRoute: Codable {
     public let from: Int
     public let to: Int
 
@@ -25,7 +25,7 @@ public struct FmRoute {
     }
 }
 
-public struct FmFeedback {
+public struct FmFeedback: Codable {
     public let op: Int
     public let amount: Double
 
@@ -35,7 +35,7 @@ public struct FmFeedback {
     }
 }
 
-public struct FmAlgorithm {
+public struct FmAlgorithm: Codable {
     public let routes: [FmRoute]
     public let carriers: [Int]
     public let feedback: FmFeedback?
@@ -47,7 +47,7 @@ public struct FmAlgorithm {
     }
 }
 
-public struct FmGeneratorParams {
+public struct FmGeneratorParams: Codable {
     public let operators: [FmOperatorParams]
     public let algorithm: FmAlgorithm
 

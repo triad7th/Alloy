@@ -2,7 +2,7 @@ import Foundation
 
 /// Exponential-segment ADSR — one-pole approach toward a per-stage target.
 /// Twin of web src/dsp/adsr-envelope.ts (canonical).
-public struct AdsrParams {
+public struct AdsrParams: Codable {
     public let attack: Double
     public let decay: Double
     public let sustain: Double

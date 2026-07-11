@@ -2,7 +2,7 @@ import Foundation
 
 /// Band-limited oscillator via polyBLEP edge correction. Twin of web
 /// src/dsp/poly-blep-oscillator.ts (canonical).
-public enum OscShape {
+public enum OscShape: String, Codable {
     case sine
     case saw
     case pulse

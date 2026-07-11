@@ -3,7 +3,7 @@ import Foundation
 /// Virtual-analog unison stack: N polyBLEP oscillators spread across
 /// ±detuneCents/2, phases seeded from DspPrng. Twin of web
 /// src/dsp/va-generator.ts (canonical).
-public struct VaParams {
+public struct VaParams: Codable {
     public let shape: OscShape
     public let unison: Int
     public let detuneCents: Double

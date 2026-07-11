@@ -4,7 +4,7 @@ import Foundation
 /// Stable under audio-rate cutoff modulation — this is the patch TVF.
 /// Constructed fully open; call setParams to shape.
 /// Twin of web src/dsp/svf.ts (canonical).
-public enum SvfMode {
+public enum SvfMode: String, Codable {
     case lowpass
     case bandpass
     case highpass

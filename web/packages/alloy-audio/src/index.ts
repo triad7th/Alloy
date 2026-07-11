@@ -20,3 +20,4 @@ export * from './dsp/fm-generator.js';
 export * from './dsp/additive-generator.js';
 export * from './dsp/va-generator.js';
 export * from './dsp/sample-zone-generator.js';
+export * from './dsp/patch.js';

@@ -1,12 +1,12 @@
 import Foundation
 
 /// Modulation LFO with delay + fade-in gate. Twin of web src/dsp/lfo.ts.
-public enum LfoShape {
+public enum LfoShape: String, Codable {
     case sine
     case triangle
 }
 
-public struct LfoParams {
+public struct LfoParams: Codable {
     public let shape: LfoShape
     public let rateHz: Double
     public let delay: Double
