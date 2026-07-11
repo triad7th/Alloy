@@ -225,8 +225,8 @@ Each phase independently shippable:
 
 1. **DSP core + hosts** — units, voice/layer mixer, worklet + source-node
    hosts, golden tests. Silent milestone: correct patch renders.
-   (1a + 1b-i landed — engine renders patches correctly, twin-verified;
-   1b-ii hosts next.)
+   (Phase 1 complete: 1a units, 1b-i engine, 1b-ii hosts — patches render
+   identically offline, in the worklet path, and in the source-node path.)
 2. **Effects** — inserts + algorithmic reverb/delay/limiter.
 3. **Pipeline + piano** — `tools/samplepack/`, Salamander-derived clean
    piano pack (tiny tier first), piano patch tuned in the workbench.

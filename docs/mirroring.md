@@ -186,6 +186,32 @@ render.
   (an unreachable one would be lint-flagged) and instead carries a comment
   pointing back to this entry.
 
+**Rompler hosts (phase 1b-ii, semantic twins — platform edges):**
+`WorkletHostCore` + `WorkletSynthHost` (web) ↔ `PatchCommandQueue` +
+`PatchEngineHost` (Apple). Both wrap the same `PatchEngine` with the same
+discipline — commands cross to the render context in a FIFO applied only at
+render-block starts, at most 512 per block (`MAX_COMMANDS_PER_BLOCK` /
+`maxCommandsPerBlock`), invalid patches are dropped with their
+`validatePatch` errors surfaced, zone sets live in render-context-owned
+storage behind the engine's `zoneSetProvider`, and render paths allocate
+nothing and can never throw. The flagship property both platforms pin in
+tests: driving the host path with the golden fixtures is **bit-exactly
+equal** to `renderPatch` (plain equality, no tolerance — same core, same
+schedule order).
+
+**Sanctioned asymmetries (rompler hosts):**
+- Frame domains: worklet messages carry absolute CONTEXT frames
+  (`AudioWorkletGlobalScope.currentFrame` timebase; the core anchors at
+  construction and subtracts) ↔ Apple commands carry absolute ENGINE
+  frames (the host transport). Each matches its platform's native clock.
+- Patch rejection surfaces: a `patchRejected` port reply message (web,
+  async boundary) ↔ an `onPatchRejected` callback invoked from the render
+  drain (Apple).
+- The untestable shells are logic-free by design: the
+  `AudioWorkletProcessor` subclass (browser-only globals) and the
+  `AVAudioSourceNode` render block each delegate everything to the tested
+  core/host render function.
+
 ## AlloyStorage
 
 Storage abstraction + backends (`@allyworld/alloy-storage` ↔ `AlloyStorage`).
