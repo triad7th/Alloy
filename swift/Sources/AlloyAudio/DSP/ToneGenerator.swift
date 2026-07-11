@@ -12,6 +12,7 @@ public enum DspConstants {
 /// zero-fill). `finished` means self-terminated — only silence can ever
 /// follow. Sustained kinds never self-finish; `noteOff` only forwards
 /// key-up to intrinsic envelopes (the voice TVA owns the audible release).
+/// A generator is never `finished` before its first `noteOn`.
 public protocol ToneGenerator: AnyObject {
     func noteOn(midi: Int, velocity: Double)
     func noteOff()

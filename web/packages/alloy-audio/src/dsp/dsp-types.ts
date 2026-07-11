@@ -16,6 +16,7 @@ export const SILENCE_FLOOR = 1e-5;
  * its last frame). Sustained kinds (VA, additive, looped samples) never
  * self-finish: `noteOff` only forwards key-up to intrinsic envelopes, and
  * the voice's TVA (phase 1b) owns the audible release and voice teardown.
+ * A generator is never `finished` before its first `noteOn`.
  */
 export interface ToneGenerator {
   noteOn(midi: number, velocity: number): void;

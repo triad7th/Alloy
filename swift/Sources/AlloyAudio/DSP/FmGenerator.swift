@@ -65,6 +65,7 @@ public final class FmGenerator: ToneGenerator {
     private var outputs: [Double]
     private var frequency = 0.0
     private var amp = 0.0
+    private var keyed = false
 
     public init(params: FmGeneratorParams, sampleRate: Double) {
         let opCount = params.operators.count
@@ -85,10 +86,11 @@ public final class FmGenerator: ToneGenerator {
     }
 
     public var finished: Bool {
-        params.algorithm.carriers.allSatisfy { !envelopes[$0].isActive }
+        keyed && params.algorithm.carriers.allSatisfy { !envelopes[$0].isActive }
     }
 
     public func noteOn(midi: Int, velocity: Double) {
+        keyed = true
         frequency = Pitch.frequency(midi: midi)
         amp = velocity
         for i in phases.indices {

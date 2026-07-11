@@ -62,6 +62,11 @@ describe('FmGenerator', () => {
     for (let i = 0; i < 256; i++) expect(b[i]).toBeCloseTo(a[i] * 0.5, 6);
   });
 
+  it('is not finished before noteOn', () => {
+    const gen = new FmGenerator(twoOp(0.5), FS);
+    expect(gen.finished).toBe(false);
+  });
+
   it('finishes after release and renders silence thereafter', () => {
     const gen = new FmGenerator(twoOp(0.5), FS);
     gen.noteOn(69, 1);

@@ -35,6 +35,7 @@ export class FmGenerator implements ToneGenerator {
   private readonly outputs: number[];
   private frequency = 0;
   private amp = 0;
+  private keyed = false;
 
   constructor(
     private readonly params: FmGeneratorParams,
@@ -57,10 +58,11 @@ export class FmGenerator implements ToneGenerator {
   }
 
   get finished(): boolean {
-    return this.params.algorithm.carriers.every((c) => !this.envelopes[c].isActive);
+    return this.keyed && this.params.algorithm.carriers.every((c) => !this.envelopes[c].isActive);
   }
 
   noteOn(midi: number, velocity: number): void {
+    this.keyed = true;
     this.frequency = midiToFrequency(midi);
     this.amp = velocity;
     this.phases.fill(0);

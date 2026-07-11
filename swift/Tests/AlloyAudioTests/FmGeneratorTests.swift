@@ -60,6 +60,11 @@ final class FmGeneratorTests: XCTestCase {
         }
     }
 
+    func testNotFinishedBeforeNoteOn() {
+        let gen = FmGenerator(params: twoOp(modLevel: 0.5), sampleRate: fs)
+        XCTAssertFalse(gen.finished)
+    }
+
     func testFinishesAfterRelease() {
         let gen = FmGenerator(params: twoOp(modLevel: 0.5), sampleRate: fs)
         gen.noteOn(midi: 69, velocity: 1)
