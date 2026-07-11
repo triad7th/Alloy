@@ -24,3 +24,4 @@ export * from './dsp/patch.js';
 export * from './dsp/voice.js';
 export * from './dsp/patch-engine.js';
 export * from './worklet-host-core.js';
+export * from './worklet-synth-host.js';
