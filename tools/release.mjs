@@ -90,7 +90,7 @@ try {
 step('packing tarballs');
 const tarballs = releasing.map((pkg) => {
   let packDir;
-  if (pkg.dir === 'alloy-time' || pkg.dir === 'alloy-audio') {
+  if (pkg.dir === 'alloy-time' || pkg.dir === 'alloy-audio' || pkg.dir === 'alloy-storage') {
     // Plain tsc packages: prepack compiles, packs from the package directory.
     packDir = join(packagesDir, pkg.dir);
   } else if (pkg.dir === 'alloy-ui') {
