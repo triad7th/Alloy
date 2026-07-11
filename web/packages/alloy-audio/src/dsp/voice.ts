@@ -45,6 +45,13 @@ interface LayerUnit {
   ampMod: number;
   /** Preallocated chunk buffer; zero-filled per chunk (no allocation in render). */
   readonly scratch: Float32Array;
+  /**
+   * Latched dead-unit flag, updated only at control-tick boundaries (never
+   * mid-chunk) so a self-finishing generator's SVF ring tail gets exactly
+   * one full CONTROL_INTERVAL chunk of processing regardless of how
+   * render() calls are sized. Sticky: once true, stays true.
+   */
+  done: boolean;
 }
 
 export class Voice {
@@ -60,9 +67,9 @@ export class Voice {
     private readonly zoneSetProvider?: ZoneSetProvider,
   ) {}
 
-  /** True while any layer is alive (TVA active and generator not finished). */
+  /** True while any layer is alive (samplePos-aligned latch; see LayerUnit.done). */
   get active(): boolean {
-    return this.units.some((u) => u.tva.isActive && !u.generator.finished);
+    return this.units.some((u) => !u.done);
   }
 
   /** Selects layers whose key/vel ranges contain the note and builds their units. */
@@ -101,6 +108,7 @@ export class Voice {
         gain: layer.tva.level * velocityResidual,
         ampMod: 1,
         scratch: new Float32Array(CONTROL_INTERVAL),
+        done: false,
       });
     }
   }
@@ -131,7 +139,14 @@ export class Voice {
       const chunkLen = Math.min(CONTROL_INTERVAL - posInChunk, frames - n);
       const tick = posInChunk === 0;
       for (const unit of this.units) {
-        if (!unit.tva.isActive || unit.generator.finished) {
+        if (tick) {
+          // Latch dead-unit status only at tick boundaries: a chunk that's
+          // already in flight always finishes its full width (up to
+          // CONTROL_INTERVAL samples) through the SVF, independent of how
+          // render() calls happen to be split mid-chunk.
+          unit.done = unit.done || !unit.tva.isActive || unit.generator.finished;
+        }
+        if (unit.done) {
           continue;
         }
         if (tick) {

@@ -269,6 +269,56 @@ describe('Voice', () => {
     }
   });
 
+  // 10. Block-size invariance across a mid-chunk generator finish: a layer
+  //     unlooped one-shot sample zone self-finishes at sample 100, mid-way
+  //     through the CONTROL_INTERVAL chunk covering samples 96..112. With a
+  //     TVF on that layer, the SVF ring must get exactly one full chunk's
+  //     worth of processing (the latch only updates at tick boundaries), so
+  //     splitting render() calls at a non-tick-aligned point inside that
+  //     window (104) must not change a single sample versus one big call.
+  it('renders identically across a mid-chunk generator finish regardless of render() call sizes', () => {
+    const oneShotProvider: ZoneSetProvider = (id) => {
+      if (id !== 'oneshot') return null;
+      const length = 100;
+      const data = new Float32Array(length);
+      for (let i = 0; i < length; i++) {
+        data[i] = Math.sin((2 * Math.PI * 6 * i) / length);
+      }
+      return [{ topVelocity: 1, zones: [{ rootMidi: 69, sampleRate: FS, data }] }];
+    };
+    const sampleLayer: PatchLayer = {
+      keyRange: FULL_KEY,
+      velRange: FULL_VEL,
+      generator: { kind: 'sample', zoneSetId: 'oneshot', crossfade: 0 },
+      tvf: { mode: 'lowpass', cutoffHz: 800, q: 2, envAmountHz: 0, keyTrack: 0, velAmountHz: 0 },
+      tva: { level: 0.8, adsr: ADSR, velCurve: 1 },
+    };
+    const sustainedLayer: PatchLayer = {
+      keyRange: FULL_KEY,
+      velRange: FULL_VEL,
+      generator: { kind: 'additive', partials: [{ ratio: 1, level: 1 }] },
+      tva: { level: 0.5, adsr: ADSR, velCurve: 1 },
+    };
+    const patch = makePatch([sampleLayer, sustainedLayer]);
+
+    const whole = new Voice(patch, FS, oneShotProvider);
+    whole.noteOn(69, 1);
+    const wholeOut = render(whole, 160);
+
+    // Split at 104: strictly inside the 96..112 tick chunk and past the
+    // generator's self-finish at 100 — exactly the case the latch fixes.
+    const split = new Voice(patch, FS, oneShotProvider);
+    split.noteOn(69, 1);
+    const part1 = render(split, 104);
+    const part2 = render(split, 56);
+    for (let i = 0; i < 104; i++) {
+      expect(part1[i]).toBe(wholeOut[i]);
+    }
+    for (let i = 0; i < 56; i++) {
+      expect(part2[i]).toBe(wholeOut[104 + i]);
+    }
+  });
+
   // 9. Twin reference: fixture patch, noteOn(60, 0.8), first 8 samples.
   it('matches the twin reference (fixture patch, noteOn 60 at velocity 0.8)', () => {
     const patch = JSON.parse(FIXTURE_PATCH_JSON) as Patch;

@@ -265,6 +265,59 @@ final class VoiceTests: XCTestCase {
         }
     }
 
+    // 10. Block-size invariance across a mid-chunk generator finish: a layer
+    //     unlooped one-shot sample zone self-finishes at sample 100, mid-way
+    //     through the CONTROL_INTERVAL chunk covering samples 96..112. With a
+    //     TVF on that layer, the SVF ring must get exactly one full chunk's
+    //     worth of processing (the latch only updates at tick boundaries), so
+    //     splitting render() calls at a non-tick-aligned point inside that
+    //     window (104) must not change a single sample versus one big call.
+    func testRendersIdenticallyAcrossAMidChunkGeneratorFinishRegardlessOfRenderCallSizes() {
+        let oneShotProvider: ZoneSetProvider = { id in
+            guard id == "oneshot" else { return nil }
+            let length = 100
+            var data = [Float](repeating: 0, count: length)
+            for i in 0..<length {
+                data[i] = Float(sin(2 * Double.pi * 6 * Double(i) / Double(length)))
+            }
+            let zone = VelocityLayerData(topVelocity: 1, zones: [
+                SampleZoneData(rootMidi: 69, sampleRate: self.fs, data: data),
+            ])
+            return [zone]
+        }
+        let sampleLayer = PatchLayer(
+            keyRange: fullKey,
+            velRange: fullVel,
+            generator: .sample(zoneSetId: "oneshot", crossfade: 0),
+            tvf: TvfParams(mode: .lowpass, cutoffHz: 800, q: 2, envAmountHz: 0, keyTrack: 0, velAmountHz: 0),
+            tva: TvaParams(level: 0.8, adsr: adsr, velCurve: 1),
+        )
+        let sustainedLayer = PatchLayer(
+            keyRange: fullKey,
+            velRange: fullVel,
+            generator: .additive([AdditivePartial(ratio: 1, level: 1)]),
+            tva: TvaParams(level: 0.5, adsr: adsr, velCurve: 1),
+        )
+        let patch = makePatch([sampleLayer, sustainedLayer])
+
+        let whole = Voice(patch: patch, sampleRate: fs, zoneSetProvider: oneShotProvider)
+        whole.noteOn(midi: 69, velocity: 1)
+        let wholeOut = render(whole, 160)
+
+        // Split at 104: strictly inside the 96..112 tick chunk and past the
+        // generator's self-finish at 100 — exactly the case the latch fixes.
+        let split = Voice(patch: patch, sampleRate: fs, zoneSetProvider: oneShotProvider)
+        split.noteOn(midi: 69, velocity: 1)
+        let part1 = render(split, 104)
+        let part2 = render(split, 56)
+        for i in 0..<104 {
+            XCTAssertEqual(part1[i], wholeOut[i])
+        }
+        for i in 0..<56 {
+            XCTAssertEqual(part2[i], wholeOut[104 + i])
+        }
+    }
+
     // 9. Twin reference: fixture patch, noteOn(60, 0.8), first 8 samples.
     func testMatchesTheTwinReference() throws {
         let patch = try JSONDecoder().decode(Patch.self, from: Data(fixturePatchJSON.utf8))

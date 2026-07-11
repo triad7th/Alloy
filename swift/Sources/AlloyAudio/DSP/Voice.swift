@@ -36,6 +36,12 @@ public final class Voice {
         var ampMod = 1.0
         /// Preallocated chunk buffer; zero-filled per chunk (no allocation in render).
         var scratch = [Float](repeating: 0, count: CONTROL_INTERVAL)
+        /// Latched dead-unit flag, updated only at control-tick boundaries
+        /// (never mid-chunk) so a self-finishing generator's SVF ring tail
+        /// gets exactly one full CONTROL_INTERVAL chunk of processing
+        /// regardless of how render() calls are sized. Sticky: once true,
+        /// stays true.
+        var done = false
 
         init(
             layer: PatchLayer,
@@ -71,9 +77,9 @@ public final class Voice {
         self.zoneSetProvider = zoneSetProvider
     }
 
-    /// True while any layer is alive (TVA active and generator not finished).
+    /// True while any layer is alive (samplePos-aligned latch; see LayerUnit.done).
     public var active: Bool {
-        units.contains { $0.tva.isActive && !$0.generator.finished }
+        units.contains { !$0.done }
     }
 
     /// Selects layers whose key/vel ranges contain the note and builds their units.
@@ -136,7 +142,15 @@ public final class Voice {
             let chunkLen = min(CONTROL_INTERVAL - posInChunk, frames - n)
             let tick = posInChunk == 0
             for unit in units {
-                guard unit.tva.isActive, !unit.generator.finished else { continue }
+                if tick {
+                    // Latch dead-unit status only at tick boundaries: a chunk
+                    // that's already in flight always finishes its full width
+                    // (up to CONTROL_INTERVAL samples) through the SVF,
+                    // independent of how render() calls happen to be split
+                    // mid-chunk.
+                    unit.done = unit.done || !unit.tva.isActive || unit.generator.finished
+                }
+                guard !unit.done else { continue }
                 if tick {
                     tickModulation(unit)
                 }
