@@ -146,3 +146,38 @@ public actor DriveBackend: StorageBackend {
     }
   }
 }
+
+/// Twin of TS `DriveBackend implements Shareable`.
+extension DriveBackend: Shareable {
+  public func shareStatus(id: String) async throws -> ShareStatus? {
+    try await withFolder { folderId in
+      guard let file = try await self.client.findByAlloyId(folderId: folderId, id: id) else {
+        return nil
+      }
+      return ShareStatus(
+        shared: try await self.client.hasPublicPermission(fileId: file.id), nativeRef: file.id)
+    }
+  }
+
+  @discardableResult
+  public func share(id: String) async throws -> ShareStatus {
+    try await withFolder { folderId in
+      guard let file = try await self.client.findByAlloyId(folderId: folderId, id: id) else {
+        throw StorageError(category: .notFound, message: "no record '\(id)' to share")
+      }
+      if try await !self.client.hasPublicPermission(fileId: file.id) {
+        try await self.client.createPublicPermission(fileId: file.id)
+      }
+      return ShareStatus(shared: true, nativeRef: file.id)
+    }
+  }
+
+  public func unshare(id: String) async throws {
+    try await withFolder { folderId in
+      guard let file = try await self.client.findByAlloyId(folderId: folderId, id: id) else {
+        return
+      }
+      try await self.client.deletePublicPermission(fileId: file.id)
+    }
+  }
+}

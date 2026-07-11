@@ -177,4 +177,38 @@ public final class DriveClient: Sendable {
   public func deleteFile(fileId: String) async throws {
     _ = try await call("\(api)/files/\(fileId)", method: "DELETE")
   }
+
+  /// Shareable mechanism — internal on purpose; not part of the public surface.
+  /// Twin of TS DriveClient.createPublicPermission.
+  func createPublicPermission(fileId: String) async throws {
+    let body = try! JSONSerialization.data(withJSONObject: ["role": "reader", "type": "anyone"])
+    _ = try await call(
+      "\(api)/files/\(fileId)/permissions", method: "POST",
+      headers: ["Content-Type": "application/json"], body: body)
+  }
+
+  private struct PermissionList: Decodable {
+    struct Permission: Decodable {
+      let id: String
+      let type: String
+    }
+    let permissions: [Permission]?
+  }
+
+  private func anyonePermissionId(fileId: String) async throws -> String? {
+    let data = try await call("\(api)/files/\(fileId)/permissions?fields=permissions(id,type)")
+    let list = try JSONDecoder().decode(PermissionList.self, from: data)
+    return list.permissions?.first { $0.type == "anyone" }?.id
+  }
+
+  /// Twin of TS DriveClient.hasPublicPermission.
+  func hasPublicPermission(fileId: String) async throws -> Bool {
+    try await anyonePermissionId(fileId: fileId) != nil
+  }
+
+  /// Twin of TS DriveClient.deletePublicPermission.
+  func deletePublicPermission(fileId: String) async throws {
+    guard let id = try await anyonePermissionId(fileId: fileId) else { return }
+    _ = try await call("\(api)/files/\(fileId)/permissions/\(id)", method: "DELETE")
+  }
 }
