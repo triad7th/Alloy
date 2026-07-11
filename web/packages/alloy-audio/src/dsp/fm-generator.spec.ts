@@ -111,6 +111,17 @@ describe('FmGenerator', () => {
     }, FS)).toThrow();
   });
 
+  it('setPitchRatio(2) equals playing an octave higher', () => {
+    const bent = new FmGenerator(twoOp(0.5), FS);
+    bent.noteOn(60, 1);
+    bent.setPitchRatio(2);
+    const reference = new FmGenerator(twoOp(0.5), FS);
+    reference.noteOn(72, 1);
+    const a = render(bent, 512);
+    const b = render(reference, 512);
+    for (let i = 0; i < 512; i++) expect(a[i]).toBeCloseTo(b[i], 9);
+  });
+
   it('matches the twin reference (2-op, feedback)', () => {
     const params = twoOp(0.7);
     const gen = new FmGenerator(

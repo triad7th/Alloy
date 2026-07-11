@@ -61,6 +61,7 @@ export class FmGenerator implements ToneGenerator {
   private readonly phases: number[];
   private readonly outputs: number[];
   private frequency = 0;
+  private pitchRatio = 1;
   private amp = 0;
   private keyed = false;
 
@@ -83,6 +84,7 @@ export class FmGenerator implements ToneGenerator {
 
   noteOn(midi: number, velocity: number): void {
     this.keyed = true;
+    this.pitchRatio = 1;
     this.frequency = midiToFrequency(midi);
     this.amp = velocity;
     this.phases.fill(0);
@@ -96,6 +98,10 @@ export class FmGenerator implements ToneGenerator {
     for (const env of this.envelopes) {
       env.noteOff();
     }
+  }
+
+  setPitchRatio(ratio: number): void {
+    this.pitchRatio = ratio;
   }
 
   render(out: Float32Array, frames: number): void {
@@ -118,7 +124,7 @@ export class FmGenerator implements ToneGenerator {
         }
         const env = this.envelopes[i].nextSample();
         this.outputs[i] = Math.sin(TWO_PI * (this.phases[i] + mod)) * env * operators[i].level;
-        this.phases[i] += (this.frequency * operators[i].ratio) / this.sampleRate;
+        this.phases[i] += (this.frequency * this.pitchRatio * operators[i].ratio) / this.sampleRate;
         this.phases[i] -= Math.floor(this.phases[i]);
       }
       let sample = 0;

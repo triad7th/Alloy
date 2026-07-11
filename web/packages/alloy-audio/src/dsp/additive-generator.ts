@@ -16,6 +16,7 @@ export interface AdditivePartial {
 export class AdditiveGenerator implements ToneGenerator {
   private readonly phases: number[];
   private frequency = 0;
+  private pitchRatio = 1;
   private amp = 0;
   private keyed = false;
 
@@ -32,6 +33,7 @@ export class AdditiveGenerator implements ToneGenerator {
   }
 
   noteOn(midi: number, velocity: number): void {
+    this.pitchRatio = 1;
     this.frequency = midiToFrequency(midi);
     this.amp = velocity;
     this.keyed = true;
@@ -42,6 +44,10 @@ export class AdditiveGenerator implements ToneGenerator {
     // Intentionally empty: no intrinsic envelope to key up.
   }
 
+  setPitchRatio(ratio: number): void {
+    this.pitchRatio = ratio;
+  }
+
   render(out: Float32Array, frames: number): void {
     if (!this.keyed) {
       return;
@@ -50,7 +56,7 @@ export class AdditiveGenerator implements ToneGenerator {
       let sample = 0;
       for (let p = 0; p < this.partials.length; p++) {
         sample += Math.sin(TWO_PI * this.phases[p]) * this.partials[p].level;
-        this.phases[p] += (this.frequency * this.partials[p].ratio) / this.sampleRate;
+        this.phases[p] += (this.frequency * this.pitchRatio * this.partials[p].ratio) / this.sampleRate;
         this.phases[p] -= Math.floor(this.phases[p]);
       }
       out[n] += sample * this.amp;

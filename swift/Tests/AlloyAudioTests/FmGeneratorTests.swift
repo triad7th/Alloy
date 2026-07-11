@@ -85,6 +85,19 @@ final class FmGeneratorTests: XCTestCase {
         XCTAssertFalse(validateFmGeneratorParams(bad).isEmpty)
     }
 
+    func testSetPitchRatioEqualsPlayingAnOctaveHigher() {
+        let bent = FmGenerator(params: twoOp(modLevel: 0.5), sampleRate: fs)
+        bent.noteOn(midi: 60, velocity: 1)
+        bent.setPitchRatio(2)
+        let reference = FmGenerator(params: twoOp(modLevel: 0.5), sampleRate: fs)
+        reference.noteOn(midi: 72, velocity: 1)
+        let a = render(bent, 512)
+        let b = render(reference, 512)
+        for i in 0..<512 {
+            XCTAssertEqual(Double(a[i]), Double(b[i]), accuracy: 1e-9)
+        }
+    }
+
     func testMatchesTwinReference() {
         var params = twoOp(modLevel: 0.7)
         params = FmGeneratorParams(

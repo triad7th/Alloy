@@ -16,6 +16,10 @@ public enum DspConstants {
 public protocol ToneGenerator: AnyObject {
     func noteOn(midi: Int, velocity: Double)
     func noteOff()
+    /// Multiplies the sounding frequency relative to the noteOn pitch (1 =
+    /// unbent). Cheap; intended to be called at control rate. Ratio persists
+    /// until the next call or noteOn (noteOn resets it to 1).
+    func setPitchRatio(_ ratio: Double)
     func render(into out: inout [Float], frames: Int)
     var finished: Bool { get }
 }

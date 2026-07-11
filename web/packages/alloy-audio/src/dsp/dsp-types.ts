@@ -21,6 +21,12 @@ export const SILENCE_FLOOR = 1e-5;
 export interface ToneGenerator {
   noteOn(midi: number, velocity: number): void;
   noteOff(): void;
+  /**
+   * Multiplies the sounding frequency relative to the noteOn pitch (1 =
+   * unbent). Cheap; intended to be called at control rate. Ratio persists
+   * until the next call or noteOn (noteOn resets it to 1).
+   */
+  setPitchRatio(ratio: number): void;
   render(out: Float32Array, frames: number): void;
   readonly finished: boolean;
 }

@@ -53,6 +53,19 @@ final class VaGeneratorTests: XCTestCase {
         XCTAssertGreaterThan(after.map { abs($0) }.max() ?? 0, 0)
     }
 
+    func testSetPitchRatioEqualsPlayingAnOctaveHigher() {
+        let bent = VaGenerator(params: VaParams(shape: .saw, unison: 5, detuneCents: 24), sampleRate: fs, seed: 7)
+        bent.noteOn(midi: 60, velocity: 1)
+        bent.setPitchRatio(2)
+        let reference = VaGenerator(params: VaParams(shape: .saw, unison: 5, detuneCents: 24), sampleRate: fs, seed: 7)
+        reference.noteOn(midi: 72, velocity: 1)
+        let a = render(bent, 512)
+        let b = render(reference, 512)
+        for i in 0..<512 {
+            XCTAssertEqual(Double(a[i]), Double(b[i]), accuracy: 1e-9)
+        }
+    }
+
     func testMatchesTwinReference() {
         let gen = VaGenerator(params: VaParams(shape: .saw, unison: 5, detuneCents: 24), sampleRate: fs)
         gen.noteOn(midi: 57, velocity: 1)

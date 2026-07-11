@@ -27,12 +27,13 @@ interface ZoneRead {
   zone: SampleZoneData;
   gain: number;
   pos: number;
-  rate: number;
+  baseRate: number;
   ended: boolean;
 }
 
 export class SampleZoneGenerator implements ToneGenerator {
   private reads: ZoneRead[] = [];
+  private pitchRatio = 1;
 
   constructor(
     private readonly layers: readonly VelocityLayerData[],
@@ -45,13 +46,14 @@ export class SampleZoneGenerator implements ToneGenerator {
   }
 
   noteOn(midi: number, velocity: number): void {
+    this.pitchRatio = 1;
     this.reads = this.pickLayers(velocity).map(({ layer, gain }) => {
       const zone = nearestZone(layer.zones, midi);
       return {
         zone,
         gain: gain * velocity,
         pos: 0,
-        rate:
+        baseRate:
           (midiToFrequency(midi) / midiToFrequency(zone.rootMidi)) *
           (zone.sampleRate / this.sampleRate),
         ended: false,
@@ -61,6 +63,10 @@ export class SampleZoneGenerator implements ToneGenerator {
 
   noteOff(): void {
     // Intentionally empty: unlooped content rings out; the TVA owns key-up.
+  }
+
+  setPitchRatio(ratio: number): void {
+    this.pitchRatio = ratio;
   }
 
   render(out: Float32Array, frames: number): void {
@@ -85,7 +91,7 @@ export class SampleZoneGenerator implements ToneGenerator {
           break;
         }
         out[n] += cubicRead(read.zone, read.pos, loop) * read.gain;
-        read.pos += read.rate;
+        read.pos += read.baseRate * this.pitchRatio;
       }
     }
   }

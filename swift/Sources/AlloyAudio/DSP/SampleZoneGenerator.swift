@@ -33,7 +33,7 @@ public final class SampleZoneGenerator: ToneGenerator {
         let zone: SampleZoneData
         let gain: Double
         var pos: Double
-        let rate: Double
+        let baseRate: Double
         var ended: Bool
     }
 
@@ -41,6 +41,7 @@ public final class SampleZoneGenerator: ToneGenerator {
     private let crossfade: Double
     private let sampleRate: Double
     private var reads: [ZoneRead] = []
+    private var pitchRatio = 1.0
 
     public init(layers: [VelocityLayerData], crossfade: Double, sampleRate: Double) {
         self.layers = layers
@@ -53,13 +54,14 @@ public final class SampleZoneGenerator: ToneGenerator {
     }
 
     public func noteOn(midi: Int, velocity: Double) {
+        pitchRatio = 1
         reads = pickLayers(velocity: velocity).map { layer, gain in
             let zone = Self.nearestZone(layer.zones, midi: midi)
             return ZoneRead(
                 zone: zone,
                 gain: gain * velocity,
                 pos: 0,
-                rate: Pitch.frequency(midi: midi) / Pitch.frequency(midi: zone.rootMidi)
+                baseRate: Pitch.frequency(midi: midi) / Pitch.frequency(midi: zone.rootMidi)
                     * (zone.sampleRate / sampleRate),
                 ended: false,
             )
@@ -68,6 +70,10 @@ public final class SampleZoneGenerator: ToneGenerator {
 
     public func noteOff() {
         // Intentionally empty: unlooped content rings out; the TVA owns key-up.
+    }
+
+    public func setPitchRatio(_ ratio: Double) {
+        pitchRatio = ratio
     }
 
     public func render(into out: inout [Float], frames: Int) {
@@ -87,7 +93,7 @@ public final class SampleZoneGenerator: ToneGenerator {
                     break
                 }
                 out[n] += Float(Self.cubicRead(zone, pos: reads[r].pos, loop: loop) * reads[r].gain)
-                reads[r].pos += reads[r].rate
+                reads[r].pos += reads[r].baseRate * pitchRatio
             }
         }
     }

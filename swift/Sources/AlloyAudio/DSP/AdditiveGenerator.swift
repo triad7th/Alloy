@@ -18,6 +18,7 @@ public final class AdditiveGenerator: ToneGenerator {
     private let sampleRate: Double
     private var phases: [Double]
     private var frequency = 0.0
+    private var pitchRatio = 1.0
     private var amp = 0.0
     private var keyed = false
 
@@ -30,6 +31,7 @@ public final class AdditiveGenerator: ToneGenerator {
     public var finished: Bool { false }
 
     public func noteOn(midi: Int, velocity: Double) {
+        pitchRatio = 1
         frequency = Pitch.frequency(midi: midi)
         amp = velocity
         keyed = true
@@ -42,13 +44,17 @@ public final class AdditiveGenerator: ToneGenerator {
         // Intentionally empty: no intrinsic envelope to key up.
     }
 
+    public func setPitchRatio(_ ratio: Double) {
+        pitchRatio = ratio
+    }
+
     public func render(into out: inout [Float], frames: Int) {
         guard keyed else { return }
         for n in 0..<frames {
             var sample = 0.0
             for p in partials.indices {
                 sample += sin(DspConstants.twoPi * phases[p]) * partials[p].level
-                phases[p] += frequency * partials[p].ratio / sampleRate
+                phases[p] += frequency * pitchRatio * partials[p].ratio / sampleRate
                 phases[p] -= phases[p].rounded(.down)
             }
             out[n] += Float(sample * amp)

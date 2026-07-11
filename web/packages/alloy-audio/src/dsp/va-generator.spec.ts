@@ -66,6 +66,17 @@ describe('VaGenerator', () => {
     expect(Math.max(...Array.from(after, Math.abs))).toBeGreaterThan(0);
   });
 
+  it('setPitchRatio(2) equals playing an octave higher', () => {
+    const bent = new VaGenerator({ shape: 'saw', unison: 5, detuneCents: 24 }, FS, 7);
+    bent.noteOn(60, 1);
+    bent.setPitchRatio(2);
+    const reference = new VaGenerator({ shape: 'saw', unison: 5, detuneCents: 24 }, FS, 7);
+    reference.noteOn(72, 1);
+    const a = render(bent, 512);
+    const b = render(reference, 512);
+    for (let i = 0; i < 512; i++) expect(a[i]).toBeCloseTo(b[i], 9);
+  });
+
   it('matches the twin reference (5-voice saw, seed 1)', () => {
     const gen = new VaGenerator({ shape: 'saw', unison: 5, detuneCents: 24 }, FS);
     gen.noteOn(57, 1);

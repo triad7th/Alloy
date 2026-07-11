@@ -121,6 +121,19 @@ final class SampleZoneGeneratorTests: XCTestCase {
         XCTAssertTrue(gen.finished)
     }
 
+    func testSetPitchRatioEqualsPlayingAnOctaveHigher() {
+        let bent = SampleZoneGenerator(layers: oneLayer(sineZone(rootMidi: 69, length: 48_000, cycles: 440, loop: true)), crossfade: 0, sampleRate: fs)
+        bent.noteOn(midi: 60, velocity: 1)
+        bent.setPitchRatio(2)
+        let reference = SampleZoneGenerator(layers: oneLayer(sineZone(rootMidi: 69, length: 48_000, cycles: 440, loop: true)), crossfade: 0, sampleRate: fs)
+        reference.noteOn(midi: 72, velocity: 1)
+        let a = render(bent, 512)
+        let b = render(reference, 512)
+        for i in 0..<512 {
+            XCTAssertEqual(Double(a[i]), Double(b[i]), accuracy: 1e-9)
+        }
+    }
+
     func testMatchesTwinReference() {
         let gen = SampleZoneGenerator(layers: oneLayer(sineZone(rootMidi: 69, length: 4800, cycles: 44, loop: true)), crossfade: 0, sampleRate: fs)
         gen.noteOn(midi: 57, velocity: 1)

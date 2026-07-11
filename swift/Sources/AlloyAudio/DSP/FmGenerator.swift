@@ -86,6 +86,7 @@ public final class FmGenerator: ToneGenerator {
     private var phases: [Double]
     private var outputs: [Double]
     private var frequency = 0.0
+    private var pitchRatio = 1.0
     private var amp = 0.0
     private var keyed = false
 
@@ -106,6 +107,7 @@ public final class FmGenerator: ToneGenerator {
 
     public func noteOn(midi: Int, velocity: Double) {
         keyed = true
+        pitchRatio = 1
         frequency = Pitch.frequency(midi: midi)
         amp = velocity
         for i in phases.indices {
@@ -121,6 +123,10 @@ public final class FmGenerator: ToneGenerator {
         for env in envelopes {
             env.noteOff()
         }
+    }
+
+    public func setPitchRatio(_ ratio: Double) {
+        pitchRatio = ratio
     }
 
     public func render(into out: inout [Float], frames: Int) {
@@ -139,7 +145,7 @@ public final class FmGenerator: ToneGenerator {
                 }
                 let env = envelopes[i].nextSample()
                 outputs[i] = sin(DspConstants.twoPi * (phases[i] + mod)) * env * operators[i].level
-                phases[i] += frequency * operators[i].ratio / sampleRate
+                phases[i] += frequency * pitchRatio * operators[i].ratio / sampleRate
                 phases[i] -= phases[i].rounded(.down)
             }
             var sample = 0.0

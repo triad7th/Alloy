@@ -115,6 +115,17 @@ describe('SampleZoneGenerator', () => {
     expect(gen.finished).toBe(true);
   });
 
+  it('setPitchRatio(2) equals playing an octave higher', () => {
+    const bent = new SampleZoneGenerator(oneLayer(sineZone(69, 48_000, 440, true)), 0, FS);
+    bent.noteOn(60, 1);
+    bent.setPitchRatio(2);
+    const reference = new SampleZoneGenerator(oneLayer(sineZone(69, 48_000, 440, true)), 0, FS);
+    reference.noteOn(72, 1);
+    const a = render(bent, 512);
+    const b = render(reference, 512);
+    for (let i = 0; i < 512; i++) expect(a[i]).toBeCloseTo(b[i], 9);
+  });
+
   it('matches the twin reference (octave-down sine, looped)', () => {
     const gen = new SampleZoneGenerator(oneLayer(sineZone(69, 4800, 44, true)), 0, FS);
     gen.noteOn(57, 1);

@@ -33,6 +33,8 @@ public final class VaGenerator: ToneGenerator {
     private let params: VaParams
     private let oscillators: [PolyBlepOscillator]
     private let gainNorm: Double
+    private var baseFrequencies: [Double]
+    private var pitchRatio = 1.0
     private var amp = 0.0
     private var keyed = false
 
@@ -49,6 +51,7 @@ public final class VaGenerator: ToneGenerator {
             )
         }
         gainNorm = 1 / Double(count).squareRoot()
+        baseFrequencies = [Double](repeating: 0, count: count)
     }
 
     public var finished: Bool { false }
@@ -56,18 +59,31 @@ public final class VaGenerator: ToneGenerator {
     public func noteOn(midi: Int, velocity: Double) {
         let base = Pitch.frequency(midi: midi)
         let count = oscillators.count
-        for (i, osc) in oscillators.enumerated() {
+        baseFrequencies = (0..<count).map { i in
             let cents = count == 1
                 ? 0
                 : -params.detuneCents / 2 + params.detuneCents * Double(i) / Double(count - 1)
-            osc.setFrequency(base * pow(2, cents / 1200))
+            return base * pow(2, cents / 1200)
         }
+        pitchRatio = 1
+        applyPitch()
         amp = velocity
         keyed = true
     }
 
     public func noteOff() {
         // Intentionally empty: no intrinsic envelope to key up.
+    }
+
+    public func setPitchRatio(_ ratio: Double) {
+        pitchRatio = ratio
+        applyPitch()
+    }
+
+    private func applyPitch() {
+        for (i, osc) in oscillators.enumerated() {
+            osc.setFrequency(baseFrequencies[i] * pitchRatio)
+        }
     }
 
     public func render(into out: inout [Float], frames: Int) {

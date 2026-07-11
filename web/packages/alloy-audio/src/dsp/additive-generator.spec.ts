@@ -53,6 +53,21 @@ describe('AdditiveGenerator', () => {
     expect(Math.max(...after.map(Math.abs))).toBeGreaterThan(0);
   });
 
+  it('setPitchRatio(2) equals playing an octave higher', () => {
+    const partials = [
+      { ratio: 1, level: 0.6 },
+      { ratio: 3, level: 0.2 },
+    ];
+    const bent = new AdditiveGenerator(partials, FS);
+    bent.noteOn(60, 1);
+    bent.setPitchRatio(2);
+    const reference = new AdditiveGenerator(partials, FS);
+    reference.noteOn(72, 1);
+    const a = render(bent, 512);
+    const b = render(reference, 512);
+    for (let i = 0; i < 512; i++) expect(a[i]).toBeCloseTo(b[i], 9);
+  });
+
   it('matches the twin reference (two partials, midi 60)', () => {
     const gen = new AdditiveGenerator(
       [

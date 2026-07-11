@@ -59,6 +59,23 @@ final class AdditiveGeneratorTests: XCTestCase {
         XCTAssertGreaterThan(after.map { abs($0) }.max() ?? 0, 0)
     }
 
+    func testSetPitchRatioEqualsPlayingAnOctaveHigher() {
+        let partials = [
+            AdditivePartial(ratio: 1, level: 0.6),
+            AdditivePartial(ratio: 3, level: 0.2),
+        ]
+        let bent = AdditiveGenerator(partials: partials, sampleRate: fs)
+        bent.noteOn(midi: 60, velocity: 1)
+        bent.setPitchRatio(2)
+        let reference = AdditiveGenerator(partials: partials, sampleRate: fs)
+        reference.noteOn(midi: 72, velocity: 1)
+        let a = render(bent, 512)
+        let b = render(reference, 512)
+        for i in 0..<512 {
+            XCTAssertEqual(Double(a[i]), Double(b[i]), accuracy: 1e-9)
+        }
+    }
+
     func testMatchesTwinReference() {
         let gen = AdditiveGenerator(
             partials: [
