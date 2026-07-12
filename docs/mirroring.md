@@ -266,7 +266,7 @@ Two insert kinds, both twin-tested against pinned constants
   with R's phase offset from L's by `spread` half-turns (`Math.PI * spread`
   / `.pi * spread`) — `spread` 0 keeps both channels in phase (classic
   tremolo), `spread` 1 puts them a half-cycle apart (hard auto-pan; L and R
-  gains swap peaks and troughs). `depth` scales the LFO's excursion around
+  gains swap peaks and troughs). `depth` scales the LFO's excursion below
   unity gain.
 
 **Stereo bus contract (`PatchEngine`):** voices stay mono, unchanged from

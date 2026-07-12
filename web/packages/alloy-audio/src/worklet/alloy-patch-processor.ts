@@ -13,14 +13,20 @@
 // this worklet/ directory.
 import { WorkletHostCore, WORKLET_PROCESSOR_NAME, type WorkletInMessage } from '../worklet-host-core.js';
 
-/** The AudioWorklet render quantum; sizes the single-channel fallback scratches. */
-const RENDER_QUANTUM_FRAMES = 128;
+/**
+ * The AudioWorklet render quantum is 128 frames today, but a future
+ * renderSizeHint could raise it; size the single-channel fallback scratches
+ * at the engine's 4096-frame block cap (WorkletHostCore.render's documented
+ * limit) so a larger quantum can never read past the end of these buffers
+ * and pull in NaN/garbage instead of silence.
+ */
+const MONO_SCRATCH_FRAMES = 4096;
 
 class AlloyPatchProcessor extends AudioWorkletProcessor {
   private readonly core: WorkletHostCore;
   /** Preallocated fallback pair for single-channel outputs (no render-path allocation). */
-  private readonly downmixL = new Float32Array(RENDER_QUANTUM_FRAMES);
-  private readonly downmixR = new Float32Array(RENDER_QUANTUM_FRAMES);
+  private readonly downmixL = new Float32Array(MONO_SCRATCH_FRAMES);
+  private readonly downmixR = new Float32Array(MONO_SCRATCH_FRAMES);
 
   constructor(options?: { processorOptions?: { maxVoices?: number } }) {
     super(options);
@@ -41,7 +47,9 @@ class AlloyPatchProcessor extends AudioWorkletProcessor {
       this.core.render(channels[0], channels[1], channels[0].length, postReply);
     } else {
       const mono = channels[0];
-      const frames = mono.length;
+      // Guard against a quantum larger than the scratch pair (or the
+      // engine's block cap): never render/read past either bound.
+      const frames = Math.min(mono.length, MONO_SCRATCH_FRAMES);
       this.downmixL.fill(0);
       this.downmixR.fill(0);
       this.core.render(this.downmixL, this.downmixR, frames, postReply);

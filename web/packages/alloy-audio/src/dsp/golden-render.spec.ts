@@ -124,6 +124,11 @@ interface GoldenCase {
   provider?: ZoneSetProvider;
   left: ChannelProbes;
   right: ChannelProbes;
+  /** Mirrors GoldenRenderTests.swift's explicit `insertFree` parameter: an
+   * intentional, tamper-evident declaration (not inferred from whether left
+   * and right happen to be the same object reference) of whether this patch
+   * carries no insert chain, and therefore must render bit-exact L === R. */
+  insertFree: boolean;
 }
 
 // PATCH_VA and PATCH_SAMPLE stay insert-free, so L === R === the old mono
@@ -142,13 +147,15 @@ const CASES: GoldenCase[] = [
     patch: PATCH_FM,
     left: { at0: TWIN_FM_L_AT_0, at12000: TWIN_FM_L_AT_12000, at30000: TWIN_FM_L_AT_30000 },
     right: { at0: TWIN_FM_R_AT_0, at12000: TWIN_FM_R_AT_12000, at30000: TWIN_FM_R_AT_30000 },
+    insertFree: false,
   },
-  { name: 'va', patch: PATCH_VA, left: VA_PROBES, right: VA_PROBES },
+  { name: 'va', patch: PATCH_VA, left: VA_PROBES, right: VA_PROBES, insertFree: true },
   {
     name: 'organ',
     patch: PATCH_ORGAN,
     left: { at0: TWIN_ORGAN_L_AT_0, at12000: TWIN_ORGAN_L_AT_12000, at30000: TWIN_ORGAN_L_AT_30000 },
     right: { at0: TWIN_ORGAN_R_AT_0, at12000: TWIN_ORGAN_R_AT_12000, at30000: TWIN_ORGAN_R_AT_30000 },
+    insertFree: false,
   },
   {
     name: 'sample',
@@ -156,11 +163,12 @@ const CASES: GoldenCase[] = [
     provider: goldenZoneSetProvider,
     left: SAMPLE_PROBES,
     right: SAMPLE_PROBES,
+    insertFree: true,
   },
 ];
 
 describe('golden patch renders', () => {
-  for (const { name, patch, provider, left: leftProbes, right: rightProbes } of CASES) {
+  for (const { name, patch, provider, left: leftProbes, right: rightProbes, insertFree } of CASES) {
     describe(name, () => {
       it('renders deterministically across repeat calls on both channels', () => {
         const a = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider);
@@ -195,10 +203,13 @@ describe('golden patch renders', () => {
         }
       });
 
-      // Insert-free patches (VA, SAMPLE) share the same probe arrays for both
-      // channels because the bypass path pins L === R bit-exactly across the
-      // full render, not just at the probe windows.
-      if (leftProbes === rightProbes) {
+      // Insert-free patches (VA, SAMPLE) declare insertFree: true because the
+      // bypass path pins L === R bit-exactly across the full render, not just
+      // at the probe windows (and share the same probe arrays for both
+      // channels as a consequence — see the `insertFree` field's doc comment
+      // on GoldenCase for why the gate itself is the explicit flag, not that
+      // reference equality).
+      if (insertFree) {
         it('is bit-exact L === R across the full render (insert-free bypass path)', () => {
           const { left, right } = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider);
           for (let i = 0; i < GOLDEN_FRAMES; i++) {
