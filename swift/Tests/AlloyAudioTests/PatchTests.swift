@@ -125,7 +125,7 @@ final class PatchTests: XCTestCase {
             }
           ],
           "sends": { "reverb": 0, "delay": 0 },
-          "inserts": [ { "kind": "phaser" } ]
+          "inserts": [ { "kind": "flanger" } ]
         }
         """
         XCTAssertThrowsError(try JSONDecoder().decode(Patch.self, from: Data(json.utf8))) { error in

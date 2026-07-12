@@ -98,7 +98,7 @@ describe('WorkletHostCore', () => {
   it('rejects a patch with an unknown insert kind via postReply instead of throwing', () => {
     const core = new WorkletHostCore(FS, 0);
     const replies: WorkletOutMessage[] = [];
-    const unknownInsert = { kind: 'phaser' } as unknown as InsertSpec;
+    const unknownInsert = { kind: 'flanger' } as unknown as InsertSpec;
     core.onMessage({ type: 'setPatch', patch: { ...makePatch(), inserts: [unknownInsert] } });
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1 });
     let out = new Float32Array(0);
@@ -108,7 +108,7 @@ describe('WorkletHostCore', () => {
     expect(replies).toHaveLength(1);
     expect(replies[0]).toEqual({
       type: 'patchRejected',
-      errors: expect.arrayContaining([expect.stringContaining("unknown insert kind 'phaser'")]),
+      errors: expect.arrayContaining([expect.stringContaining("unknown insert kind 'flanger'")]),
     });
     expect(maxAbs(out, 0, 256)).toBe(0);
   });

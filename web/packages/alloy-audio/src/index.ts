@@ -24,6 +24,7 @@ export * from './dsp/patch.js';
 export * from './dsp/voice.js';
 export * from './dsp/patch-engine.js';
 export * from './dsp/effects/effect-types.js';
+export * from './dsp/effects/phaser.js';
 export * from './dsp/effects/stereo-chorus.js';
 export * from './dsp/effects/tremolo-auto-pan.js';
 export * from './worklet-host-core.js';

@@ -11,6 +11,15 @@ public protocol EffectUnit: AnyObject {
     func reset()
 }
 
+/// Constants shared with the web twin (`effect-types.ts`), verbatim.
+public enum EffectConstants {
+    /// Samples per control-rate tick for effects with expensive (tan/pow)
+    /// coefficient recomputes — same two-rate philosophy as Voice.swift's
+    /// CONTROL_INTERVAL, scoped to the effects layer. Web twin:
+    /// EFFECT_CONTROL_INTERVAL.
+    public static let controlInterval = 16
+}
+
 public enum ChorusMode: String, Codable {
     case chorus
     case ensemble
@@ -46,19 +55,42 @@ public struct TremoloParams: Codable {
     }
 }
 
+public struct PhaserParams: Codable {
+    /// Allpass stages per channel; must be 4 or 8 (TS literal type `4 | 8`).
+    public var stages: Int
+    /// LFO rate sweeping the shared allpass coefficient.
+    public var rateHz: Double
+    /// LFO excursion, 0..1.
+    public var depth: Double
+    /// 0..0.9 feedback from the chain's last output.
+    public var feedback: Double
+    /// 0..1 wet.
+    public var mix: Double
+
+    public init(stages: Int, rateHz: Double, depth: Double, feedback: Double, mix: Double) {
+        self.stages = stages
+        self.rateHz = rateHz
+        self.depth = depth
+        self.feedback = feedback
+        self.mix = mix
+    }
+}
+
 /// Wire format keyed on `kind` with a `chorus`/`tremolo` payload field,
 /// matching the TS JSON exactly (GeneratorSpec's Codable pattern).
 public enum InsertSpec: Codable {
     case chorus(ChorusParams)
     case tremolo(TremoloParams)
+    case phaser(PhaserParams)
 
-    private enum CodingKeys: String, CodingKey { case kind, chorus, tremolo }
+    private enum CodingKeys: String, CodingKey { case kind, chorus, tremolo, phaser }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         switch try c.decode(String.self, forKey: .kind) {
         case "chorus": self = try .chorus(c.decode(ChorusParams.self, forKey: .chorus))
         case "tremolo": self = try .tremolo(c.decode(TremoloParams.self, forKey: .tremolo))
+        case "phaser": self = try .phaser(c.decode(PhaserParams.self, forKey: .phaser))
         default: throw DecodingError.dataCorruptedError(forKey: .kind, in: c, debugDescription: "unknown insert kind")
         }
     }
@@ -68,6 +100,7 @@ public enum InsertSpec: Codable {
         switch self {
         case let .chorus(params): try c.encode("chorus", forKey: .kind); try c.encode(params, forKey: .chorus)
         case let .tremolo(params): try c.encode("tremolo", forKey: .kind); try c.encode(params, forKey: .tremolo)
+        case let .phaser(params): try c.encode("phaser", forKey: .kind); try c.encode(params, forKey: .phaser)
         }
     }
 }
@@ -102,11 +135,32 @@ private func validateTremoloParams(_ tremolo: TremoloParams) -> [String] {
     return errors
 }
 
+private func validatePhaserParams(_ phaser: PhaserParams) -> [String] {
+    var errors: [String] = []
+    if phaser.stages != 4 && phaser.stages != 8 {
+        errors.append("phaser.stages \(phaser.stages) must be 4 or 8")
+    }
+    if !(phaser.rateHz > 0 && phaser.rateHz <= 10) {
+        errors.append("phaser.rateHz \(phaser.rateHz) outside (0, 10]")
+    }
+    if !(phaser.depth >= 0 && phaser.depth <= 1) {
+        errors.append("phaser.depth \(phaser.depth) outside [0, 1]")
+    }
+    if !(phaser.feedback >= 0 && phaser.feedback <= 0.9) {
+        errors.append("phaser.feedback \(phaser.feedback) outside [0, 0.9]")
+    }
+    if !(phaser.mix >= 0 && phaser.mix <= 1) {
+        errors.append("phaser.mix \(phaser.mix) outside [0, 1]")
+    }
+    return errors
+}
+
 /// Non-throwing; empty = constructible on both platforms.
 public func validateInsert(_ spec: InsertSpec) -> [String] {
     switch spec {
     case let .chorus(chorus): return validateChorusParams(chorus)
     case let .tremolo(tremolo): return validateTremoloParams(tremolo)
+    case let .phaser(phaser): return validatePhaserParams(phaser)
     }
 }
 
@@ -117,5 +171,7 @@ public func createInsert(_ spec: InsertSpec, sampleRate: Double) -> EffectUnit {
         return StereoChorus(params: chorus, sampleRate: sampleRate)
     case let .tremolo(tremolo):
         return TremoloAutoPan(params: tremolo, sampleRate: sampleRate)
+    case let .phaser(phaser):
+        return Phaser(params: phaser, sampleRate: sampleRate)
     }
 }
