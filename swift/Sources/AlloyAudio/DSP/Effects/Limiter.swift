@@ -3,8 +3,10 @@ import Foundation
 /// Master lookahead brickwall limiter. A `limiterLookaheadSamples` ring delay
 /// plus a sliding window-peak guarantees the output never exceeds the ceiling
 /// with zero overshoot. Stereo-linked (one gain drives both channels).
-/// Per-sample gain — no control-rate stepping (zipper-safe). Twin of web
-/// src/dsp/effects/limiter.ts (canonical).
+/// Per-sample gain — no control-rate stepping (zipper-safe). The window scan
+/// runs before the ring slot is overwritten, so the emerging sample's own
+/// peak is still in the window used to compute its gain (true brickwall,
+/// zero overshoot). Twin of web src/dsp/effects/limiter.ts (canonical).
 public final class Limiter: EffectUnit {
     private let params: LimiterParams
     private let L = limiterLookaheadSamples
@@ -45,18 +47,15 @@ public final class Limiter: EffectUnit {
             let inL = left[i]
             let inR = right[i]
 
-            // Emit the delayed sample at the current ring slot, then overwrite it.
+            // The delayed sample now emerging from the lookahead window.
             let outL = delayL[pos]
             let outR = delayR[pos]
-            delayL[pos] = inL
-            delayR[pos] = inR
-            peakBuf[pos] = max(abs(inL), abs(inR))
 
-            pos += 1
-            if pos >= L { pos = 0 }
-
-            // Peak over the whole lookahead window (the peak entered up to L samples
-            // ago, so it is already accounted for before it reaches the output).
+            // Peak over the lookahead window. Runs BEFORE this slot is overwritten,
+            // so peakBuf[pos] still holds the emerging sample's own peak (alongside
+            // the L-1 samples ahead of it). Limiting the emerging sample against a
+            // window that includes itself is what makes the ceiling a true brickwall
+            // with zero overshoot.
             var windowPeak: Float = 0
             for k in 0..<L {
                 let p = peakBuf[k]
@@ -74,6 +73,13 @@ public final class Limiter: EffectUnit {
 
             left[i] = Float(Double(outL) * gain)
             right[i] = Float(Double(outR) * gain)
+
+            // Insert the incoming sample; it emerges L samples later.
+            delayL[pos] = inL
+            delayR[pos] = inR
+            peakBuf[pos] = max(abs(inL), abs(inR))
+            pos += 1
+            if pos >= L { pos = 0 }
         }
     }
 }

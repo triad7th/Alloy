@@ -6,12 +6,12 @@ const FS = 48_000;
 const L = LIMITER_LOOKAHEAD_SAMPLES;
 
 const TWIN_REFERENCE_L: number[] = [
-  0.08990523964166641, 0.08122097700834274, 0.0722651332616806, 0.06306732445955276, 0.05365801230072975,
-  0.044068340212106705, 0.034330081194639206, 0.024475498124957085,
+  0.08989386260509491, 0.08121071010828018, 0.07225599884986877, 0.06305935233831406, 0.05365123227238655,
+  0.0440627746284008, 0.034325748682022095, 0.02447240799665451,
 ];
 const TWIN_REFERENCE_R: number[] = [
-  0.044952619820833206, 0.04061048850417137, 0.0361325666308403, 0.03153366222977638, 0.026829006150364876,
-  0.022034170106053352, 0.017165040597319603, 0.012237749062478542,
+  0.044946931302547455, 0.04060535505414009, 0.03612799942493439, 0.03152967616915703, 0.026825616136193275,
+  0.0220313873142004, 0.017162874341011047, 0.012236203998327255,
 ];
 
 function sine(freq: number, amp: number, frames: number, sampleRate: number, startPhase = 0): Float32Array {
@@ -66,6 +66,48 @@ describe('Limiter', () => {
       left[i] = 10 * Math.cos((2 * Math.PI * 440 * i) / FS);
       right[i] = 10 * Math.cos((2 * Math.PI * 440 * i) / FS + 0.2);
     }
+
+    limiter.process(left, right, frames);
+
+    for (let i = 0; i < frames; i++) {
+      expect(Math.abs(left[i])).toBeLessThanOrEqual(ceiling + 1e-6);
+      expect(Math.abs(right[i])).toBeLessThanOrEqual(ceiling + 1e-6);
+    }
+  });
+
+  it('brickwall / isolated transient: a single-sample spike of 10.0 surrounded by silence never exceeds the ceiling (regression for the pre-fix eviction bug)', () => {
+    const params = DEFAULT_MASTER_CONFIG.limiter;
+    const limiter = new Limiter(params, FS);
+    const ceiling = 10 ** (params.ceilingDb / 20);
+    const frames = 4800;
+    const left = new Float32Array(frames);
+    const right = new Float32Array(frames);
+    // A single hot sample deep enough into the buffer that the full
+    // lookahead window is available both before and after it.
+    left[1000] = 10;
+    right[1000] = -10;
+
+    limiter.process(left, right, frames);
+
+    for (let i = 0; i < frames; i++) {
+      expect(Math.abs(left[i])).toBeLessThanOrEqual(ceiling + 1e-6);
+      expect(Math.abs(right[i])).toBeLessThanOrEqual(ceiling + 1e-6);
+    }
+  });
+
+  it('brickwall / narrow transient: a 3-sample burst of 10.0 surrounded by silence never exceeds the ceiling', () => {
+    const params = DEFAULT_MASTER_CONFIG.limiter;
+    const limiter = new Limiter(params, FS);
+    const ceiling = 10 ** (params.ceilingDb / 20);
+    const frames = 4800;
+    const left = new Float32Array(frames);
+    const right = new Float32Array(frames);
+    left[1000] = 10;
+    left[1001] = -10;
+    left[1002] = 10;
+    right[1000] = -10;
+    right[1001] = 10;
+    right[1002] = -10;
 
     limiter.process(left, right, frames);
 

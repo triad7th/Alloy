@@ -1,7 +1,10 @@
 // Master lookahead brickwall limiter. A LIMITER_LOOKAHEAD_SAMPLES ring delay
 // plus a sliding window-peak guarantees the output never exceeds the ceiling
 // with zero overshoot. Stereo-linked (one gain drives both channels).
-// Per-sample gain — no control-rate stepping (zipper-safe). Twin: Limiter.swift.
+// Per-sample gain — no control-rate stepping (zipper-safe). The window scan
+// runs before the ring slot is overwritten, so the emerging sample's own
+// peak is still in the window used to compute its gain (true brickwall,
+// zero overshoot). Twin: Limiter.swift.
 
 import { LIMITER_LOOKAHEAD_SAMPLES, type EffectUnit, type LimiterParams } from './effect-types.js';
 
@@ -41,18 +44,15 @@ export class Limiter implements EffectUnit {
       const inL = left[i];
       const inR = right[i];
 
-      // Emit the delayed sample at the current ring slot, then overwrite it.
+      // The delayed sample now emerging from the lookahead window.
       const outL = this.delayL[this.pos];
       const outR = this.delayR[this.pos];
-      this.delayL[this.pos] = inL;
-      this.delayR[this.pos] = inR;
-      this.peakBuf[this.pos] = Math.max(Math.abs(inL), Math.abs(inR));
 
-      this.pos++;
-      if (this.pos >= L) this.pos = 0;
-
-      // Peak over the whole lookahead window (the peak entered up to L samples
-      // ago, so it is already accounted for before it reaches the output).
+      // Peak over the lookahead window. Runs BEFORE this slot is overwritten,
+      // so peakBuf[pos] still holds the emerging sample's own peak (alongside
+      // the L-1 samples ahead of it). Limiting the emerging sample against a
+      // window that includes itself is what makes the ceiling a true brickwall
+      // with zero overshoot.
       let windowPeak = 0;
       for (let k = 0; k < L; k++) {
         const p = this.peakBuf[k];
@@ -69,6 +69,13 @@ export class Limiter implements EffectUnit {
 
       left[i] = outL * this.gain;
       right[i] = outR * this.gain;
+
+      // Insert the incoming sample; it emerges L samples later.
+      this.delayL[this.pos] = inL;
+      this.delayR[this.pos] = inR;
+      this.peakBuf[this.pos] = Math.max(Math.abs(inL), Math.abs(inR));
+      this.pos++;
+      if (this.pos >= L) this.pos = 0;
     }
   }
 }

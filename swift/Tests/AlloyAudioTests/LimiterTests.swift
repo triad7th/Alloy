@@ -7,12 +7,12 @@ final class LimiterTests: XCTestCase {
     private let L = limiterLookaheadSamples
 
     private let twinReferenceL: [Double] = [
-        0.08990523964166641, 0.08122097700834274, 0.0722651332616806, 0.06306732445955276,
-        0.05365801230072975, 0.044068340212106705, 0.034330081194639206, 0.024475498124957085,
+        0.08989386260509491, 0.08121071010828018, 0.07225599884986877, 0.06305935233831406,
+        0.05365123227238655, 0.0440627746284008, 0.034325748682022095, 0.02447240799665451,
     ]
     private let twinReferenceR: [Double] = [
-        0.044952619820833206, 0.04061048850417137, 0.0361325666308403, 0.03153366222977638,
-        0.026829006150364876, 0.022034170106053352, 0.017165040597319603, 0.012237749062478542,
+        0.044946931302547455, 0.04060535505414009, 0.03612799942493439, 0.03152967616915703,
+        0.026825616136193275, 0.0220313873142004, 0.017162874341011047, 0.012236203998327255,
     ]
 
     private func sine(freq: Double, amp: Double, frames: Int, sampleRate: Double, startPhase: Double = 0) -> [Float] {
@@ -66,6 +66,48 @@ final class LimiterTests: XCTestCase {
             left[i] = Float(10 * cos(2 * Double.pi * 440 * Double(i) / fs))
             right[i] = Float(10 * cos(2 * Double.pi * 440 * Double(i) / fs + 0.2))
         }
+
+        limiter.process(left: &left, right: &right, frames: frames)
+
+        for i in 0..<frames {
+            XCTAssertLessThanOrEqual(abs(Double(left[i])), ceiling + 1e-6)
+            XCTAssertLessThanOrEqual(abs(Double(right[i])), ceiling + 1e-6)
+        }
+    }
+
+    func testBrickwallIsolatedSpikeNeverExceedsCeiling() {
+        // Regression for the pre-fix eviction bug: a single-sample spike of
+        // 10.0 surrounded by silence must be caught by the lookahead window.
+        let params = defaultMasterConfig.limiter
+        let limiter = Limiter(params: params, sampleRate: fs)
+        let ceiling = pow(10, params.ceilingDb / 20)
+        let frames = 4800
+        var left = [Float](repeating: 0, count: frames)
+        var right = [Float](repeating: 0, count: frames)
+        left[1000] = 10
+        right[1000] = -10
+
+        limiter.process(left: &left, right: &right, frames: frames)
+
+        for i in 0..<frames {
+            XCTAssertLessThanOrEqual(abs(Double(left[i])), ceiling + 1e-6)
+            XCTAssertLessThanOrEqual(abs(Double(right[i])), ceiling + 1e-6)
+        }
+    }
+
+    func testBrickwallNarrowTransientNeverExceedsCeiling() {
+        let params = defaultMasterConfig.limiter
+        let limiter = Limiter(params: params, sampleRate: fs)
+        let ceiling = pow(10, params.ceilingDb / 20)
+        let frames = 4800
+        var left = [Float](repeating: 0, count: frames)
+        var right = [Float](repeating: 0, count: frames)
+        left[1000] = 10
+        left[1001] = -10
+        left[1002] = 10
+        right[1000] = -10
+        right[1001] = 10
+        right[1002] = -10
 
         limiter.process(left: &left, right: &right, frames: frames)
 
