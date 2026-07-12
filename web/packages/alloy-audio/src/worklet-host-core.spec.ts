@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type AdsrParams } from './dsp/adsr-envelope.js';
-import type { InsertSpec } from './dsp/effects/effect-types.js';
+import { LIMITER_LOOKAHEAD_SAMPLES, type InsertSpec } from './dsp/effects/effect-types.js';
 import { PATCH_SCHEMA_VERSION, type Patch, type PatchLayer } from './dsp/patch.js';
 import { renderPatch } from './dsp/patch-engine.js';
 import {
@@ -114,25 +114,31 @@ describe('WorkletHostCore', () => {
   });
 
   // 3. Frame anchoring: core anchored at 1000; noteOn atFrame 1100 -> first
-  // 100 rendered frames exactly 0, sound starts at offset 100.
+  // 100 rendered frames exactly 0, sound starts at offset 100. The master bus
+  // (sends: 0,0 here ⇒ dry + limiter only) adds a uniform
+  // LIMITER_LOOKAHEAD_SAMPLES delay to the whole render, so the onset lands
+  // at offset 100 + LIMITER_LOOKAHEAD_SAMPLES instead.
   it('maps context frames to engine frames using the construction anchor', () => {
     const core = new WorkletHostCore(FS, 1000);
     core.onMessage({ type: 'setPatch', patch: makePatch() });
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1, atFrame: 1100 });
     const out = render(core, 256);
-    for (let i = 0; i < 100; i++) {
+    const onset = 100 + LIMITER_LOOKAHEAD_SAMPLES;
+    for (let i = 0; i < onset; i++) {
       expect(out[i]).toBe(0);
     }
-    expect(maxAbs(out, 100, 108)).toBeGreaterThan(0);
+    expect(maxAbs(out, onset, onset + 8)).toBeGreaterThan(0);
   });
 
-  // 4. Past atFrame (500 < anchor 1000) fires immediately.
+  // 4. Past atFrame (500 < anchor 1000) fires immediately (at offset 0), so
+  // sound starts at LIMITER_LOOKAHEAD_SAMPLES once the master bus's uniform
+  // delay is accounted for.
   it('fires a past atFrame immediately instead of dropping or throwing', () => {
     const core = new WorkletHostCore(FS, 1000);
     core.onMessage({ type: 'setPatch', patch: makePatch() });
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1, atFrame: 500 });
     const out = render(core, 256);
-    expect(maxAbs(out, 0, 8)).toBeGreaterThan(0);
+    expect(maxAbs(out, LIMITER_LOOKAHEAD_SAMPLES, LIMITER_LOOKAHEAD_SAMPLES + 8)).toBeGreaterThan(0);
   });
 
   // 5. Zone set: setZoneSet with a WireZone built from the golden sine

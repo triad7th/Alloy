@@ -99,16 +99,20 @@ final class PatchEngineTests: XCTestCase {
     }
 
     // 2. Sample-accurate scheduling: noteOn at frame 100 → out[0..99] all exactly 0,
-    //    out[100] onward nonzero within 8 samples (attack 0.001).
+    //    out[100] onward nonzero within 8 samples (attack 0.001). The master bus
+    //    (sends: 0,0 here ⇒ dry + limiter only) adds a uniform
+    //    limiterLookaheadSamples delay to the whole render, so the onset that
+    //    would land at frame 100 lands at 100 + limiterLookaheadSamples instead.
     func testAppliesAScheduledNoteOnAtItsExactSampleOffset() {
         let engine = PatchEngine(sampleRate: fs)
         engine.setPatch(makePatch())
         engine.schedule(EngineEvent(frame: 100, kind: .noteOn(midi: 60, velocity: 1)))
         let out = process(engine, 256)
-        for i in 0..<100 {
+        let onset = 100 + limiterLookaheadSamples
+        for i in 0..<onset {
             XCTAssertEqual(out[i], 0)
         }
-        XCTAssertGreaterThan(maxAbs(out, 100, 108), 0)
+        XCTAssertGreaterThan(maxAbs(out, onset, onset + 8), 0)
     }
 
     // 3. Same-frame order: noteOn(60)@0 and noteOff(60)@0 scheduled in that order →

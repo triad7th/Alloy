@@ -1,13 +1,18 @@
 // Golden patch-render twin tests: the flagship cross-platform guarantee.
-// Four patches (one per generator kind) rendered through the full engine
-// with an identical event script; each is checked for determinism (both
-// channels), non-silence during the sustain window (left channel), tail
-// silence after every voice's release ends (both channels), and
-// byte-for-byte-equivalent (within tolerance) output against the Swift twin
-// at three probe windows, per channel. PATCH_FM and PATCH_ORGAN carry an
-// insert (chorus / tremolo respectively), so their L and R differ; PATCH_VA
-// and PATCH_SAMPLE stay insert-free, so L === R exactly and the same probe
-// arrays apply to both channels. Twin: GoldenRenderTests.swift.
+// Five patches (one per generator kind, plus masterWet exercising the master
+// bus end-to-end) rendered through the full engine with an identical event
+// script; each is checked for determinism (both channels), non-silence
+// during the sustain window (left channel), tail silence after every
+// voice's release ends (both channels), and byte-for-byte-equivalent
+// (within tolerance) output against the Swift twin at three probe windows,
+// per channel. The near-onset probe window is frame 200 (not 0): the master
+// bus's brickwall limiter adds LIMITER_LOOKAHEAD_SAMPLES (64) samples of
+// latency to the whole render, so frame 200 is chosen to land past that
+// latency, into the note's early attack. PATCH_FM, PATCH_ORGAN, and
+// PATCH_FM_WET carry an insert and/or nonzero sends, so their L and R
+// differ; PATCH_VA and PATCH_SAMPLE stay insert-free with sends: 0/0, so
+// L === R exactly and the same probe arrays apply to both channels.
+// Twin: GoldenRenderTests.swift.
 
 import { describe, expect, it } from 'vitest';
 import { renderPatch } from './patch-engine.js';
@@ -16,6 +21,7 @@ import {
   GOLDEN_FRAMES,
   GOLDEN_FS,
   PATCH_FM,
+  PATCH_FM_WET,
   PATCH_VA,
   PATCH_ORGAN,
   PATCH_SAMPLE,
@@ -36,84 +42,113 @@ function probe(samples: ArrayLike<number>, start: number, length = 8): number[] 
   return Array.from({ length }, (_, i) => samples[start + i]);
 }
 
-const TWIN_FM_L_AT_0: number[] = [
-  0, 0.00004385089414427057, 0.00023502255498897284, 0.0006316988146863878, 0.0011505421716719866,
-  0.0015545807546004653, 0.001461898791603744, 0.0004615425132215023,
+const TWIN_FM_L_AT_200: number[] = [
+  0.018499910831451416, -0.1807583123445511, -0.2085844874382019, -0.02170083485543728,
+  0.12831884622573853, 0.15995024144649506, 0.08683272451162338, -0.10458861291408539,
 ];
-const TWIN_FM_R_AT_0: number[] = [
-  0, 0.00004385089414427057, 0.00023502255498897284, 0.0006316988146863878, 0.0011505421716719866,
-  0.0015545807546004653, 0.001461898791603744, 0.0004615425132215023,
+const TWIN_FM_R_AT_200: number[] = [
+  0.018499910831451416, -0.1807583123445511, -0.2085844874382019, -0.02170083485543728,
+  0.12831884622573853, 0.15995024144649506, 0.08683272451162338, -0.10458861291408539,
 ];
 const TWIN_FM_L_AT_12000: number[] = [
-  0.09767042100429535, 0.1319395899772644, 0.14433124661445618, 0.1342770755290985,
-  0.10536986589431763, 0.06848285347223282, 0.044441405683755875, 0.043092530220746994,
+  0.0412430614233017, 0.04025046527385712, 0.025656133890151978, 0.0007463379297405481,
+  -0.018219761550426483, -0.021193811669945717, -0.01021641306579113, 0.014374683611094952,
 ];
 const TWIN_FM_R_AT_12000: number[] = [
-  0.06892663240432739, 0.1115599200129509, 0.14111073315143585, 0.14879755675792694,
-  0.13041824102401733, 0.09379544109106064, 0.06045583263039589, 0.045510582625865936,
+  0.04948773980140686, 0.06238541007041931, 0.054564908146858215, 0.02612711675465107,
+  -0.006834726314991713, -0.02934853732585907, -0.03359094634652138, -0.013981420546770096,
 ];
 const TWIN_FM_L_AT_30000: number[] = [
-  -0.0002945534943137318, 0.00003405138704692945, 0.0003620763018261641, 0.0006869593635201454,
-  0.0010074613383039832, 0.001323775970377028, 0.001636893255636096, 0.0019475476583465934,
+  0.0049483561888337135, 0.004591814707964659, 0.004224658012390137, 0.003848353400826454,
+  0.0034656422212719917, 0.0030797093641012907, 0.0026931101456284523, 0.0023070184979587793,
 ];
 const TWIN_FM_R_AT_30000: number[] = [
-  -0.0006600169581361115, -0.0003977482265327126, -0.00013420407776720822, 0.00012850291386712343,
-  0.00038940913509577513, 0.00064875278621912, 0.0009073815308511257, 0.0011658334406092763,
+  0.0050187199376523495, 0.0047462452203035355, 0.004462467040866613, 0.004168746527284384,
+  0.003867511870339513, 0.0035614382941275835, 0.0032525116112083197, 0.0029414622113108635,
 ];
 
-const TWIN_VA_AT_0: number[] = [
-  -0.00000528768669028068, -0.00011583104060264304, -0.0006340973195619881, -0.001822814461775124,
-  -0.0037135493475943804, -0.006206805817782879, -0.009122508578002453, -0.012244155630469322,
+const TWIN_VA_AT_200: number[] = [
+  0.3057917654514313, 0.3143463432788849, 0.3229660391807556, 0.3316505551338196,
+  0.3403979539871216, 0.3492056727409363, 0.3580710291862488, 0.3669917583465576,
 ];
 const TWIN_VA_AT_12000: number[] = [
-  -0.3694263994693756, -0.3372212052345276, -0.30703914165496826, -0.2798972725868225,
-  -0.25608959794044495, -0.2354125678539276, -0.2173682451248169, -0.20132917165756226,
+  -0.21438194811344147, -0.19875241816043854, -0.18303890526294708, -0.16730928421020508,
+  -0.1516093611717224, -0.13596504926681519, -0.12038620561361313, -0.10487114638090134,
 ];
 const TWIN_VA_AT_30000: number[] = [
-  0.0005263532511889935, 0.0005169602809473872, 0.0005355137982405722, 0.0005767068360000849,
-  0.0006321268738247454, 0.00066895637428388, 0.0006399331614375114, 0.0005355597822926939,
+  -0.00042984061292372644, -0.0003775983350351453, -0.00032548833405599, -0.00027351724565960467,
+  -0.00022168364375829697, -0.00016998039791360497, -0.00011839654325740412, -0.00006691899034194648,
 ];
 
-const TWIN_ORGAN_L_AT_0: number[] = [
-  0, 0.0008677557343617082, 0.0025832613464444876, 0.005118618253618479, 0.008438479155302048,
-  0.01250061672180891, 0.017256595194339752, 0.022652553394436836,
+const TWIN_ORGAN_L_AT_200: number[] = [
+  -0.04067736491560936, -0.041119758039712906, -0.041802722960710526, -0.04277607798576355,
+  -0.04408556967973709, -0.04577173292636871, -0.04786883667111397, -0.05040391534566879,
 ];
-const TWIN_ORGAN_R_AT_0: number[] = [
-  0, 0.0007405632641166449, 0.00220557302236557, 0.004372142255306244, 0.007210978772491217,
-  0.010686858557164669, 0.014759184792637825, 0.019382648169994354,
+const TWIN_ORGAN_R_AT_200: number[] = [
+  -0.0368497371673584, -0.03726723790168762, -0.03790324553847313, -0.03880323842167854,
+  -0.040009088814258575, -0.04155801609158516, -0.04348160699009895, -0.045804936438798904,
 ];
 const TWIN_ORGAN_L_AT_12000: number[] = [
-  -0.031063152477145195, -0.015996789559721947, -0.0013805433409288526, 0.012364795431494713,
-  0.024838926270604134, 0.035674113780260086, 0.04454612731933594, 0.05118346959352493,
+  0.2583601474761963, 0.2580789625644684, 0.2571820020675659, 0.2555491328239441,
+  0.25306808948516846, 0.24963992834091187, 0.24518407881259918, 0.23964311182498932,
 ];
 const TWIN_ORGAN_R_AT_12000: number[] = [
-  -0.021408390253782272, -0.011021876707673073, -0.0009509489173069596, 0.008514880202710629,
-  0.017100509256124496, 0.024553539231419563, 0.030651777982711792, 0.0352095402777195,
+  0.1812129020690918, 0.18096467852592468, 0.18028497695922852, 0.17908991873264313,
+  0.17730136215686798, 0.1748504638671875, 0.17168135941028595, 0.16775444149971008,
 ];
 const TWIN_ORGAN_L_AT_30000: number[] = [
-  -0.00001965241062862333, 0.00002713444882829208, 0.00007348675717366859, 0.00011890262248925865,
-  0.00016290343774016947, 0.00020504584244918078, 0.00024493239470757544, 0.0002822207461576909,
+  -0.00007734073005849496, -0.00008516920206602663, -0.00009322958794655278, -0.0001016331952996552,
+  -0.00011049464956158772, -0.00011992547661066055, -0.00013002783816773444, -0.00014088861644268036,
 ];
 const TWIN_ORGAN_R_AT_30000: number[] = [
-  -0.00003150292468490079, 0.000043501397158252075, 0.00011782522778958082, 0.00019066344248130918,
-  0.00026124794385395944, 0.00032886682311072946, 0.000392881513107568, 0.00045274157309904695,
+  -0.00012301449896767735, -0.0001354843407170847, -0.0001483264350099489, -0.00016171806782949716,
+  -0.000175841836608015, -0.0001908754784381017, -0.00020698206208180636, -0.0002243002236355096,
 ];
 
-const TWIN_SAMPLE_AT_0: number[] = [
-  0, 0.0012398377293720841, 0.003989039454609156, 0.007852182723581791, 0.012874904088675976,
-  0.018994592130184174, 0.02614615671336651, 0.03426505997776985,
+const TWIN_SAMPLE_AT_200: number[] = [
+  -0.5102869272232056, -0.5109360218048096, -0.5109862685203552, -0.5104369521141052,
+  -0.5092895030975342, -0.5075443387031555, -0.5052044987678528, -0.5022722482681274,
 ];
 const TWIN_SAMPLE_AT_12000: number[] = [
-  0.24263130128383636, 0.24333973228931427, 0.24375347793102264, 0.24384763836860657,
-  0.24360333383083344, 0.2430049031972885, 0.24202658236026764, 0.24065963923931122,
+  0.19346870481967926, 0.19412264227867126, 0.19450822472572327, 0.19465197622776031,
+  0.19456924498081207, 0.1942799836397171, 0.19380927085876465, 0.19316911697387695,
 ];
 const TWIN_SAMPLE_AT_30000: number[] = [
-  -0.0013253232464194298, -0.0006364962318912148, 0.000051807881391141564, 0.0007370639941655099,
-  0.0014171609655022621, 0.0020897265058010817, 0.002752428175881505, 0.003403137670829892,
+  0.012282714247703552, 0.011408376507461071, 0.010517829097807407, 0.009613733738660812,
+  0.008698588237166405, 0.007775065489113331, 0.006845793686807156, 0.005913407541811466,
+];
+
+// masterWet: PATCH_FM_WET (PATCH_FM's layer/inserts, sends: reverb 0.3,
+// delay 0.25) — the case that exercises the master bus's reverb tail, delay
+// echo, and brickwall limiter end-to-end. Not insert-free: reverb
+// decorrelates L/R on top of the chorus insert.
+const TWIN_MASTERWET_L_AT_200: number[] = [
+  0.018499910831451416, -0.1807583123445511, -0.2085844874382019, -0.02170083485543728,
+  0.12831884622573853, 0.15995024144649506, 0.08683272451162338, -0.10458861291408539,
+];
+const TWIN_MASTERWET_R_AT_200: number[] = [
+  0.018499910831451416, -0.1807583123445511, -0.2085844874382019, -0.02170083485543728,
+  0.12831884622573853, 0.15995024144649506, 0.08683272451162338, -0.10458861291408539,
+];
+const TWIN_MASTERWET_L_AT_12000: number[] = [
+  -0.015728335827589035, -0.03877471387386322, -0.05660790205001831, -0.09331516176462173,
+  -0.13616147637367249, -0.15300555527210236, -0.1356615275144577, -0.09122169762849808,
+];
+const TWIN_MASTERWET_R_AT_12000: number[] = [
+  0.09207042306661606, 0.08398067951202393, 0.08119934797286987, 0.06326331943273544,
+  0.017731640487909317, -0.020814215764403343, -0.03312517702579498, -0.009411775507032871,
+];
+const TWIN_MASTERWET_L_AT_30000: number[] = [
+  -0.026331517845392227, -0.029540114104747772, -0.03609754517674446, -0.045199915766716,
+  -0.05276743322610855, -0.056241218000650406, -0.05606941506266594, -0.05228394269943237,
+];
+const TWIN_MASTERWET_R_AT_30000: number[] = [
+  0.03205595165491104, 0.03391000255942345, 0.030505863949656487, 0.021879851818084717,
+  0.012082608416676521, 0.004883649758994579, 0.002248973585665226, 0.005562318488955498,
 ];
 
 interface ChannelProbes {
-  at0: number[];
+  at200: number[];
   at12000: number[];
   at30000: number[];
 }
@@ -129,14 +164,22 @@ interface GoldenCase {
    * and right happen to be the same object reference) of whether this patch
    * carries no insert chain, and therefore must render bit-exact L === R. */
   insertFree: boolean;
+  /** Total frames for the "silent after the release tail" check only (the
+   * determinism and twin-probe checks always use GOLDEN_FRAMES, matching the
+   * captured probe arrays). Defaults to GOLDEN_FRAMES; masterWet overrides
+   * this to a much longer render because its reverb send has a multi-second
+   * decay tail — GOLDEN_FRAMES's default 1000-sample post-release window is
+   * long enough for a bare TVA release (and short insert tails like chorus
+   * or tremolo), but not for the master reverb's FDN decay time constant. */
+  tailFrames?: number;
 }
 
 // PATCH_VA and PATCH_SAMPLE stay insert-free, so L === R === the old mono
 // output and the same probe arrays apply to both channels verbatim (not
 // re-captured — see golden-patches.ts).
-const VA_PROBES: ChannelProbes = { at0: TWIN_VA_AT_0, at12000: TWIN_VA_AT_12000, at30000: TWIN_VA_AT_30000 };
+const VA_PROBES: ChannelProbes = { at200: TWIN_VA_AT_200, at12000: TWIN_VA_AT_12000, at30000: TWIN_VA_AT_30000 };
 const SAMPLE_PROBES: ChannelProbes = {
-  at0: TWIN_SAMPLE_AT_0,
+  at200: TWIN_SAMPLE_AT_200,
   at12000: TWIN_SAMPLE_AT_12000,
   at30000: TWIN_SAMPLE_AT_30000,
 };
@@ -145,16 +188,16 @@ const CASES: GoldenCase[] = [
   {
     name: 'fm',
     patch: PATCH_FM,
-    left: { at0: TWIN_FM_L_AT_0, at12000: TWIN_FM_L_AT_12000, at30000: TWIN_FM_L_AT_30000 },
-    right: { at0: TWIN_FM_R_AT_0, at12000: TWIN_FM_R_AT_12000, at30000: TWIN_FM_R_AT_30000 },
+    left: { at200: TWIN_FM_L_AT_200, at12000: TWIN_FM_L_AT_12000, at30000: TWIN_FM_L_AT_30000 },
+    right: { at200: TWIN_FM_R_AT_200, at12000: TWIN_FM_R_AT_12000, at30000: TWIN_FM_R_AT_30000 },
     insertFree: false,
   },
   { name: 'va', patch: PATCH_VA, left: VA_PROBES, right: VA_PROBES, insertFree: true },
   {
     name: 'organ',
     patch: PATCH_ORGAN,
-    left: { at0: TWIN_ORGAN_L_AT_0, at12000: TWIN_ORGAN_L_AT_12000, at30000: TWIN_ORGAN_L_AT_30000 },
-    right: { at0: TWIN_ORGAN_R_AT_0, at12000: TWIN_ORGAN_R_AT_12000, at30000: TWIN_ORGAN_R_AT_30000 },
+    left: { at200: TWIN_ORGAN_L_AT_200, at12000: TWIN_ORGAN_L_AT_12000, at30000: TWIN_ORGAN_L_AT_30000 },
+    right: { at200: TWIN_ORGAN_R_AT_200, at12000: TWIN_ORGAN_R_AT_12000, at30000: TWIN_ORGAN_R_AT_30000 },
     insertFree: false,
   },
   {
@@ -165,10 +208,21 @@ const CASES: GoldenCase[] = [
     right: SAMPLE_PROBES,
     insertFree: true,
   },
+  {
+    name: 'masterWet',
+    patch: PATCH_FM_WET,
+    left: { at200: TWIN_MASTERWET_L_AT_200, at12000: TWIN_MASTERWET_L_AT_12000, at30000: TWIN_MASTERWET_L_AT_30000 },
+    right: { at200: TWIN_MASTERWET_R_AT_200, at12000: TWIN_MASTERWET_R_AT_12000, at30000: TWIN_MASTERWET_R_AT_30000 },
+    insertFree: false,
+    // Reverb decay 0.72 gives the FDN a multi-second -60dB time constant;
+    // 100 000 frames (~2.1 s, ~1.35 s past GOLDEN_FRAMES) is comfortably
+    // past both the reverb tail and the last ping-pong delay echo.
+    tailFrames: 100_000,
+  },
 ];
 
 describe('golden patch renders', () => {
-  for (const { name, patch, provider, left: leftProbes, right: rightProbes, insertFree } of CASES) {
+  for (const { name, patch, provider, left: leftProbes, right: rightProbes, insertFree, tailFrames } of CASES) {
     describe(name, () => {
       it('renders deterministically across repeat calls on both channels', () => {
         const a = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider);
@@ -182,10 +236,11 @@ describe('golden patch renders', () => {
       });
 
       it('is non-silent during the sustain window (left) and silent after the release tail (both channels)', () => {
-        const { left, right } = renderPatch(patch, GOLDEN_EVENTS, GOLDEN_FRAMES, GOLDEN_FS, provider);
+        const total = tailFrames ?? GOLDEN_FRAMES;
+        const { left, right } = renderPatch(patch, GOLDEN_EVENTS, total, GOLDEN_FS, provider);
         expect(rms(left, 6000, 12000)).toBeGreaterThan(0.01);
-        expect(rms(left, GOLDEN_FRAMES - 1000, GOLDEN_FRAMES)).toBeLessThan(0.01);
-        expect(rms(right, GOLDEN_FRAMES - 1000, GOLDEN_FRAMES)).toBeLessThan(0.01);
+        expect(rms(left, total - 1000, total)).toBeLessThan(0.01);
+        expect(rms(right, total - 1000, total)).toBeLessThan(0.01);
       });
 
       it('matches the twin reference at three probe windows on both channels', () => {
@@ -194,10 +249,10 @@ describe('golden patch renders', () => {
           ['left', left, leftProbes],
           ['right', right, rightProbes],
         ] as const) {
-          expect(probes.at0, channel).toHaveLength(8);
+          expect(probes.at200, channel).toHaveLength(8);
           expect(probes.at12000, channel).toHaveLength(8);
           expect(probes.at30000, channel).toHaveLength(8);
-          probe(out, 0).forEach((v, i) => expect(v, `${channel} at0[${i}]`).toBeCloseTo(probes.at0[i], 4));
+          probe(out, 200).forEach((v, i) => expect(v, `${channel} at200[${i}]`).toBeCloseTo(probes.at200[i], 4));
           probe(out, 12000).forEach((v, i) => expect(v, `${channel} at12000[${i}]`).toBeCloseTo(probes.at12000[i], 4));
           probe(out, 30000).forEach((v, i) => expect(v, `${channel} at30000[${i}]`).toBeCloseTo(probes.at30000[i], 4));
         }

@@ -109,6 +109,22 @@ func patchOrgan() -> Patch {
     )
 }
 
+/// Reuses patchFM()'s layer/inserts but with nonzero reverb+delay sends, so
+/// this is the golden case that exercises the master bus end-to-end (reverb
+/// tail + delay echo + brickwall limiter all in the render), not just the
+/// dry+limiter pass-through the other four cases get with sends: 0/0. Reverb
+/// decorrelates L/R on top of the chorus insert, so this is not insert-free.
+func patchFMWet() -> Patch {
+    let fm = patchFM()
+    return Patch(
+        schemaVersion: PATCH_SCHEMA_VERSION,
+        meta: PatchMeta(id: "golden-fm-wet", name: "Golden FM Wet", category: .melodic),
+        layers: fm.layers,
+        sends: PatchSends(reverb: 0.3, delay: 0.25),
+        inserts: fm.inserts,
+    )
+}
+
 /// Single sample layer over the baked golden.sine zone set.
 func patchSample() -> Patch {
     Patch(

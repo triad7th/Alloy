@@ -6,11 +6,13 @@ import Foundation
 /// every event at that frame in schedule order, and continues. Voices stay
 /// mono; per segment the summed voice bus is copied to a stereo scratch pair
 /// at unity (insert-free ⇒ L == R == the old mono output), the patch's insert
-/// chain processes it in place, and the result ADDS into the caller's
-/// left/right buffers — all through preallocated scratches, so the engine
-/// allocates only when voices start (and in setPatch, the drain context,
-/// where the chain is rebuilt). Twin of web src/dsp/patch-engine.ts
-/// (canonical).
+/// chain processes it in place, the master bus (reverb/delay sends, then the
+/// brickwall limiter) processes it in place, and the result ADDS into the
+/// caller's left/right buffers — all through preallocated scratches, so the
+/// engine allocates only when voices start (and in setPatch, the drain
+/// context, where the chain is rebuilt). The master bus adds
+/// limiterLookaheadSamples (64) samples of latency to the whole render. Twin
+/// of web src/dsp/patch-engine.ts (canonical).
 
 public struct EngineEvent {
     public enum Kind {
@@ -68,11 +70,20 @@ public final class PatchEngine {
     private var scratchR = [Float](repeating: 0, count: maxBlockFrames)
     /// Insert chain; rebuilt only in setPatch (see its doc comment).
     private var inserts: [EffectUnit] = []
+    /// Master bus (reverb/delay sends + limiter); one shared instance for the
+    /// engine's lifetime, sends updated per setPatch.
+    private let master: MasterBus
 
-    public init(sampleRate: Double, maxVoices: Int = 64, zoneSetProvider: ZoneSetProvider? = nil) {
+    public init(
+        sampleRate: Double,
+        maxVoices: Int = 64,
+        masterConfig: MasterConfig = defaultMasterConfig,
+        zoneSetProvider: ZoneSetProvider? = nil,
+    ) {
         self.sampleRate = sampleRate
         self.maxVoices = max(1, maxVoices)
         self.zoneSetProvider = zoneSetProvider
+        self.master = MasterBus(config: masterConfig, sampleRate: sampleRate)
     }
 
     /// Returns validatePatch errors; [] = accepted (the TS twin throws
@@ -89,6 +100,7 @@ public final class PatchEngine {
         if errors.isEmpty {
             self.patch = patch
             inserts = (patch.inserts ?? []).map { createInsert($0, sampleRate: sampleRate) }
+            master.setSends(reverb: patch.sends.reverb, delay: patch.sends.delay)
         }
         return errors
     }
@@ -188,8 +200,10 @@ public final class PatchEngine {
 
     /// Zero the mono scratch segment, have every voice add into it, copy it
     /// to the stereo scratch pair at unity, run the insert chain in patch
-    /// order, add the pair into left/right; reap silent voices. The chain
-    /// runs even over voice-silent segments so effect tails keep ringing.
+    /// order, run the master bus (reverb/delay sends, then the brickwall
+    /// limiter), add the pair into left/right; reap silent voices. The chain
+    /// and master bus run even over voice-silent segments so effect tails
+    /// keep ringing.
     private func renderSegment(intoLeft left: inout [Float], right: inout [Float], offset: Int, length: Int) {
         for i in 0..<length {
             scratch[i] = 0
@@ -204,6 +218,7 @@ public final class PatchEngine {
         for insert in inserts {
             insert.process(left: &scratchL, right: &scratchR, frames: length)
         }
+        master.process(left: &scratchL, right: &scratchR, frames: length)
         for i in 0..<length {
             left[offset + i] += scratchL[i]
             right[offset + i] += scratchR[i]

@@ -107,6 +107,19 @@ export const PATCH_ORGAN: Patch = {
   inserts: [{ kind: 'tremolo', tremolo: { rateHz: 6.8, depth: 0.4, spread: 0.8 } }],
 };
 
+/** Reuses PATCH_FM's layer/inserts but with nonzero reverb+delay sends, so
+ * this is the golden case that exercises the master bus end-to-end (reverb
+ * tail + delay echo + brickwall limiter all in the render), not just the
+ * dry+limiter pass-through the other four cases get with sends: 0/0. Reverb
+ * decorrelates L/R on top of the chorus insert, so this is not insert-free. */
+export const PATCH_FM_WET: Patch = {
+  schemaVersion: PATCH_SCHEMA_VERSION,
+  meta: { id: 'golden-fm-wet', name: 'Golden FM Wet', category: 'melodic' },
+  layers: PATCH_FM.layers,
+  sends: { reverb: 0.3, delay: 0.25 },
+  inserts: PATCH_FM.inserts,
+};
+
 /** Single sample layer over the baked golden.sine zone set. */
 export const PATCH_SAMPLE: Patch = {
   schemaVersion: PATCH_SCHEMA_VERSION,

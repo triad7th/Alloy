@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type AdsrParams } from './adsr-envelope.js';
-import { type InsertSpec } from './effects/effect-types.js';
+import { LIMITER_LOOKAHEAD_SAMPLES, type InsertSpec } from './effects/effect-types.js';
 import { PATCH_SCHEMA_VERSION, type Patch, type PatchLayer } from './patch.js';
 import { PatchEngine, renderPatch, type EngineEvent } from './patch-engine.js';
 import { FIXTURE_PATCH_JSON } from './testing/fixtures.js';
@@ -93,16 +93,20 @@ describe('PatchEngine', () => {
   });
 
   // 2. Sample-accurate scheduling: noteOn at frame 100 → out[0..99] all exactly 0,
-  //    out[100] onward nonzero within 8 samples (attack 0.001).
+  //    out[100] onward nonzero within 8 samples (attack 0.001). The master bus
+  //    (sends: 0,0 here ⇒ dry + limiter only) adds a uniform
+  //    LIMITER_LOOKAHEAD_SAMPLES delay to the whole render, so the onset that
+  //    would land at frame 100 lands at 100 + LIMITER_LOOKAHEAD_SAMPLES instead.
   it('applies a scheduled noteOn at its exact sample offset', () => {
     const engine = new PatchEngine(FS);
     engine.setPatch(makePatch());
     engine.schedule({ frame: 100, kind: 'noteOn', midi: 60, velocity: 1 });
     const out = process(engine, 256);
-    for (let i = 0; i < 100; i++) {
+    const onset = 100 + LIMITER_LOOKAHEAD_SAMPLES;
+    for (let i = 0; i < onset; i++) {
       expect(out[i]).toBe(0);
     }
-    expect(maxAbs(out, 100, 108)).toBeGreaterThan(0);
+    expect(maxAbs(out, onset, onset + 8)).toBeGreaterThan(0);
   });
 
   // 3. Same-frame order: noteOn(60)@0 and noteOff(60)@0 scheduled in that order →

@@ -4,12 +4,16 @@
 // every event at that frame in schedule order, and continues. Voices stay
 // mono; per segment the summed voice bus is copied to a stereo scratch pair
 // at unity (insert-free ⇒ L === R === the old mono output), the patch's
-// insert chain processes it in place, and the result ADDS into the caller's
-// left/right buffers — all through preallocated scratches, so the engine
-// allocates only when voices start (and in setPatch, the drain context,
-// where the chain is rebuilt). Twin: PatchEngine.swift.
+// insert chain processes it in place, the master bus (reverb/delay sends,
+// then the brickwall limiter) processes it in place, and the result ADDS
+// into the caller's left/right buffers — all through preallocated scratches,
+// so the engine allocates only when voices start (and in setPatch, the drain
+// context, where the chain is rebuilt). The master bus adds
+// LIMITER_LOOKAHEAD_SAMPLES (64) samples of latency to the whole render.
+// Twin: PatchEngine.swift.
 
-import { createInsert, type EffectUnit } from './effects/effect-types.js';
+import { createInsert, DEFAULT_MASTER_CONFIG, type EffectUnit, type MasterConfig } from './effects/effect-types.js';
+import { MasterBus } from './effects/master-bus.js';
 import { validatePatch, type Patch } from './patch.js';
 import { Voice, type ZoneSetProvider } from './voice.js';
 
@@ -22,6 +26,8 @@ export interface PatchEngineOptions {
   /** Polyphony cap (default 64); at the cap a voice is stolen. */
   maxVoices?: number;
   zoneSetProvider?: ZoneSetProvider;
+  /** Master reverb/delay/limiter config; defaults to DEFAULT_MASTER_CONFIG. */
+  masterConfig?: MasterConfig;
 }
 
 const DEFAULT_MAX_VOICES = 64;
@@ -55,6 +61,9 @@ export class PatchEngine {
   private readonly scratchR = new Float32Array(MAX_BLOCK_FRAMES);
   /** Insert chain; rebuilt only in setPatch (see its doc comment). */
   private inserts: EffectUnit[] = [];
+  /** Master bus (reverb/delay sends + limiter); one shared instance for the
+   * engine's lifetime, sends updated per setPatch. */
+  private readonly master: MasterBus;
 
   constructor(
     private readonly sampleRate: number,
@@ -62,6 +71,7 @@ export class PatchEngine {
   ) {
     this.maxVoices = Math.max(1, options?.maxVoices ?? DEFAULT_MAX_VOICES);
     this.zoneSetProvider = options?.zoneSetProvider;
+    this.master = new MasterBus(options?.masterConfig ?? DEFAULT_MASTER_CONFIG, sampleRate);
   }
 
   /**
@@ -80,6 +90,7 @@ export class PatchEngine {
     }
     this.patch = patch;
     this.inserts = (patch.inserts ?? []).map((spec) => createInsert(spec, this.sampleRate));
+    this.master.setSends(patch.sends.reverb, patch.sends.delay);
   }
 
   /** Sample-position transport clock: frames rendered since construction. */
@@ -199,8 +210,9 @@ export class PatchEngine {
   /**
    * Zero the mono scratch segment, have every voice add into it, copy it to
    * the stereo scratch pair at unity, run the insert chain in patch order,
-   * add the pair into left/right; reap silent voices. The chain runs even
-   * over voice-silent segments so effect tails keep ringing.
+   * run the master bus (reverb/delay sends, then the brickwall limiter), add
+   * the pair into left/right; reap silent voices. The chain and master bus
+   * run even over voice-silent segments so effect tails keep ringing.
    */
   private renderSegment(left: Float32Array, right: Float32Array, offset: number, length: number): void {
     this.scratch.fill(0, 0, length);
@@ -214,6 +226,7 @@ export class PatchEngine {
     for (const insert of this.inserts) {
       insert.process(this.scratchL, this.scratchR, length);
     }
+    this.master.process(this.scratchL, this.scratchR, length);
     for (let i = 0; i < length; i++) {
       left[offset + i] += this.scratchL[i];
       right[offset + i] += this.scratchR[i];
