@@ -116,4 +116,29 @@ describe('DialogHostComponent', () => {
     fixture.detectChanges();
     expect(host.querySelector('.dialog-title')?.textContent).toContain('two');
   });
+
+  it('focuses the first (safe) dialog-button on initial open', () => {
+    const { dialog, fixture, host } = setup();
+    void dialog.confirm({ title: 'Delete?', destructive: true, confirmLabel: 'Delete' });
+    fixture.detectChanges();
+    const buttons = host.querySelectorAll('button.dialog-button');
+    expect(document.activeElement).toBe(buttons[0]);
+  });
+
+  it('moves focus to the new active dialog’s safe action when a queued dialog advances', async () => {
+    const { dialog, fixture, host } = setup();
+    const first = dialog.confirm({ title: 'one' });
+    void dialog.confirm({ title: 'two', destructive: true, confirmLabel: 'Delete' });
+    fixture.detectChanges();
+    const firstButtons = host.querySelectorAll('button.dialog-button');
+    // Click dialog A's confirm button (simulating a reflexive click/Enter on OK).
+    (firstButtons[1] as HTMLButtonElement).click();
+    await first;
+    fixture.detectChanges();
+    const secondButtons = host.querySelectorAll('button.dialog-button');
+    expect(host.querySelector('.dialog-title')?.textContent).toContain('two');
+    // Focus must land on dialog B's first button (its Cancel), never its destructive confirm.
+    expect(document.activeElement).toBe(secondButtons[0]);
+    expect(document.activeElement).not.toBe(secondButtons[1]);
+  });
 });

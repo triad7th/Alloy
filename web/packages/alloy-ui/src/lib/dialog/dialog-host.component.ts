@@ -2,11 +2,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  afterRenderEffect,
   effect,
   inject,
   viewChild,
 } from '@angular/core';
 import { AlloyDialog } from './dialog.service';
+
+/** Module-level counter so multiple mounted hosts never collide on id. */
+let nextHostId = 0;
 
 /**
  * Visual outlet for AlloyDialog. Placed once per app (via <app-overlays>);
@@ -18,6 +22,13 @@ import { AlloyDialog } from './dialog.service';
  * Backdrop clicks target the <dialog> element itself; in-panel clicks target
  * .dialog-body or deeper (the body fills the panel — padding lives on it),
  * which is how the two are told apart.
+ *
+ * `settle()` advances the queue synchronously, so when dialog A settles with
+ * B queued, the `@if` never tears down — the same open <dialog> element
+ * re-renders with B's content, and showModal() is not re-invoked (it's
+ * already open). A second effect explicitly re-focuses the first
+ * .dialog-button (the safe action) whenever the active dialog changes, so
+ * focus never lingers on whatever button the user just clicked in A.
  */
 @Component({
   selector: 'app-dialog-host',
@@ -27,12 +38,12 @@ import { AlloyDialog } from './dialog.service';
       <dialog
         #panel
         class="dialog"
-        aria-labelledby="alloy-dialog-title"
+        [attr.aria-labelledby]="titleId"
         (cancel)="onCancel($event)"
         (click)="onClick($event)"
       >
         <div class="dialog-body">
-          <h2 class="dialog-title" id="alloy-dialog-title">{{ active.title }}</h2>
+          <h2 class="dialog-title" [id]="titleId">{{ active.title }}</h2>
           @if (active.message) {
             <p class="dialog-message">{{ active.message }}</p>
           }
@@ -59,6 +70,7 @@ import { AlloyDialog } from './dialog.service';
 })
 export class DialogHostComponent {
   protected readonly dialog = inject(AlloyDialog);
+  protected readonly titleId = `alloy-dialog-title-${nextHostId++}`;
   private readonly panel = viewChild<ElementRef<HTMLDialogElement>>('panel');
 
   constructor() {
@@ -68,6 +80,17 @@ export class DialogHostComponent {
         // jsdom guard: fall back to the open attribute where showModal is missing.
         if (typeof el.showModal === 'function') el.showModal();
         else el.setAttribute('open', '');
+      }
+    });
+
+    // Runs after the DOM reflects the current active dialog, so the queued
+    // dialog's own buttons exist by the time we focus one. Re-fires whenever
+    // dialog.current() changes (including the null->next advance within a
+    // single settle()), which is exactly when focus needs to move.
+    afterRenderEffect(() => {
+      const el = this.panel()?.nativeElement;
+      if (el && this.dialog.current()) {
+        el.querySelector<HTMLButtonElement>('.dialog-button')?.focus();
       }
     });
   }
