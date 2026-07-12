@@ -540,18 +540,17 @@ export class Limiter implements EffectUnit {
       const inL = left[i];
       const inR = right[i];
 
-      // Emit the delayed sample at the current ring slot, then overwrite it.
+      // The delayed sample now emerging from the lookahead window.
       const outL = this.delayL[this.pos];
       const outR = this.delayR[this.pos];
-      this.delayL[this.pos] = inL;
-      this.delayR[this.pos] = inR;
-      this.peakBuf[this.pos] = Math.max(Math.abs(inL), Math.abs(inR));
 
-      this.pos++;
-      if (this.pos >= L) this.pos = 0;
-
-      // Peak over the whole lookahead window (the peak entered up to L samples
-      // ago, so it is already accounted for before it reaches the output).
+      // Peak over the lookahead window. This MUST run before the current slot
+      // is overwritten, so peakBuf[pos] still holds the emerging sample's own
+      // peak (alongside the L-1 samples ahead of it). Limiting the emerging
+      // sample against a window that includes itself is exactly what makes the
+      // ceiling a true brickwall with zero overshoot — scanning after the
+      // overwrite would evict the emerging sample's peak and let isolated hot
+      // transients through.
       let windowPeak = 0;
       for (let k = 0; k < L; k++) {
         const p = this.peakBuf[k];
@@ -568,12 +567,19 @@ export class Limiter implements EffectUnit {
 
       left[i] = outL * this.gain;
       right[i] = outR * this.gain;
+
+      // Insert the incoming sample; it emerges L samples later.
+      this.delayL[this.pos] = inL;
+      this.delayR[this.pos] = inR;
+      this.peakBuf[this.pos] = Math.max(Math.abs(inL), Math.abs(inR));
+      this.pos++;
+      if (this.pos >= L) this.pos = 0;
     }
   }
 }
 ```
 
-- [ ] **Step 2: Write `limiter.spec.ts`** — cover: (a) **latency**: an impulse at `inL[0]=1` emerges at `outL[LIMITER_LOOKAHEAD_SAMPLES]` (delayed by exactly L); (b) **brickwall / hot chain** (the 2b review's required case): feed a signal that peaks at **10.0** (simulating phaser feedback 0.9 → ~10× peak, or stacked +12 dB shelves) and assert **every** output sample `|x| <= ceiling + 1e-6` — no overshoot anywhere, including the very first peak (this is the lookahead's whole job); (c) **below ceiling is unity after latency**: a -12 dBFS sine passes through at unity gain (within 1e-6) once past the L-sample delay; (d) **stereo link**: a loud L with a quiet R applies the same gain to both (equal `out/in` ratio where both inputs are non-trivial); (e) **release recovery**: after a loud burst ends, gain returns toward 1 within ~5×`releaseMs` on a following quiet passage; (f) **per-sample smoothing** (zipper guard): during release on a constant quiet signal, consecutive output samples change smoothly — assert `|out[i] - out[i-1]|` stays below a small bound across a window (no 16-sample stair-steps); (g) **determinism**; (h) **reset()**; (i) **twin reference**: 8 samples of both channels after a hot-then-settling input with `DEFAULT_MASTER_CONFIG.limiter`, `toBeCloseTo(v, 6)`.
+- [ ] **Step 2: Write `limiter.spec.ts`** — cover: (a) **latency**: an impulse at `inL[0]=1` emerges at `outL[LIMITER_LOOKAHEAD_SAMPLES]` (delayed by exactly L); (b) **brickwall / hot chain** (the 2b review's required case): feed a signal that peaks at **10.0** (simulating phaser feedback 0.9 → ~10× peak, or stacked +12 dB shelves) and assert **every** output sample `|x| <= ceiling + 1e-6` — no overshoot anywhere, including the very first peak (this is the lookahead's whole job). Include BOTH a smooth peak AND an **isolated single-sample spike** plus a **narrow 2–3 sample transient** (`[10, -10, 10]` surrounded by silence) — the isolated-transient cases are the ones that catch a window-scan/overwrite ordering bug that a smooth peak hides; (c) **below ceiling is unity after latency**: a -12 dBFS sine passes through at unity gain (within 1e-6) once past the L-sample delay; (d) **stereo link**: a loud L with a quiet R applies the same gain to both (equal `out/in` ratio where both inputs are non-trivial); (e) **release recovery**: after a loud burst ends, gain returns toward 1 within ~5×`releaseMs` on a following quiet passage; (f) **per-sample smoothing** (zipper guard): during release on a constant quiet signal, consecutive output samples change smoothly — assert `|out[i] - out[i-1]|` stays below a small bound across a window (no 16-sample stair-steps); (g) **determinism**; (h) **reset()**; (i) **twin reference**: 8 samples of both channels after a hot-then-settling input with `DEFAULT_MASTER_CONFIG.limiter`, `toBeCloseTo(v, 6)`.
 
 - [ ] **Step 3: Port `Limiter.swift`** — `EffectUnit`, `latencySamples` property, Double gain math, same ring/window/release. The window-peak scan and instant-attack/one-pole-release must match sample-for-sample.
 - [ ] **Step 4: Write `LimiterTests.swift`** — same nine behaviors + exact twin values.
