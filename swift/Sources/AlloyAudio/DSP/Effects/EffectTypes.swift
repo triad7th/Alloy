@@ -79,8 +79,8 @@ private func validateChorusParams(_ chorus: ChorusParams) -> [String] {
     if !(chorus.rateHz > 0 && chorus.rateHz <= 20) {
         errors.append("chorus.rateHz \(chorus.rateHz) outside (0, 20]")
     }
-    if !(chorus.depthMs > 0 && chorus.depthMs <= 20) {
-        errors.append("chorus.depthMs \(chorus.depthMs) outside (0, 20]")
+    if !(chorus.depthMs > 0 && chorus.depthMs <= baseDelayMs) {
+        errors.append("chorus.depthMs \(chorus.depthMs) outside (0, \(Int(baseDelayMs))] (base delay; a larger depth makes the swept delay negative — acausal)")
     }
     if !(chorus.mix >= 0 && chorus.mix <= 1) {
         errors.append("chorus.mix \(chorus.mix) outside [0, 1]")

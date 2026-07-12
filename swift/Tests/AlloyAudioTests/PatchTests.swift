@@ -103,6 +103,36 @@ final class PatchTests: XCTestCase {
         XCTAssertTrue(validatePatch(patch).isEmpty)
     }
 
+    /// Asymmetry pin (see docs/mirroring.md): the TS twin has a runtime
+    /// `validateInsert` default arm that rejects an unknown `kind` with a
+    /// patchRejected reply (never throws — see effect-types.ts and
+    /// worklet-host-core.spec.ts). Swift never reaches an equivalent
+    /// runtime check: `InsertSpec.init(from:)` throws a `DecodingError` the
+    /// moment it sees an unrecognized `kind`, so an unknown insert kind is
+    /// structurally rejected at decode time, before `validatePatch` (or any
+    /// engine code) ever runs.
+    func testUnknownInsertKindFailsAtDecodeNotValidation() {
+        let json = """
+        {
+          "schemaVersion": 1,
+          "meta": { "id": "test.unknown-insert", "name": "Unknown Insert", "category": "melodic" },
+          "layers": [
+            {
+              "keyRange": { "lowMidi": 0, "highMidi": 127 },
+              "velRange": { "low": 0, "high": 1 },
+              "generator": { "kind": "additive", "partials": [ { "ratio": 1, "level": 1 } ] },
+              "tva": { "level": 0.8, "adsr": { "attack": 0.005, "decay": 0.3, "sustain": 0.7, "release": 0.25 }, "velCurve": 1 }
+            }
+          ],
+          "sends": { "reverb": 0, "delay": 0 },
+          "inserts": [ { "kind": "phaser" } ]
+        }
+        """
+        XCTAssertThrowsError(try JSONDecoder().decode(Patch.self, from: Data(json.utf8))) { error in
+            XCTAssertTrue(error is DecodingError, "expected a DecodingError, got \(error)")
+        }
+    }
+
     func testRejectsMoreThanMaxInserts() throws {
         var patch = try decodeFixture()
         let chorus = InsertSpec.chorus(ChorusParams(mode: .chorus, rateHz: 1, depthMs: 3, mix: 0.5))

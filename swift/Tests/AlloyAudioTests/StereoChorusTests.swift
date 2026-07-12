@@ -125,6 +125,19 @@ final class StereoChorusTests: XCTestCase {
         XCTAssertEqual(validateInsert(.chorus(ChorusParams(mode: .chorus, rateHz: 1, depthMs: 3, mix: 0.5))), [])
     }
 
+    func testValidateInsertRejectsAChorusDepthMsBeyondBaseDelayMs() {
+        // depthMs > baseDelayMs makes (baseDelayMs - depthMs) negative for
+        // part of the LFO cycle, i.e. the tap would have to read ahead of
+        // the write head. depthMs == baseDelayMs is the causal boundary
+        // (delay bottoms out at exactly 0) and must still pass.
+        XCTAssertFalse(
+            validateInsert(.chorus(ChorusParams(mode: .chorus, rateHz: 1, depthMs: baseDelayMs + 1, mix: 0.5))).isEmpty
+        )
+        XCTAssertEqual(
+            validateInsert(.chorus(ChorusParams(mode: .chorus, rateHz: 1, depthMs: baseDelayMs, mix: 0.5))), []
+        )
+    }
+
     func testMatchesTwinReference() {
         let params = ChorusParams(mode: .chorus, rateHz: 1.2, depthMs: 2.5, mix: 0.6)
         let chorus = StereoChorus(params: params, sampleRate: fs)

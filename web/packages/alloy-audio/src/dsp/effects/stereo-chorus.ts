@@ -8,7 +8,9 @@
 import { TWO_PI } from '../dsp-types.js';
 import type { ChorusParams, EffectUnit } from './effect-types.js';
 
-const BASE_DELAY_MS = 7;
+/** Causality bound: chorus.depthMs must stay <= this so the swept delay
+ * (BASE_DELAY_MS +/- depthMs) never goes negative — see effect-types.ts. */
+export const BASE_DELAY_MS = 7;
 const CHORUS_OFFSETS: readonly number[] = [0, 0.25];
 const ENSEMBLE_OFFSETS: readonly number[] = [0, 1 / 3, 2 / 3];
 const ENSEMBLE_WEIGHTS_L: readonly number[] = [0.55, 0.3, 0.15];

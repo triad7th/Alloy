@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type AdsrParams } from './dsp/adsr-envelope.js';
+import type { InsertSpec } from './dsp/effects/effect-types.js';
 import { PATCH_SCHEMA_VERSION, type Patch, type PatchLayer } from './dsp/patch.js';
 import { renderPatch } from './dsp/patch-engine.js';
 import {
@@ -89,6 +90,27 @@ describe('WorkletHostCore', () => {
     core.onMessage({ type: 'noteOn', midi: 60, velocity: 1 });
     const recovered = render(core, 256, (reply) => replies.push(reply));
     expect(maxAbs(recovered, 0, 256)).toBeGreaterThan(0);
+  });
+
+  // 2b. Unknown insert kind: a future/newer-build patch payload must reject
+  // through the normal patchRejected reply, not throw and kill the render
+  // call (which would take down the whole worklet processor).
+  it('rejects a patch with an unknown insert kind via postReply instead of throwing', () => {
+    const core = new WorkletHostCore(FS, 0);
+    const replies: WorkletOutMessage[] = [];
+    const unknownInsert = { kind: 'phaser' } as unknown as InsertSpec;
+    core.onMessage({ type: 'setPatch', patch: { ...makePatch(), inserts: [unknownInsert] } });
+    core.onMessage({ type: 'noteOn', midi: 60, velocity: 1 });
+    let out = new Float32Array(0);
+    expect(() => {
+      out = render(core, 256, (reply) => replies.push(reply));
+    }).not.toThrow();
+    expect(replies).toHaveLength(1);
+    expect(replies[0]).toEqual({
+      type: 'patchRejected',
+      errors: expect.arrayContaining([expect.stringContaining("unknown insert kind 'phaser'")]),
+    });
+    expect(maxAbs(out, 0, 256)).toBe(0);
   });
 
   // 3. Frame anchoring: core anchored at 1000; noteOn atFrame 1100 -> first

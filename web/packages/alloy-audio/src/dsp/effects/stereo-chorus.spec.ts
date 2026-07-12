@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateInsert, type ChorusParams } from './effect-types.js';
-import { StereoChorus } from './stereo-chorus.js';
+import { BASE_DELAY_MS, StereoChorus } from './stereo-chorus.js';
 
 const FS = 48_000;
 
@@ -123,6 +123,19 @@ describe('StereoChorus', () => {
     expect(validateInsert({ kind: 'chorus', chorus: { mode: 'chorus', rateHz: 1, depthMs: 25, mix: 0.5 } })).not.toHaveLength(0);
     expect(validateInsert({ kind: 'chorus', chorus: { mode: 'chorus', rateHz: 1, depthMs: 3, mix: 1.5 } })).not.toHaveLength(0);
     expect(validateInsert({ kind: 'chorus', chorus: { mode: 'chorus', rateHz: 1, depthMs: 3, mix: 0.5 } })).toEqual([]);
+  });
+
+  it('validateInsert rejects a chorus depthMs beyond BASE_DELAY_MS (acausal swept delay)', () => {
+    // depthMs > BASE_DELAY_MS makes (BASE_DELAY_MS - depthMs) negative for
+    // part of the LFO cycle, i.e. the tap would have to read ahead of the
+    // write head. depthMs === BASE_DELAY_MS is the causal boundary (delay
+    // bottoms out at exactly 0) and must still pass.
+    expect(
+      validateInsert({ kind: 'chorus', chorus: { mode: 'chorus', rateHz: 1, depthMs: BASE_DELAY_MS + 1, mix: 0.5 } }),
+    ).not.toHaveLength(0);
+    expect(
+      validateInsert({ kind: 'chorus', chorus: { mode: 'chorus', rateHz: 1, depthMs: BASE_DELAY_MS, mix: 0.5 } }),
+    ).toEqual([]);
   });
 
   it('matches the twin reference (chorus rate 1.2 depth 2.5 mix 0.6)', () => {

@@ -87,6 +87,23 @@ describe('Patch', () => {
     expect(errors.every((e) => e.startsWith('insert 1: '))).toBe(true);
   });
 
+  it('rejects an unknown insert kind instead of throwing', () => {
+    // A runtime patch payload can carry an insert kind newer than this
+    // build knows about (e.g. a future 'phaser' from a newer bundle). That
+    // must surface as a validation error, not throw out of validatePatch's
+    // for-of loop and up through WorkletHostCore.render — see
+    // worklet-host-core.spec.ts for the end-to-end non-throw pin, and
+    // PatchTests.swift for the structurally-different Swift twin (Codable
+    // decode rejects unknown kinds before validation ever runs).
+    const base = JSON.parse(FIXTURE_PATCH_JSON) as Patch;
+    const unknownInsert = { kind: 'phaser' } as unknown as InsertSpec;
+    let errors: string[] = [];
+    expect(() => {
+      errors = validatePatch({ ...base, inserts: [unknownInsert] });
+    }).not.toThrow();
+    expect(errors).toContain("insert 1: unknown insert kind 'phaser'");
+  });
+
   it('inserts fixture parses, validates clean, and round-trips', () => {
     const patch = JSON.parse(FIXTURE_INSERTS_PATCH_JSON) as Patch;
     expect(validatePatch(patch)).toEqual([]);

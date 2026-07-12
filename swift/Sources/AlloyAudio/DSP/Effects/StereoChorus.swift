@@ -7,7 +7,9 @@ import Foundation
 /// phase offsets so the taps drift in and out of alignment with each other.
 /// Twin of web src/dsp/effects/stereo-chorus.ts (canonical).
 
-private let baseDelayMs = 7.0
+/// Causality bound: `ChorusParams.depthMs` must stay <= this so the swept
+/// delay (`baseDelayMs +/- depthMs`) never goes negative — see EffectTypes.swift.
+let baseDelayMs = 7.0
 private let chorusOffsets: [Double] = [0, 0.25]
 private let ensembleOffsets: [Double] = [0, 1.0 / 3.0, 2.0 / 3.0]
 private let ensembleWeightsL: [Double] = [0.55, 0.3, 0.15]
