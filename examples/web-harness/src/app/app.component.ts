@@ -4,6 +4,7 @@ import { IconsSectionComponent } from './sections/icons-section.component';
 import { KnobsSectionComponent } from './sections/knobs-section.component';
 import { ZonesSectionComponent } from './sections/zones-section.component';
 import { SynthSectionComponent } from './sections/synth-section.component';
+import { RomplerSectionComponent } from './sections/rompler-section.component';
 import { StorageSectionComponent } from './sections/storage-section.component';
 import { OverlaysSectionComponent } from './sections/overlays-section.component';
 
@@ -15,6 +16,7 @@ import { OverlaysSectionComponent } from './sections/overlays-section.component'
     KnobsSectionComponent,
     ZonesSectionComponent,
     SynthSectionComponent,
+    RomplerSectionComponent,
     StorageSectionComponent,
     OverlaysComponent,
     OverlaysSectionComponent,
@@ -32,6 +34,7 @@ import { OverlaysSectionComponent } from './sections/overlays-section.component'
       <hx-knobs-section />
       <hx-zones-section />
       <hx-synth-section />
+      <hx-rompler-section />
       <hx-storage-section />
       <hx-overlays-section />
     </main>

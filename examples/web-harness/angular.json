@@ -30,6 +30,12 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "**/*",
+                "input": "alloy-audio-dist",
+                "output": "/alloy-audio-dist",
+                "followSymlinks": true
               }
             ],
             "styles": ["src/styles.scss"],
