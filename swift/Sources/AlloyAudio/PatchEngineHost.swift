@@ -27,14 +27,15 @@ public final class PatchEngineHost: @unchecked Sendable {
     private static let maxSliceFrames = 4096
 
     /// The stereo AVAudioFormat makeSourceNode() constructs its node with:
-    /// the host's own sample rate, 2 channels. Factored out (rather than
+    /// this host's own sample rate, 2 channels. Factored out (rather than
     /// inlined) as a testing seam — AVAudioSourceNode.outputFormat(forBus:)
     /// does not reflect a node's initializer format until the node is
     /// attached AND connected inside a running AVAudioEngine graph, and once
     /// connected it reflects connect(_:to:format:)'s argument, not the
-    /// initializer's — so this is the reliable way to assert what
-    /// makeSourceNode() actually requests.
-    static func sourceNodeFormat(sampleRate: Double) -> AVAudioFormat {
+    /// initializer's — so this instance property, derived from the host's
+    /// stored sampleRate, is the reliable way to assert what a constructed
+    /// host's makeSourceNode() actually requests.
+    var sourceNodeFormat: AVAudioFormat {
         AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2)!
     }
 
@@ -171,8 +172,7 @@ public final class PatchEngineHost: @unchecked Sendable {
     /// than getting an independent one — construct a second PatchEngineHost
     /// if a second, independently-clocked node is needed.
     public func makeSourceNode() -> AVAudioSourceNode {
-        let format = Self.sourceNodeFormat(sampleRate: sampleRate)
-        return AVAudioSourceNode(format: format) { [self] _, _, frameCount, audioBufferList in
+        return AVAudioSourceNode(format: sourceNodeFormat) { [self] _, _, frameCount, audioBufferList in
             let frames = Int(frameCount)
             // Preallocated scratches are sized to the cap on purpose —
             // growing them here would allocate on the render thread. This
@@ -213,7 +213,15 @@ public final class PatchEngineHost: @unchecked Sendable {
                             data[i] = nodeScratchR[i]
                         }
                     default:
-                        break
+                        // Channels past the stereo pair: clear the FULL frame
+                        // range — Core Audio does not guarantee zeroed output
+                        // buffers, so skipping the write would leak garbage.
+                        // Structurally unreachable today (the node format is
+                        // pinned to 2 channels above); kept as defense-in-depth.
+                        for i in 0..<frames {
+                            data[i] = 0
+                        }
+                        continue
                     }
                     for i in rendered..<frames {
                         data[i] = 0

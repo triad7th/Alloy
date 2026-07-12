@@ -169,19 +169,25 @@ final class PatchEngineHostTests: XCTestCase {
     /// mismatch. An explicit stereo format at the host's own sample rate
     /// makes Core Audio convert instead.
     ///
-    /// Asserts on the format via PatchEngineHost.sourceNodeFormat(sampleRate:)
-    /// rather than `node.outputFormat(forBus: 0)`: verified empirically that
-    /// an AVAudioSourceNode's outputFormat(forBus:) does not reflect the
-    /// format passed to its initializer until the node is attached AND
-    /// connected inside a running AVAudioEngine graph — and once connected,
-    /// it reflects the connect(_:to:format:) call's format argument, not the
-    /// initializer's, so it can't discriminate a formatted from a formatless
-    /// node without also duplicating engine wiring in the test. Asserting on
-    /// the value makeSourceNode() actually constructs and passes is the
-    /// reliable way to pin this.
+    /// Asserts on the constructed host's `sourceNodeFormat` (the exact value
+    /// makeSourceNode() passes to AVAudioSourceNode(format:), derived from
+    /// the host's stored sample rate) rather than on
+    /// `node.outputFormat(forBus: 0)`: verified empirically that an
+    /// AVAudioSourceNode's outputFormat(forBus:) does not reflect the format
+    /// passed to its initializer until the node is attached AND connected
+    /// inside a running AVAudioEngine graph — and once connected (even in
+    /// manual rendering mode, even with `format: nil`), it reflects the
+    /// connect(_:to:format:) call's format argument, not the initializer's,
+    /// so it can't discriminate a formatted from a formatless node without
+    /// also duplicating engine wiring in the test.
     func testMakeSourceNodeHasExplicitStereoFormatAtHostRate() {
-        let format = PatchEngineHost.sourceNodeFormat(sampleRate: 48_000)
+        let host = PatchEngineHost(sampleRate: 48_000)
+        let format = host.sourceNodeFormat
         XCTAssertEqual(format.channelCount, 2)
         XCTAssertEqual(format.sampleRate, 48_000)
+
+        // A second host at a different rate derives a different format —
+        // the seam threads through the instance, not a constant.
+        XCTAssertEqual(PatchEngineHost(sampleRate: 44_100).sourceNodeFormat.sampleRate, 44_100)
     }
 }
