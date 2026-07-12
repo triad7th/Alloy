@@ -90,6 +90,63 @@ export interface CompressorParams {
   makeupDb: number;
 }
 
+/** Output-only wet processor fed by a send tap. Unlike EffectUnit (in-place),
+ * a send effect READS a pre-scaled send input and WRITES wet output to a
+ * separate pair — the dry bus it taps from stays untouched. Non-allocating,
+ * must not throw. */
+export interface SendEffect {
+  process(inL: Float32Array, inR: Float32Array, outL: Float32Array, outR: Float32Array, frames: number): void;
+  reset(): void;
+}
+
+export interface ReverbParams {
+  /** Pre-network predelay, 0..100 ms. */
+  predelayMs: number;
+  /** Tank feedback / tail length, 0..1 (maps to loop gain 0.70..0.98). */
+  decay: number;
+  /** HF damping in the feedback path, 0..1 (0 = bright, 1 = dark). */
+  damping: number;
+  /** Input low-pass bandwidth, 0..1 (1 = full band into the network). */
+  bandwidth: number;
+  /** Chorus modulation depth of the modulated lines, 0..1. */
+  modDepth: number;
+  /** Modulation LFO rate, (0, 5] Hz. */
+  modRateHz: number;
+}
+
+export interface DelayParams {
+  mode: 'stereo' | 'pingpong';
+  /** Base delay time, (0, 2000] ms. */
+  timeMs: number;
+  /** Feedback gain, 0..0.95 (< 1 for stability). */
+  feedback: number;
+  /** HF damping in the feedback path, 0..1. */
+  damping: number;
+}
+
+export interface LimiterParams {
+  /** Output brickwall ceiling in dBFS, -24..0. Output |sample| never exceeds this. */
+  ceilingDb: number;
+  /** Gain recovery time after a peak, (0, 1000] ms. */
+  releaseMs: number;
+}
+
+export interface MasterConfig {
+  reverb: ReverbParams;
+  delay: DelayParams;
+  limiter: LimiterParams;
+}
+
+/** Fixed lookahead of the master limiter, in samples (~1.3 ms at 48 kHz). The
+ * master path delays the whole render by exactly this many samples. */
+export const LIMITER_LOOKAHEAD_SAMPLES = 64;
+
+export const DEFAULT_MASTER_CONFIG: MasterConfig = {
+  reverb: { predelayMs: 12, decay: 0.72, damping: 0.35, bandwidth: 0.85, modDepth: 0.35, modRateHz: 0.7 },
+  delay: { mode: 'pingpong', timeMs: 375, feedback: 0.38, damping: 0.4 },
+  limiter: { ceilingDb: -0.3, releaseMs: 120 },
+};
+
 export type InsertSpec =
   | { kind: 'chorus'; chorus: ChorusParams }
   | { kind: 'tremolo'; tremolo: TremoloParams }
@@ -203,6 +260,41 @@ function validateCompressorParams(compressor: CompressorParams): string[] {
     errors.push(`compressor.makeupDb ${compressor.makeupDb} outside [0, 24]`);
   }
   return errors;
+}
+
+export function validateReverbParams(p: ReverbParams): string[] {
+  const e: string[] = [];
+  if (!(p.predelayMs >= 0 && p.predelayMs <= 100)) e.push(`reverb.predelayMs ${p.predelayMs} outside [0, 100]`);
+  if (!(p.decay >= 0 && p.decay <= 1)) e.push(`reverb.decay ${p.decay} outside [0, 1]`);
+  if (!(p.damping >= 0 && p.damping <= 1)) e.push(`reverb.damping ${p.damping} outside [0, 1]`);
+  if (!(p.bandwidth >= 0 && p.bandwidth <= 1)) e.push(`reverb.bandwidth ${p.bandwidth} outside [0, 1]`);
+  if (!(p.modDepth >= 0 && p.modDepth <= 1)) e.push(`reverb.modDepth ${p.modDepth} outside [0, 1]`);
+  if (!(p.modRateHz > 0 && p.modRateHz <= 5)) e.push(`reverb.modRateHz ${p.modRateHz} outside (0, 5]`);
+  return e;
+}
+
+export function validateDelayParams(p: DelayParams): string[] {
+  const e: string[] = [];
+  if (p.mode !== 'stereo' && p.mode !== 'pingpong') e.push(`delay.mode '${(p as { mode: string }).mode}' must be 'stereo' or 'pingpong'`);
+  if (!(p.timeMs > 0 && p.timeMs <= 2000)) e.push(`delay.timeMs ${p.timeMs} outside (0, 2000]`);
+  if (!(p.feedback >= 0 && p.feedback <= 0.95)) e.push(`delay.feedback ${p.feedback} outside [0, 0.95]`);
+  if (!(p.damping >= 0 && p.damping <= 1)) e.push(`delay.damping ${p.damping} outside [0, 1]`);
+  return e;
+}
+
+export function validateLimiterParams(p: LimiterParams): string[] {
+  const e: string[] = [];
+  if (!(p.ceilingDb >= -24 && p.ceilingDb <= 0)) e.push(`limiter.ceilingDb ${p.ceilingDb} outside [-24, 0]`);
+  if (!(p.releaseMs > 0 && p.releaseMs <= 1000)) e.push(`limiter.releaseMs ${p.releaseMs} outside (0, 1000]`);
+  return e;
+}
+
+export function validateMasterConfig(c: MasterConfig): string[] {
+  return [
+    ...validateReverbParams(c.reverb),
+    ...validateDelayParams(c.delay),
+    ...validateLimiterParams(c.limiter),
+  ];
 }
 
 /**

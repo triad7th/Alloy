@@ -176,6 +176,96 @@ public enum InsertSpec: Codable {
     }
 }
 
+/// Output-only wet processor fed by a send tap. Unlike EffectUnit (in-place),
+/// a send effect READS a pre-scaled send input and WRITES wet output to a
+/// separate pair — the dry bus it taps from stays untouched. Non-allocating,
+/// must not throw.
+public protocol SendEffect: AnyObject {
+    func process(inL: inout [Float], inR: inout [Float], outL: inout [Float], outR: inout [Float], frames: Int)
+    func reset()
+}
+
+public struct ReverbParams: Codable, Sendable {
+    /// Pre-network predelay, 0..100 ms.
+    public var predelayMs: Double
+    /// Tank feedback / tail length, 0..1 (maps to loop gain 0.70..0.98).
+    public var decay: Double
+    /// HF damping in the feedback path, 0..1 (0 = bright, 1 = dark).
+    public var damping: Double
+    /// Input low-pass bandwidth, 0..1 (1 = full band into the network).
+    public var bandwidth: Double
+    /// Chorus modulation depth of the modulated lines, 0..1.
+    public var modDepth: Double
+    /// Modulation LFO rate, (0, 5] Hz.
+    public var modRateHz: Double
+
+    public init(predelayMs: Double, decay: Double, damping: Double, bandwidth: Double, modDepth: Double, modRateHz: Double) {
+        self.predelayMs = predelayMs
+        self.decay = decay
+        self.damping = damping
+        self.bandwidth = bandwidth
+        self.modDepth = modDepth
+        self.modRateHz = modRateHz
+    }
+}
+
+public enum DelayMode: String, Codable, Sendable {
+    case stereo
+    case pingpong
+}
+
+public struct DelayParams: Codable, Sendable {
+    public var mode: DelayMode
+    /// Base delay time, (0, 2000] ms.
+    public var timeMs: Double
+    /// Feedback gain, 0..0.95 (< 1 for stability).
+    public var feedback: Double
+    /// HF damping in the feedback path, 0..1.
+    public var damping: Double
+
+    public init(mode: DelayMode, timeMs: Double, feedback: Double, damping: Double) {
+        self.mode = mode
+        self.timeMs = timeMs
+        self.feedback = feedback
+        self.damping = damping
+    }
+}
+
+public struct LimiterParams: Codable, Sendable {
+    /// Output brickwall ceiling in dBFS, -24..0. Output |sample| never exceeds this.
+    public var ceilingDb: Double
+    /// Gain recovery time after a peak, (0, 1000] ms.
+    public var releaseMs: Double
+
+    public init(ceilingDb: Double, releaseMs: Double) {
+        self.ceilingDb = ceilingDb
+        self.releaseMs = releaseMs
+    }
+}
+
+public struct MasterConfig: Codable, Sendable {
+    public var reverb: ReverbParams
+    public var delay: DelayParams
+    public var limiter: LimiterParams
+
+    public init(reverb: ReverbParams, delay: DelayParams, limiter: LimiterParams) {
+        self.reverb = reverb
+        self.delay = delay
+        self.limiter = limiter
+    }
+}
+
+/// Fixed lookahead of the master limiter, in samples (~1.3 ms at 48 kHz). The
+/// master path delays the whole render by exactly this many samples. Web
+/// twin: LIMITER_LOOKAHEAD_SAMPLES.
+public let limiterLookaheadSamples = 64
+
+public let defaultMasterConfig = MasterConfig(
+    reverb: ReverbParams(predelayMs: 12, decay: 0.72, damping: 0.35, bandwidth: 0.85, modDepth: 0.35, modRateHz: 0.7),
+    delay: DelayParams(mode: .pingpong, timeMs: 375, feedback: 0.38, damping: 0.4),
+    limiter: LimiterParams(ceilingDb: -0.3, releaseMs: 120)
+)
+
 public let MAX_INSERTS = 3
 
 private func validateChorusParams(_ chorus: ChorusParams) -> [String] {
@@ -278,6 +368,61 @@ private func validateCompressorParams(_ compressor: CompressorParams) -> [String
         errors.append("compressor.makeupDb \(compressor.makeupDb) outside [0, 24]")
     }
     return errors
+}
+
+public func validateReverbParams(_ p: ReverbParams) -> [String] {
+    var e: [String] = []
+    if !(p.predelayMs >= 0 && p.predelayMs <= 100) {
+        e.append("reverb.predelayMs \(p.predelayMs) outside [0, 100]")
+    }
+    if !(p.decay >= 0 && p.decay <= 1) {
+        e.append("reverb.decay \(p.decay) outside [0, 1]")
+    }
+    if !(p.damping >= 0 && p.damping <= 1) {
+        e.append("reverb.damping \(p.damping) outside [0, 1]")
+    }
+    if !(p.bandwidth >= 0 && p.bandwidth <= 1) {
+        e.append("reverb.bandwidth \(p.bandwidth) outside [0, 1]")
+    }
+    if !(p.modDepth >= 0 && p.modDepth <= 1) {
+        e.append("reverb.modDepth \(p.modDepth) outside [0, 1]")
+    }
+    if !(p.modRateHz > 0 && p.modRateHz <= 5) {
+        e.append("reverb.modRateHz \(p.modRateHz) outside (0, 5]")
+    }
+    return e
+}
+
+public func validateDelayParams(_ p: DelayParams) -> [String] {
+    // p.mode is structurally valid here: DelayMode's Codable decode rejects
+    // unknown strings before validation can run (the TS validator carries
+    // the equivalent runtime check).
+    var e: [String] = []
+    if !(p.timeMs > 0 && p.timeMs <= 2000) {
+        e.append("delay.timeMs \(p.timeMs) outside (0, 2000]")
+    }
+    if !(p.feedback >= 0 && p.feedback <= 0.95) {
+        e.append("delay.feedback \(p.feedback) outside [0, 0.95]")
+    }
+    if !(p.damping >= 0 && p.damping <= 1) {
+        e.append("delay.damping \(p.damping) outside [0, 1]")
+    }
+    return e
+}
+
+public func validateLimiterParams(_ p: LimiterParams) -> [String] {
+    var e: [String] = []
+    if !(p.ceilingDb >= -24 && p.ceilingDb <= 0) {
+        e.append("limiter.ceilingDb \(p.ceilingDb) outside [-24, 0]")
+    }
+    if !(p.releaseMs > 0 && p.releaseMs <= 1000) {
+        e.append("limiter.releaseMs \(p.releaseMs) outside (0, 1000]")
+    }
+    return e
+}
+
+public func validateMasterConfig(_ c: MasterConfig) -> [String] {
+    validateReverbParams(c.reverb) + validateDelayParams(c.delay) + validateLimiterParams(c.limiter)
 }
 
 /// Non-throwing; empty = constructible on both platforms.
