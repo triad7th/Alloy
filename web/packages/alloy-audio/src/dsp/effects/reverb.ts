@@ -13,6 +13,7 @@ const DIFFUSER_COEF = 0.7;
 const PREDELAY_MAX_48K = 4800; // 100 ms
 const MOD_MAX_SAMPLES = 16; // peak modulation excursion on lines 0 and 4
 const CONTROL_TWO_PI = Math.PI * 2;
+const HADAMARD_STEPS = [1, 2, 4];
 
 function scaleLen(len48k: number, sampleRate: number): number {
   return Math.max(1, Math.round((len48k * sampleRate) / 48000));
@@ -82,6 +83,7 @@ export class Reverb implements SendEffect {
   private readonly predelaySamples: number;
   private readonly damp = new Float64Array(8); // one-pole LPF state per line
   private readonly h = new Float64Array(8); // Hadamard scratch
+  private readonly s = new Float64Array(8); // per-sample line-read scratch
   private lfoPhase = 0;
   private readonly lfoInc: number;
   private readonly g: number;
@@ -118,7 +120,7 @@ export class Reverb implements SendEffect {
 
   private hadamard(): void {
     const h = this.h;
-    for (const step of [1, 2, 4]) {
+    for (const step of HADAMARD_STEPS) {
       for (let i = 0; i < 8; i++) {
         if ((i & step) === 0) {
           const a = h[i];
@@ -159,10 +161,15 @@ export class Reverb implements SendEffect {
       if (this.lfoPhase >= CONTROL_TWO_PI) this.lfoPhase -= CONTROL_TWO_PI;
       const s0 = this.lines[0].readFrac(mod < 0 ? 0 : mod);
       const s4 = this.lines[4].readFrac(mod < 0 ? -mod : 0);
-      const s = [
-        s0, this.lines[1].readInt(), this.lines[2].readInt(), this.lines[3].readInt(),
-        s4, this.lines[5].readInt(), this.lines[6].readInt(), this.lines[7].readInt(),
-      ];
+      const s = this.s;
+      s[0] = s0;
+      s[1] = this.lines[1].readInt();
+      s[2] = this.lines[2].readInt();
+      s[3] = this.lines[3].readInt();
+      s[4] = s4;
+      s[5] = this.lines[5].readInt();
+      s[6] = this.lines[6].readInt();
+      s[7] = this.lines[7].readInt();
 
       // Per-line damping in the feedback path.
       for (let k = 0; k < 8; k++) {

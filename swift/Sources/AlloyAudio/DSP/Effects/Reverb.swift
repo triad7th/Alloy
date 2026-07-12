@@ -14,6 +14,7 @@ private let diffuserCoef = 0.7
 private let predelayMax48k = 4800.0 // 100 ms
 private let modMaxSamples = 16.0 // peak modulation excursion on lines 0 and 4
 private let controlTwoPi = Double.pi * 2
+private let hadamardSteps = [1, 2, 4]
 
 private func scaleLen(_ len48k: Double, _ sampleRate: Double) -> Int {
     max(1, Int((len48k * sampleRate / 48000).rounded()))
@@ -96,6 +97,7 @@ public final class Reverb: SendEffect {
     private let predelaySamples: Int
     private var damp = [Double](repeating: 0, count: 8) // one-pole LPF state per line
     private var h = [Double](repeating: 0, count: 8) // Hadamard scratch
+    private var s = [Double](repeating: 0, count: 8) // per-sample line-read scratch
     private var lfoPhase = 0.0
     private let lfoInc: Double
     private let g: Double
@@ -132,7 +134,7 @@ public final class Reverb: SendEffect {
     }
 
     private func hadamard() {
-        for step in [1, 2, 4] {
+        for step in hadamardSteps {
             var i = 0
             while i < 8 {
                 if (i & step) == 0 {
@@ -175,10 +177,14 @@ public final class Reverb: SendEffect {
             if lfoPhase >= controlTwoPi { lfoPhase -= controlTwoPi }
             let s0 = lines[0].readFrac(mod < 0 ? 0 : mod)
             let s4 = lines[4].readFrac(mod < 0 ? -mod : 0)
-            let s = [
-                s0, lines[1].readInt(), lines[2].readInt(), lines[3].readInt(),
-                s4, lines[5].readInt(), lines[6].readInt(), lines[7].readInt(),
-            ]
+            s[0] = s0
+            s[1] = lines[1].readInt()
+            s[2] = lines[2].readInt()
+            s[3] = lines[3].readInt()
+            s[4] = s4
+            s[5] = lines[5].readInt()
+            s[6] = lines[6].readInt()
+            s[7] = lines[7].readInt()
 
             // Per-line damping in the feedback path.
             for k in 0..<8 {
