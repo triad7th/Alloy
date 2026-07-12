@@ -15,3 +15,5 @@ export { KnobSegmentComponent, KnobSegmentOption } from './lib/knobs/knob-segmen
 export { SpinnerComponent } from './lib/spinner/spinner.component';
 export { AlloyBusy } from './lib/spinner/busy.service';
 export { BusyHostComponent } from './lib/spinner/busy-host.component';
+export { AlloySnackbar, SnackbarClose, SnackbarOptions } from './lib/snackbar/snackbar.service';
+export { SnackbarHostComponent } from './lib/snackbar/snackbar-host.component';
