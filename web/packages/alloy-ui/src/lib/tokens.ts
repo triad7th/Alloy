@@ -3,4 +3,6 @@
 export const SHEET_ANIMATION_MS = 280;
 export const AUTO_HIDE_MS = 2500;
 export const CHROME_FADE_MS = 300;
+export const SNACKBAR_SHOW_MS = 4000;
+export const OVERLAY_FADE_MS = 150;
 export const SHEET_CORNER_RADIUS_PX = 24;

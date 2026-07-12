@@ -18,9 +18,12 @@ const scssColors = Object.entries(tokens.color)
 const scssSizes = Object.entries(tokens.sizePx ?? {})
   .map(([k, v]) => `$${k}: ${v}px;`)
   .join('\n');
+const scssDurations = Object.entries(tokens.durationMs)
+  .map(([k, v]) => `$${k}: ${v}ms;`)
+  .join('\n');
 writeFileSync(
   join(root, 'web/packages/alloy-ui/src/styles/_tokens.scss'),
-  header('//') + scssColors + '\n' + scssSizes + '\n'
+  header('//') + scssColors + '\n' + scssDurations + '\n' + scssSizes + '\n'
 );
 
 // ---- TS (durations; SCREAMING_SNAKE with _MS suffix) ----

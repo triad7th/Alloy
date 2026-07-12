@@ -23,6 +23,8 @@ public enum AlloyTokens {
     public static let sheetAnimation: Double = 0.28
     public static let autoHide: Double = 2.5
     public static let chromeFade: Double = 0.3
+    public static let snackbarShow: Double = 4
+    public static let overlayFade: Double = 0.15
 
     public static let sheetCornerRadius: CGFloat = 24
 }
