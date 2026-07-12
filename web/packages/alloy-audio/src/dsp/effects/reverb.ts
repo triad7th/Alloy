@@ -140,6 +140,7 @@ export class Reverb implements SendEffect {
       // Mono send, input bandwidth roll-off.
       let x = (inL[n] + inR[n]) * 0.5;
       this.bwState += this.bwCoef * (x - this.bwState);
+      if (Math.abs(this.bwState) < 1e-20) this.bwState = 0;
       x = this.bwState;
 
       // Predelay.
@@ -174,6 +175,7 @@ export class Reverb implements SendEffect {
       // Per-line damping in the feedback path.
       for (let k = 0; k < 8; k++) {
         this.damp[k] += this.dampCoef * (s[k] - this.damp[k]);
+        if (Math.abs(this.damp[k]) < 1e-20) this.damp[k] = 0;
         this.h[k] = this.damp[k];
       }
 

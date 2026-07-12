@@ -45,7 +45,9 @@ export class Delay implements SendEffect {
 
       // Damped feedback (one-pole LPF on the delayed signal).
       this.lpL += this.dampCoef * (dl - this.lpL);
+      if (Math.abs(this.lpL) < 1e-20) this.lpL = 0;
       this.lpR += this.dampCoef * (dr - this.lpR);
+      if (Math.abs(this.lpR) < 1e-20) this.lpR = 0;
 
       // Feedback routing: ping-pong crosses channels.
       const fbL = this.pingpong ? this.lpR : this.lpL;

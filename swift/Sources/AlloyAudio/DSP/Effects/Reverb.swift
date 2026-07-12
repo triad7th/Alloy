@@ -156,6 +156,7 @@ public final class Reverb: SendEffect {
             // Mono send, input bandwidth roll-off.
             var x = (Double(inL[n]) + Double(inR[n])) * 0.5
             bwState += bwCoef * (x - bwState)
+            if abs(bwState) < 1e-20 { bwState = 0 }
             x = bwState
 
             // Predelay.
@@ -189,6 +190,7 @@ public final class Reverb: SendEffect {
             // Per-line damping in the feedback path.
             for k in 0..<8 {
                 damp[k] += dampCoef * (s[k] - damp[k])
+                if abs(damp[k]) < 1e-20 { damp[k] = 0 }
                 h[k] = damp[k]
             }
 

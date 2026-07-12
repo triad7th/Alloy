@@ -45,7 +45,9 @@ public final class Delay: SendEffect {
 
             // Damped feedback (one-pole LPF on the delayed signal).
             lpL += dampCoef * (dl - lpL)
+            if abs(lpL) < 1e-20 { lpL = 0 }
             lpR += dampCoef * (dr - lpR)
+            if abs(lpR) < 1e-20 { lpR = 0 }
 
             // Feedback routing: ping-pong crosses channels.
             let fbL = pingpong ? lpR : lpL
