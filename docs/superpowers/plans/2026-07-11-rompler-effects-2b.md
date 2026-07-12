@@ -67,14 +67,16 @@ State: `z` arrays (stages × 2), `lastOut` × 2, `phase`, `sampleCounter`; `rese
 // per sample:
 //   m = (L + R) / 2
 //   lowState += crossoverCoef * (m - lowState); low = lowState; high = m - low
-//   hornL = 0.5 * (1 + depth * sin(TWO_PI * hornPhase));      hornR = 0.5 * (1 + depth * sin(TWO_PI * hornPhase + PI))
-//   drumL = 0.5 * (1 + depth * sin(TWO_PI * drumPhase));      drumR = 0.5 * (1 + depth * sin(TWO_PI * drumPhase + PI))
+//   hornL = 1 + depth * sin(TWO_PI * hornPhase);      hornR = 1 + depth * sin(TWO_PI * hornPhase + PI)
+//   drumL = 1 + depth * sin(TWO_PI * drumPhase);      drumR = 1 + depth * sin(TWO_PI * drumPhase + PI)
+//   (unity-center gains: at depth 0 each channel carries the full band sum m,
+//    matching the engine's unity mono->stereo convention; gains swing 0..2)
 //   wetL = high * hornL + low * drumL; wetR = high * hornR + low * drumR
 //   outL = L * (1 - mix) + wetL * mix   (same for R)
 //   hornPhase += hornRate / fs; drumPhase += drumRate / fs (both wrapped)
 ```
 
-**Tests:** mix 0 exact bypass; depth 0 mix 1 collapses to the crossover-flat mono sum on both channels (L === R, equal to lowpass+highpass reconstruction = m exactly — one-pole LP + complement reconstructs m bit-exactly: assert out === mono sum within 1e-9); anti-phase pan: fast speed, DC-free high-band input (2 kHz sine), L and R envelopes anticorrelate (probe: RMS over each half-cycle of the 6.6 Hz rotor alternates L>R then R>L); slow vs fast differ; reset determinism; validation bounds; twin ref: fast, depth 0.7, mix 1, input L=R= 440 sine amp 0.5, warmup 512, 8 L + 8 R.
+**Tests:** mix 0 exact bypass; depth 0 mix 1 collapses to the crossover-flat mono sum on both channels (unity-center gains: wet = 1·high + 1·low = m per channel; assert out L === R === mono sum within 1e-9); anti-phase pan: fast speed, DC-free high-band input (2 kHz sine), L and R envelopes anticorrelate (probe: RMS over each half-cycle of the 6.6 Hz rotor alternates L>R then R>L); slow vs fast differ; reset determinism; validation bounds; twin ref: fast, depth 0.7, mix 1, input L=R= 440 sine amp 0.5, warmup 512, 8 L + 8 R.
 
 **Commit:** `feat(audio): add rotary speaker insert twins`
 
