@@ -48,13 +48,13 @@ All standalone; all exported from `public-api.ts`.
 
 ```html
 <!-- app root template, once -->
-<alloy-overlays />
+<app-overlays />
 ```
 
-`AlloyOverlaysComponent` composes the snackbar, dialog, and busy hosts. Each
+`OverlaysComponent` composes the snackbar, dialog, and busy hosts. Each
 host renders nothing while idle, so unused features cost nothing. The
 individual host components are exported too, for apps that want to place
-them separately, but `<alloy-overlays />` is the documented path.
+them separately, but `<app-overlays />` is the documented path.
 
 ## Snackbar
 
@@ -118,7 +118,7 @@ Behavior:
 ### Inline spinner
 
 ```html
-<alloy-spinner [size]="24" ariaLabel="Loading" />
+<app-spinner [size]="24" ariaLabel="Loading" />
 ```
 
 - Indeterminate, pure CSS animation, draws in `currentColor` so it themes
