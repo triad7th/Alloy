@@ -280,9 +280,10 @@ export type InsertSpec =
 ```
 
 Six insert kinds, all twin-tested against pinned constants
-(`StereoChorus.ts`/`.swift`, `TremoloAutoPan.ts`/`.swift`,
-`Phaser.ts`/`.swift`, `RotarySpeaker.ts`/`.swift`, `DriveEq.ts`/`.swift`,
-`Compressor.ts`/`.swift`):
+(web `stereo-chorus.ts` ↔ `StereoChorus.swift`, `tremolo-auto-pan.ts` ↔
+`TremoloAutoPan.swift`, `phaser.ts` ↔ `Phaser.swift`, `rotary-speaker.ts` ↔
+`RotarySpeaker.swift`, `drive-eq.ts` ↔ `DriveEq.swift`, `compressor.ts` ↔
+`Compressor.swift`):
 - **Chorus/ensemble** (`ChorusParams.mode: 'chorus' | 'ensemble'`): sums the
   incoming stereo pair to mono into one circular delay buffer, then reads
   back 2 (`chorus`) or 3 (`ensemble`) linearly-interpolated taps whose delay
@@ -367,7 +368,10 @@ structurally before the validator ever runs, the same pattern as
 check from its introduction; `chorus.mode` predated the policy and was
 retrofitted in phase 2b's closing task (`validateChorusParams` in
 `effect-types.ts`, plus a small TS test — Swift's `ChorusMode` already had
-the structural guarantee, so no Swift change was needed).
+the structural guarantee, so no Swift change was needed). The same policy
+applies to numeric-literal unions (e.g. `PhaserParams.stages: 4 | 8`, plain
+`Int` on Swift): BOTH platforms need the runtime check there, since neither
+type system narrows the wire value structurally.
 
 ## AlloyStorage
 

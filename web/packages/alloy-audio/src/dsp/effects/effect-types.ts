@@ -18,7 +18,11 @@ export interface EffectUnit {
 
 /** Samples per control-rate tick for effects with expensive (tan/pow)
  * coefficient recomputes — same two-rate philosophy as voice.ts's
- * CONTROL_INTERVAL, scoped to the effects layer. */
+ * CONTROL_INTERVAL, scoped to the effects layer.
+ * Tick-placement convention: check the tick FIRST in the sample loop
+ * (phaser) unless the control computation consumes this sample's state, in
+ * which case tick after that state updates (compressor's gain reads the
+ * just-updated envelope). Both twins must place it identically. */
 export const EFFECT_CONTROL_INTERVAL = 16;
 
 export interface ChorusParams {
