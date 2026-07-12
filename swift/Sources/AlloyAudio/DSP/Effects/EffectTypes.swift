@@ -96,6 +96,27 @@ public struct RotaryParams: Codable {
     }
 }
 
+public struct DriveEqParams: Codable {
+    /// Pre-EQ saturation amount, 0..1 (preGain = 1 + drive * 4).
+    public var drive: Double
+    /// Low-shelf gain in dB, -12..12 (250 Hz).
+    public var lowDb: Double
+    /// Mid-peak gain in dB, -12..12 (1 kHz, Q 0.707).
+    public var midDb: Double
+    /// High-shelf gain in dB, -12..12 (3 kHz).
+    public var highDb: Double
+    /// Output level trim in dB, -12..12.
+    public var levelDb: Double
+
+    public init(drive: Double, lowDb: Double, midDb: Double, highDb: Double, levelDb: Double) {
+        self.drive = drive
+        self.lowDb = lowDb
+        self.midDb = midDb
+        self.highDb = highDb
+        self.levelDb = levelDb
+    }
+}
+
 /// Wire format keyed on `kind` with a `chorus`/`tremolo` payload field,
 /// matching the TS JSON exactly (GeneratorSpec's Codable pattern).
 public enum InsertSpec: Codable {
@@ -103,8 +124,9 @@ public enum InsertSpec: Codable {
     case tremolo(TremoloParams)
     case phaser(PhaserParams)
     case rotary(RotaryParams)
+    case driveEq(DriveEqParams)
 
-    private enum CodingKeys: String, CodingKey { case kind, chorus, tremolo, phaser, rotary }
+    private enum CodingKeys: String, CodingKey { case kind, chorus, tremolo, phaser, rotary, driveEq }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -113,6 +135,7 @@ public enum InsertSpec: Codable {
         case "tremolo": self = try .tremolo(c.decode(TremoloParams.self, forKey: .tremolo))
         case "phaser": self = try .phaser(c.decode(PhaserParams.self, forKey: .phaser))
         case "rotary": self = try .rotary(c.decode(RotaryParams.self, forKey: .rotary))
+        case "driveEq": self = try .driveEq(c.decode(DriveEqParams.self, forKey: .driveEq))
         default: throw DecodingError.dataCorruptedError(forKey: .kind, in: c, debugDescription: "unknown insert kind")
         }
     }
@@ -124,6 +147,7 @@ public enum InsertSpec: Codable {
         case let .tremolo(params): try c.encode("tremolo", forKey: .kind); try c.encode(params, forKey: .tremolo)
         case let .phaser(params): try c.encode("phaser", forKey: .kind); try c.encode(params, forKey: .phaser)
         case let .rotary(params): try c.encode("rotary", forKey: .kind); try c.encode(params, forKey: .rotary)
+        case let .driveEq(params): try c.encode("driveEq", forKey: .kind); try c.encode(params, forKey: .driveEq)
         }
     }
 }
@@ -192,6 +216,26 @@ private func validateRotaryParams(_ rotary: RotaryParams) -> [String] {
     return errors
 }
 
+private func validateDriveEqParams(_ driveEq: DriveEqParams) -> [String] {
+    var errors: [String] = []
+    if !(driveEq.drive >= 0 && driveEq.drive <= 1) {
+        errors.append("driveEq.drive \(driveEq.drive) outside [0, 1]")
+    }
+    if !(driveEq.lowDb >= -12 && driveEq.lowDb <= 12) {
+        errors.append("driveEq.lowDb \(driveEq.lowDb) outside [-12, 12]")
+    }
+    if !(driveEq.midDb >= -12 && driveEq.midDb <= 12) {
+        errors.append("driveEq.midDb \(driveEq.midDb) outside [-12, 12]")
+    }
+    if !(driveEq.highDb >= -12 && driveEq.highDb <= 12) {
+        errors.append("driveEq.highDb \(driveEq.highDb) outside [-12, 12]")
+    }
+    if !(driveEq.levelDb >= -12 && driveEq.levelDb <= 12) {
+        errors.append("driveEq.levelDb \(driveEq.levelDb) outside [-12, 12]")
+    }
+    return errors
+}
+
 /// Non-throwing; empty = constructible on both platforms.
 public func validateInsert(_ spec: InsertSpec) -> [String] {
     switch spec {
@@ -199,6 +243,7 @@ public func validateInsert(_ spec: InsertSpec) -> [String] {
     case let .tremolo(tremolo): return validateTremoloParams(tremolo)
     case let .phaser(phaser): return validatePhaserParams(phaser)
     case let .rotary(rotary): return validateRotaryParams(rotary)
+    case let .driveEq(driveEq): return validateDriveEqParams(driveEq)
     }
 }
 
@@ -213,5 +258,7 @@ public func createInsert(_ spec: InsertSpec, sampleRate: Double) -> EffectUnit {
         return Phaser(params: phaser, sampleRate: sampleRate)
     case let .rotary(rotary):
         return RotarySpeaker(params: rotary, sampleRate: sampleRate)
+    case let .driveEq(driveEq):
+        return DriveEq(params: driveEq, sampleRate: sampleRate)
     }
 }

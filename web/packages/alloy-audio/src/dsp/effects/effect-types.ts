@@ -2,6 +2,7 @@
 // ordered, per-patch chain of stereo processors after the mono voice bus.
 // Twin: EffectTypes.swift.
 
+import { DriveEq } from './drive-eq.js';
 import { Phaser } from './phaser.js';
 import { RotarySpeaker } from './rotary-speaker.js';
 import { BASE_DELAY_MS, StereoChorus } from './stereo-chorus.js';
@@ -58,11 +59,25 @@ export interface RotaryParams {
   mix: number;
 }
 
+export interface DriveEqParams {
+  /** Pre-EQ saturation amount, 0..1 (preGain = 1 + drive * 4). */
+  drive: number;
+  /** Low-shelf gain in dB, -12..12 (250 Hz). */
+  lowDb: number;
+  /** Mid-peak gain in dB, -12..12 (1 kHz, Q 0.707). */
+  midDb: number;
+  /** High-shelf gain in dB, -12..12 (3 kHz). */
+  highDb: number;
+  /** Output level trim in dB, -12..12. */
+  levelDb: number;
+}
+
 export type InsertSpec =
   | { kind: 'chorus'; chorus: ChorusParams }
   | { kind: 'tremolo'; tremolo: TremoloParams }
   | { kind: 'phaser'; phaser: PhaserParams }
-  | { kind: 'rotary'; rotary: RotaryParams };
+  | { kind: 'rotary'; rotary: RotaryParams }
+  | { kind: 'driveEq'; driveEq: DriveEqParams };
 
 export const MAX_INSERTS = 3;
 
@@ -128,6 +143,26 @@ function validateRotaryParams(rotary: RotaryParams): string[] {
   return errors;
 }
 
+function validateDriveEqParams(driveEq: DriveEqParams): string[] {
+  const errors: string[] = [];
+  if (!(driveEq.drive >= 0 && driveEq.drive <= 1)) {
+    errors.push(`driveEq.drive ${driveEq.drive} outside [0, 1]`);
+  }
+  if (!(driveEq.lowDb >= -12 && driveEq.lowDb <= 12)) {
+    errors.push(`driveEq.lowDb ${driveEq.lowDb} outside [-12, 12]`);
+  }
+  if (!(driveEq.midDb >= -12 && driveEq.midDb <= 12)) {
+    errors.push(`driveEq.midDb ${driveEq.midDb} outside [-12, 12]`);
+  }
+  if (!(driveEq.highDb >= -12 && driveEq.highDb <= 12)) {
+    errors.push(`driveEq.highDb ${driveEq.highDb} outside [-12, 12]`);
+  }
+  if (!(driveEq.levelDb >= -12 && driveEq.levelDb <= 12)) {
+    errors.push(`driveEq.levelDb ${driveEq.levelDb} outside [-12, 12]`);
+  }
+  return errors;
+}
+
 /**
  * Non-throwing; empty = constructible on both platforms. An unknown `kind`
  * (e.g. a future insert type from a newer build talking to an older bundle)
@@ -148,6 +183,8 @@ export function validateInsert(spec: InsertSpec): string[] {
       return validatePhaserParams(spec.phaser);
     case 'rotary':
       return validateRotaryParams(spec.rotary);
+    case 'driveEq':
+      return validateDriveEqParams(spec.driveEq);
     default:
       return [`unknown insert kind '${(spec as { kind: string }).kind}'`];
   }
@@ -169,6 +206,8 @@ export function createInsert(spec: InsertSpec, sampleRate: number): EffectUnit {
       return new Phaser(spec.phaser, sampleRate);
     case 'rotary':
       return new RotarySpeaker(spec.rotary, sampleRate);
+    case 'driveEq':
+      return new DriveEq(spec.driveEq, sampleRate);
     default:
       throw new Error(
         `createInsert: unknown insert kind '${(spec as { kind: string }).kind}' (unreachable — validateInsert must reject first)`,
