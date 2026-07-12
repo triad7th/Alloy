@@ -39,7 +39,8 @@
 //   t = Math.tan(Math.PI * f_ch / sampleRate); coef_ch = (t - 1) / (t + 1)
 // per sample, per channel:
 //   x = input + lastOut_ch * feedback
-//   for each stage s: y = -x + z_ch[s]; z_ch[s] = x + coef_ch * y; x = y
+//   for each stage s: y = -coef_ch * x + z_ch[s]; z_ch[s] = x + coef_ch * y; x = y
+//   (first-order allpass, one-multiply form: H(z) = (-c + z^-1)/(1 - c z^-1), |H| = 1)
 //   lastOut_ch = x
 //   out = input * (1 - mix) + x * mix
 // phase += rateHz / sampleRate per SAMPLE (wrapped); ticks fire when sampleCounter % 16 === 0.
