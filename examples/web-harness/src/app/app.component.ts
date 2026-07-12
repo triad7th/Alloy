@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { OverlaysComponent } from '@allyworld/alloy-ui';
 import { IconsSectionComponent } from './sections/icons-section.component';
 import { KnobsSectionComponent } from './sections/knobs-section.component';
 import { ZonesSectionComponent } from './sections/zones-section.component';
 import { SynthSectionComponent } from './sections/synth-section.component';
 import { StorageSectionComponent } from './sections/storage-section.component';
+import { OverlaysSectionComponent } from './sections/overlays-section.component';
 
 @Component({
   selector: 'hx-root',
@@ -14,6 +16,8 @@ import { StorageSectionComponent } from './sections/storage-section.component';
     ZonesSectionComponent,
     SynthSectionComponent,
     StorageSectionComponent,
+    OverlaysComponent,
+    OverlaysSectionComponent,
   ],
   template: `
     <main class="harness">
@@ -29,7 +33,9 @@ import { StorageSectionComponent } from './sections/storage-section.component';
       <hx-zones-section />
       <hx-synth-section />
       <hx-storage-section />
+      <hx-overlays-section />
     </main>
+    <app-overlays />
   `,
 })
 export class AppComponent {}
