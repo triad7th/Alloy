@@ -98,6 +98,9 @@ export const MAX_INSERTS = 3;
 
 function validateChorusParams(chorus: ChorusParams): string[] {
   const errors: string[] = [];
+  if (chorus.mode !== 'chorus' && chorus.mode !== 'ensemble') {
+    errors.push(`chorus.mode '${(chorus as { mode: string }).mode}' must be 'chorus' or 'ensemble'`);
+  }
   if (!(chorus.rateHz > 0 && chorus.rateHz <= 20)) {
     errors.push(`chorus.rateHz ${chorus.rateHz} outside (0, 20]`);
   }

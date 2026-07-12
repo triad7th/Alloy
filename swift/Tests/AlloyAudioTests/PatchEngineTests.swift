@@ -278,4 +278,46 @@ final class PatchEngineTests: XCTestCase {
         XCTAssertGreaterThan(maxAbs(after.left, 0, 1024), 0)
         XCTAssertGreaterThan(maxAbs(after.right, 0, 1024), 0)
     }
+
+    // 13. Multi-effect chain integration (phase 2b close): a three-effect
+    //     chain [phaser, driveEq, compressor] rendered via renderPatch is
+    //     deterministic, non-silent, decorrelates L from R, and pins chain
+    //     order — reversing the chain changes the render.
+    func testRendersAMultiEffectInsertChainDeterministicallyAndPinsChainOrder() {
+        let events = [EngineEvent(frame: 0, kind: .noteOn(midi: 60, velocity: 1))]
+        let phaser = InsertSpec.phaser(PhaserParams(stages: 4, rateHz: 0.9, depth: 0.8, feedback: 0.3, mix: 0.5))
+        let driveEq = InsertSpec.driveEq(DriveEqParams(drive: 0.4, lowDb: 3, midDb: -2, highDb: 2, levelDb: 0))
+        let compressor = InsertSpec.compressor(
+            CompressorParams(thresholdDb: -18, ratio: 4, attackMs: 5, releaseMs: 80, makeupDb: 3),
+        )
+
+        var patch = makePatch()
+        patch.inserts = [phaser, driveEq, compressor]
+        let a = renderPatch(patch: patch, events: events, totalFrames: 4800, sampleRate: fs)
+        let b = renderPatch(patch: patch, events: events, totalFrames: 4800, sampleRate: fs)
+        XCTAssertEqual(a.left, b.left)
+        XCTAssertEqual(a.right, b.right)
+
+        var sumSq: Float = 0
+        for i in 1000..<4800 {
+            sumSq += a.left[i] * a.left[i]
+        }
+        let rms = (sumSq / Float(4800 - 1000)).squareRoot()
+        XCTAssertGreaterThan(rms, 0.01)
+
+        var maxLR: Float = 0
+        for i in 1000..<4800 {
+            maxLR = max(maxLR, abs(a.left[i] - a.right[i]))
+        }
+        XCTAssertGreaterThan(maxLR, 1e-3)
+
+        var reversedPatch = makePatch()
+        reversedPatch.inserts = [compressor, driveEq, phaser]
+        let reversed = renderPatch(patch: reversedPatch, events: events, totalFrames: 4800, sampleRate: fs)
+        var maxDiff: Float = 0
+        for i in 0..<4800 {
+            maxDiff = max(maxDiff, abs(a.left[i] - reversed.left[i]), abs(a.right[i] - reversed.right[i]))
+        }
+        XCTAssertGreaterThan(maxDiff, 1e-3)
+    }
 }

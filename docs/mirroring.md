@@ -249,20 +249,40 @@ tolerance — same core, same schedule order).
   an `assertionFailure` in debug builds — this shouldn't happen in practice
   since hosts hand out block-sized callbacks well under 4096 frames.
 
-**Rompler effects (phase 2a, strict, twin-tested):** `EffectUnit`
+**Rompler effects (phase 2a + 2b, strict, twin-tested):** `EffectUnit`
 (`process(left, right, frames)` in place; `reset()` clears internal state;
 `process()` must not allocate or throw) plus `InsertSpec` /
-`ChorusParams` / `TremoloParams` under `DSP/Effects/`
+`ChorusParams` / `TremoloParams` / `PhaserParams` / `RotaryParams` /
+`DriveEqParams` / `CompressorParams` under `DSP/Effects/`
 (`dsp/effects/effect-types.ts` ↔ `DSP/Effects/EffectTypes.swift`) —
 `validateInsert` (non-throwing, empty = safe to construct) and
 `createInsert` (the `setPatch`-time factory). `MAX_INSERTS` is 3.
 `Patch.inserts` stays an optional array (`InsertSpec[]` / `[InsertSpec]?`);
 `PATCH_SCHEMA_VERSION` stays 1 — inserts are an additive field, not a schema
 bump, and insert-free patches validate and render identically to before
-phase 2a.
+phase 2a. Control-heavy math (tan/log/pow) runs at a shared control-rate
+tick, `EFFECT_CONTROL_INTERVAL` / `EffectConstants.controlInterval` = 16
+samples — same two-rate philosophy as the voice's `CONTROL_INTERVAL`;
+phaser's swept allpass coefficient and the compressor's gain recompute on
+this tick, while rotary and drive-EQ are cheap enough to stay fully
+per-sample.
 
-Two insert kinds, both twin-tested against pinned constants
-(`StereoChorus.ts`/`.swift`, `TremoloAutoPan.ts`/`.swift`):
+The full six-kind `InsertSpec` union (identical wire shape both platforms,
+payload field = kind name):
+```ts
+export type InsertSpec =
+  | { kind: 'chorus'; chorus: ChorusParams }
+  | { kind: 'tremolo'; tremolo: TremoloParams }
+  | { kind: 'phaser'; phaser: PhaserParams }
+  | { kind: 'rotary'; rotary: RotaryParams }
+  | { kind: 'driveEq'; driveEq: DriveEqParams }
+  | { kind: 'compressor'; compressor: CompressorParams };
+```
+
+Six insert kinds, all twin-tested against pinned constants
+(`StereoChorus.ts`/`.swift`, `TremoloAutoPan.ts`/`.swift`,
+`Phaser.ts`/`.swift`, `RotarySpeaker.ts`/`.swift`, `DriveEq.ts`/`.swift`,
+`Compressor.ts`/`.swift`):
 - **Chorus/ensemble** (`ChorusParams.mode: 'chorus' | 'ensemble'`): sums the
   incoming stereo pair to mono into one circular delay buffer, then reads
   back 2 (`chorus`) or 3 (`ensemble`) linearly-interpolated taps whose delay
@@ -279,6 +299,40 @@ Two insert kinds, both twin-tested against pinned constants
   tremolo), `spread` 1 puts them a half-cycle apart (hard auto-pan; L and R
   gains swap peaks and troughs). `depth` scales the LFO's excursion below
   unity gain.
+- **Phaser** (`PhaserParams.stages: 4 | 8`): per channel, a chain of
+  `stages` first-order allpass filters (one-multiply form,
+  `H(z) = (-c + z^-1)/(1 - c z^-1)`, `|H| = 1`) sharing one swept
+  coefficient, plus feedback from the chain's last output. The sweep
+  frequency is exponential between `PHASER_F_MIN` (200 Hz) and
+  `PHASER_F_MAX` (2200 Hz); L and R use the same LFO phase but quadrature
+  offsets (L 0, R 0.25 — same convention as chorus), so the two channels'
+  notches move independently and decorrelate. `feedback` (0..0.9) feeds the
+  chain's last output back into its input; `mix` is the dry/wet crossfade.
+- **RotarySpeaker** (`RotaryParams.speed: 'slow' | 'fast'`, baked per patch
+  — no live-switch path yet): mono-sums the input through a one-pole
+  crossover at 800 Hz, then applies opposed-pan AM per band ("polished over
+  realistic" — amplitude + pan, no doppler). Rotor rates: fast horn 6.6 Hz /
+  drum 5.7 Hz; slow horn 0.8 Hz / drum 0.7 Hz. Gains are unity-centered
+  (`1 + depth * sin(...)`, swinging 0..2) so `depth` 0 leaves each channel
+  carrying the full crossover-flat mono sum — matching the engine's unity
+  mono→stereo convention.
+- **DriveEq** (`DriveEqParams`): per channel, in fixed order drive → low
+  shelf → mid peak → high shelf → level. `drive` (0..1) sets
+  `preGain = 1 + drive * 4` ahead of a `tanh` saturator. The EQ stages are
+  pinned at low shelf 250 Hz, mid peak 1000 Hz (Q 0.707, via the shared
+  `Svf` bandpass), high shelf 3000 Hz — each a one-pole (or SVF, for the
+  mid) gain stage computed from its `*Db` param (`10 ** (db / 20)`), -12..12
+  dB range. `levelDb` is a final output trim.
+- **Compressor** (`CompressorParams`): stereo-linked feed-forward. The
+  detector runs per-sample on `d = max(|L|, |R|)`, smoothed by an
+  attack/release envelope follower (`attackMs`/`releaseMs`, exponential
+  time constants) — same detector signal drives both channels' gain, so a
+  loud transient on one channel compresses both identically (no
+  independent-channel pumping). The gain computer runs at
+  `EFFECT_CONTROL_INTERVAL`: converts the envelope to dB, computes
+  `over = max(0, envDb - thresholdDb)`, `reductionDb = over * (1 - 1/ratio)`,
+  and applies `makeupDb`, holding the resulting linear gain constant across
+  the tick before the next recompute.
 
 **Stereo bus contract (`PatchEngine`):** voices stay mono, unchanged from
 phase 1b. Per `process()` segment, the summed mono voice bus is copied to a
@@ -297,8 +351,23 @@ hardware-like patch transition; per-generation insert chains are an
 explicit non-goal, documented on `setPatch`).
 
 **Sanctioned asymmetries (rompler effects):** none beyond the rompler-core
-and rompler-hosts entries above — `EffectUnit`, `InsertSpec`, and both
+and rompler-hosts entries above — `EffectUnit`, `InsertSpec`, and all six
 insert kinds are strict twins with identical, pinned numeric constants.
+
+**Policy — param-level string-enum runtime validation:** whenever an
+`InsertSpec` param field's TS type is a string-literal union (e.g.
+`RotaryParams.speed: 'slow' | 'fast'`, `ChorusParams.mode: 'chorus' |
+'ensemble'`), the TS validator MUST include a runtime check rejecting values
+outside that union — the wire type is a plain `string`, so nothing else
+stops a bad JSON payload from reaching the field. Swift needs no equivalent
+check: the field is typed as a `String, Codable` enum (`RotarySpeed`,
+`ChorusMode`), so `Decodable` rejects an unrecognized raw value
+structurally before the validator ever runs, the same pattern as
+`validatePatch`'s va-generator seed check above. `rotary.speed` carried this
+check from its introduction; `chorus.mode` predated the policy and was
+retrofitted in phase 2b's closing task (`validateChorusParams` in
+`effect-types.ts`, plus a small TS test — Swift's `ChorusMode` already had
+the structural guarantee, so no Swift change was needed).
 
 ## AlloyStorage
 

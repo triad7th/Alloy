@@ -125,6 +125,19 @@ describe('StereoChorus', () => {
     expect(validateInsert({ kind: 'chorus', chorus: { mode: 'chorus', rateHz: 1, depthMs: 3, mix: 0.5 } })).toEqual([]);
   });
 
+  it('validateInsert rejects a chorus mode outside chorus/ensemble', () => {
+    // Runtime retrofit mirroring rotary.speed's string-enum check: Swift's
+    // ChorusMode: String, Codable rejects an unknown raw value structurally
+    // at decode time, so TS carries the equivalent runtime check here (see
+    // docs/mirroring.md).
+    expect(
+      validateInsert({
+        kind: 'chorus',
+        chorus: { mode: 'flange' as unknown as 'chorus' | 'ensemble', rateHz: 1, depthMs: 3, mix: 0.5 },
+      }),
+    ).not.toHaveLength(0);
+  });
+
   it('validateInsert rejects a chorus depthMs beyond BASE_DELAY_MS (acausal swept delay)', () => {
     // depthMs > BASE_DELAY_MS makes (BASE_DELAY_MS - depthMs) negative for
     // part of the LFO cycle, i.e. the tap would have to read ahead of the

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type AdsrParams } from './adsr-envelope.js';
+import { type InsertSpec } from './effects/effect-types.js';
 import { PATCH_SCHEMA_VERSION, type Patch, type PatchLayer } from './patch.js';
 import { PatchEngine, renderPatch, type EngineEvent } from './patch-engine.js';
 import { FIXTURE_PATCH_JSON } from './testing/fixtures.js';
@@ -284,5 +285,50 @@ describe('PatchEngine', () => {
     const after = processBlocksStereo(engine, 1024, 128);
     expect(maxAbs(after.left, 0, 1024)).toBeGreaterThan(0);
     expect(maxAbs(after.right, 0, 1024)).toBeGreaterThan(0);
+  });
+
+  // 13. Multi-effect chain integration (phase 2b close): a three-effect
+  //     chain [phaser, driveEq, compressor] rendered via renderPatch is
+  //     deterministic, non-silent, decorrelates L from R, and pins chain
+  //     order — reversing the chain changes the render.
+  it('renders a multi-effect insert chain deterministically and pins chain order', () => {
+    const events: EngineEvent[] = [{ frame: 0, kind: 'noteOn', midi: 60, velocity: 1 }];
+    const phaser: InsertSpec = { kind: 'phaser', phaser: { stages: 4, rateHz: 0.9, depth: 0.8, feedback: 0.3, mix: 0.5 } };
+    const driveEq: InsertSpec = { kind: 'driveEq', driveEq: { drive: 0.4, lowDb: 3, midDb: -2, highDb: 2, levelDb: 0 } };
+    const compressor: InsertSpec = {
+      kind: 'compressor',
+      compressor: { thresholdDb: -18, ratio: 4, attackMs: 5, releaseMs: 80, makeupDb: 3 },
+    };
+
+    const patch = makePatch();
+    patch.inserts = [phaser, driveEq, compressor];
+    const a = renderPatch(patch, events, 4800, FS);
+    const b = renderPatch(patch, events, 4800, FS);
+    for (let i = 0; i < 4800; i++) {
+      expect(b.left[i]).toBe(a.left[i]);
+      expect(b.right[i]).toBe(a.right[i]);
+    }
+
+    let sumSq = 0;
+    for (let i = 1000; i < 4800; i++) {
+      sumSq += a.left[i] * a.left[i];
+    }
+    const rms = Math.sqrt(sumSq / (4800 - 1000));
+    expect(rms).toBeGreaterThan(0.01);
+
+    let maxLR = 0;
+    for (let i = 1000; i < 4800; i++) {
+      maxLR = Math.max(maxLR, Math.abs(a.left[i] - a.right[i]));
+    }
+    expect(maxLR).toBeGreaterThan(1e-3);
+
+    const reversedPatch = makePatch();
+    reversedPatch.inserts = [compressor, driveEq, phaser];
+    const reversed = renderPatch(reversedPatch, events, 4800, FS);
+    let maxDiff = 0;
+    for (let i = 0; i < 4800; i++) {
+      maxDiff = Math.max(maxDiff, Math.abs(a.left[i] - reversed.left[i]), Math.abs(a.right[i] - reversed.right[i]));
+    }
+    expect(maxDiff).toBeGreaterThan(1e-3);
   });
 });

@@ -229,10 +229,8 @@ Each phase independently shippable:
    identically offline, in the worklet path, and in the source-node path.
    The 64-voice CPU benchmark is deferred to phase 2: its <25% envelope is
    defined "with full FX", which don't exist until the effects land.)
-2. **Effects** — inserts + algorithmic reverb/delay/limiter. (2a landed —
-   stereo bus + chorus/ensemble + tremolo/auto-pan inserts; 2b:
-   phaser/rotary/drive-EQ/compressor; 2c: sends + limiter + the 64-voice
-   benchmark.)
+2. **Effects** — inserts + algorithmic reverb/delay/limiter. (2a + 2b
+   landed — all six inserts; 2c: sends + limiter + benchmark.)
 3. **Pipeline + piano** — `tools/samplepack/`, Salamander-derived clean
    piano pack (tiny tier first), piano patch tuned in the workbench.
    First audible "fantastic" checkpoint.
