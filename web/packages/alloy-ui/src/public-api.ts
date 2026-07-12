@@ -13,3 +13,5 @@ export { KnobSliderDirective } from './lib/knobs/knob-slider.directive';
 export { KnobToggleComponent } from './lib/knobs/knob-toggle.component';
 export { KnobSegmentComponent, KnobSegmentOption } from './lib/knobs/knob-segment.component';
 export { SpinnerComponent } from './lib/spinner/spinner.component';
+export { AlloyBusy } from './lib/spinner/busy.service';
+export { BusyHostComponent } from './lib/spinner/busy-host.component';

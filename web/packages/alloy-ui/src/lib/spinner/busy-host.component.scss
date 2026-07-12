@@ -1,0 +1,33 @@
+@use '../../styles/tokens' as t;
+
+:host {
+  display: contents;
+}
+
+dialog.busy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  border: none;
+  background: transparent;
+  color: t.$label;
+  outline: none;
+  animation: busy-fade t.$overlay-fade ease both;
+
+  &::backdrop {
+    background: t.$backdrop;
+  }
+}
+
+.busy-label {
+  margin: 0;
+  font-size: 14px;
+  color: t.$label;
+}
+
+@keyframes busy-fade {
+  from {
+    opacity: 0;
+  }
+}
