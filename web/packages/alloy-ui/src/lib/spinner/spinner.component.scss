@@ -1,0 +1,30 @@
+:host {
+  display: inline-flex;
+}
+
+.spinner {
+  display: inline-block;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2.5px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: spinner-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes spinner-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}

@@ -12,3 +12,4 @@ export { ZonePickerComponent, ZonePickerOption } from './lib/zone-picker/zone-pi
 export { KnobSliderDirective } from './lib/knobs/knob-slider.directive';
 export { KnobToggleComponent } from './lib/knobs/knob-toggle.component';
 export { KnobSegmentComponent, KnobSegmentOption } from './lib/knobs/knob-segment.component';
+export { SpinnerComponent } from './lib/spinner/spinner.component';
