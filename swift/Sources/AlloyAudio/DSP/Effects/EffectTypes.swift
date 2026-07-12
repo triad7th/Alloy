@@ -76,14 +76,35 @@ public struct PhaserParams: Codable {
     }
 }
 
+public enum RotarySpeed: String, Codable {
+    case slow
+    case fast
+}
+
+public struct RotaryParams: Codable {
+    /// Rotor speed pair, baked per patch (no live-switch path yet).
+    public var speed: RotarySpeed
+    /// AM/pan excursion, 0..1.
+    public var depth: Double
+    /// 0..1 wet.
+    public var mix: Double
+
+    public init(speed: RotarySpeed, depth: Double, mix: Double) {
+        self.speed = speed
+        self.depth = depth
+        self.mix = mix
+    }
+}
+
 /// Wire format keyed on `kind` with a `chorus`/`tremolo` payload field,
 /// matching the TS JSON exactly (GeneratorSpec's Codable pattern).
 public enum InsertSpec: Codable {
     case chorus(ChorusParams)
     case tremolo(TremoloParams)
     case phaser(PhaserParams)
+    case rotary(RotaryParams)
 
-    private enum CodingKeys: String, CodingKey { case kind, chorus, tremolo, phaser }
+    private enum CodingKeys: String, CodingKey { case kind, chorus, tremolo, phaser, rotary }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -91,6 +112,7 @@ public enum InsertSpec: Codable {
         case "chorus": self = try .chorus(c.decode(ChorusParams.self, forKey: .chorus))
         case "tremolo": self = try .tremolo(c.decode(TremoloParams.self, forKey: .tremolo))
         case "phaser": self = try .phaser(c.decode(PhaserParams.self, forKey: .phaser))
+        case "rotary": self = try .rotary(c.decode(RotaryParams.self, forKey: .rotary))
         default: throw DecodingError.dataCorruptedError(forKey: .kind, in: c, debugDescription: "unknown insert kind")
         }
     }
@@ -101,6 +123,7 @@ public enum InsertSpec: Codable {
         case let .chorus(params): try c.encode("chorus", forKey: .kind); try c.encode(params, forKey: .chorus)
         case let .tremolo(params): try c.encode("tremolo", forKey: .kind); try c.encode(params, forKey: .tremolo)
         case let .phaser(params): try c.encode("phaser", forKey: .kind); try c.encode(params, forKey: .phaser)
+        case let .rotary(params): try c.encode("rotary", forKey: .kind); try c.encode(params, forKey: .rotary)
         }
     }
 }
@@ -155,12 +178,27 @@ private func validatePhaserParams(_ phaser: PhaserParams) -> [String] {
     return errors
 }
 
+private func validateRotaryParams(_ rotary: RotaryParams) -> [String] {
+    // rotary.speed is structurally valid here: RotarySpeed's Codable decode
+    // rejects unknown strings before validation can run (the TS validator
+    // carries the equivalent runtime check).
+    var errors: [String] = []
+    if !(rotary.depth >= 0 && rotary.depth <= 1) {
+        errors.append("rotary.depth \(rotary.depth) outside [0, 1]")
+    }
+    if !(rotary.mix >= 0 && rotary.mix <= 1) {
+        errors.append("rotary.mix \(rotary.mix) outside [0, 1]")
+    }
+    return errors
+}
+
 /// Non-throwing; empty = constructible on both platforms.
 public func validateInsert(_ spec: InsertSpec) -> [String] {
     switch spec {
     case let .chorus(chorus): return validateChorusParams(chorus)
     case let .tremolo(tremolo): return validateTremoloParams(tremolo)
     case let .phaser(phaser): return validatePhaserParams(phaser)
+    case let .rotary(rotary): return validateRotaryParams(rotary)
     }
 }
 
@@ -173,5 +211,7 @@ public func createInsert(_ spec: InsertSpec, sampleRate: Double) -> EffectUnit {
         return TremoloAutoPan(params: tremolo, sampleRate: sampleRate)
     case let .phaser(phaser):
         return Phaser(params: phaser, sampleRate: sampleRate)
+    case let .rotary(rotary):
+        return RotarySpeaker(params: rotary, sampleRate: sampleRate)
     }
 }

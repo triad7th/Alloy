@@ -3,6 +3,7 @@
 // Twin: EffectTypes.swift.
 
 import { Phaser } from './phaser.js';
+import { RotarySpeaker } from './rotary-speaker.js';
 import { BASE_DELAY_MS, StereoChorus } from './stereo-chorus.js';
 import { TremoloAutoPan } from './tremolo-auto-pan.js';
 
@@ -48,10 +49,20 @@ export interface PhaserParams {
   mix: number;
 }
 
+export interface RotaryParams {
+  /** Rotor speed pair, baked per patch (no live-switch path yet). */
+  speed: 'slow' | 'fast';
+  /** AM/pan excursion, 0..1. */
+  depth: number;
+  /** 0..1 wet. */
+  mix: number;
+}
+
 export type InsertSpec =
   | { kind: 'chorus'; chorus: ChorusParams }
   | { kind: 'tremolo'; tremolo: TremoloParams }
-  | { kind: 'phaser'; phaser: PhaserParams };
+  | { kind: 'phaser'; phaser: PhaserParams }
+  | { kind: 'rotary'; rotary: RotaryParams };
 
 export const MAX_INSERTS = 3;
 
@@ -103,6 +114,20 @@ function validatePhaserParams(phaser: PhaserParams): string[] {
   return errors;
 }
 
+function validateRotaryParams(rotary: RotaryParams): string[] {
+  const errors: string[] = [];
+  if (rotary.speed !== 'slow' && rotary.speed !== 'fast') {
+    errors.push(`rotary.speed '${(rotary as { speed: string }).speed}' must be 'slow' or 'fast'`);
+  }
+  if (!(rotary.depth >= 0 && rotary.depth <= 1)) {
+    errors.push(`rotary.depth ${rotary.depth} outside [0, 1]`);
+  }
+  if (!(rotary.mix >= 0 && rotary.mix <= 1)) {
+    errors.push(`rotary.mix ${rotary.mix} outside [0, 1]`);
+  }
+  return errors;
+}
+
 /**
  * Non-throwing; empty = constructible on both platforms. An unknown `kind`
  * (e.g. a future insert type from a newer build talking to an older bundle)
@@ -121,6 +146,8 @@ export function validateInsert(spec: InsertSpec): string[] {
       return validateTremoloParams(spec.tremolo);
     case 'phaser':
       return validatePhaserParams(spec.phaser);
+    case 'rotary':
+      return validateRotaryParams(spec.rotary);
     default:
       return [`unknown insert kind '${(spec as { kind: string }).kind}'`];
   }
@@ -140,6 +167,8 @@ export function createInsert(spec: InsertSpec, sampleRate: number): EffectUnit {
       return new TremoloAutoPan(spec.tremolo, sampleRate);
     case 'phaser':
       return new Phaser(spec.phaser, sampleRate);
+    case 'rotary':
+      return new RotarySpeaker(spec.rotary, sampleRate);
     default:
       throw new Error(
         `createInsert: unknown insert kind '${(spec as { kind: string }).kind}' (unreachable — validateInsert must reject first)`,
