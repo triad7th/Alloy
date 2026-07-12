@@ -117,6 +117,27 @@ public struct DriveEqParams: Codable {
     }
 }
 
+public struct CompressorParams: Codable {
+    /// Detector threshold in dB, -60..0.
+    public var thresholdDb: Double
+    /// Compression ratio, 1..20 (1 = no compression).
+    public var ratio: Double
+    /// Detector attack time in ms, (0, 100].
+    public var attackMs: Double
+    /// Detector release time in ms, (0, 1000].
+    public var releaseMs: Double
+    /// Makeup gain in dB, 0..24.
+    public var makeupDb: Double
+
+    public init(thresholdDb: Double, ratio: Double, attackMs: Double, releaseMs: Double, makeupDb: Double) {
+        self.thresholdDb = thresholdDb
+        self.ratio = ratio
+        self.attackMs = attackMs
+        self.releaseMs = releaseMs
+        self.makeupDb = makeupDb
+    }
+}
+
 /// Wire format keyed on `kind` with a `chorus`/`tremolo` payload field,
 /// matching the TS JSON exactly (GeneratorSpec's Codable pattern).
 public enum InsertSpec: Codable {
@@ -125,8 +146,9 @@ public enum InsertSpec: Codable {
     case phaser(PhaserParams)
     case rotary(RotaryParams)
     case driveEq(DriveEqParams)
+    case compressor(CompressorParams)
 
-    private enum CodingKeys: String, CodingKey { case kind, chorus, tremolo, phaser, rotary, driveEq }
+    private enum CodingKeys: String, CodingKey { case kind, chorus, tremolo, phaser, rotary, driveEq, compressor }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -136,6 +158,7 @@ public enum InsertSpec: Codable {
         case "phaser": self = try .phaser(c.decode(PhaserParams.self, forKey: .phaser))
         case "rotary": self = try .rotary(c.decode(RotaryParams.self, forKey: .rotary))
         case "driveEq": self = try .driveEq(c.decode(DriveEqParams.self, forKey: .driveEq))
+        case "compressor": self = try .compressor(c.decode(CompressorParams.self, forKey: .compressor))
         default: throw DecodingError.dataCorruptedError(forKey: .kind, in: c, debugDescription: "unknown insert kind")
         }
     }
@@ -148,6 +171,7 @@ public enum InsertSpec: Codable {
         case let .phaser(params): try c.encode("phaser", forKey: .kind); try c.encode(params, forKey: .phaser)
         case let .rotary(params): try c.encode("rotary", forKey: .kind); try c.encode(params, forKey: .rotary)
         case let .driveEq(params): try c.encode("driveEq", forKey: .kind); try c.encode(params, forKey: .driveEq)
+        case let .compressor(params): try c.encode("compressor", forKey: .kind); try c.encode(params, forKey: .compressor)
         }
     }
 }
@@ -236,6 +260,26 @@ private func validateDriveEqParams(_ driveEq: DriveEqParams) -> [String] {
     return errors
 }
 
+private func validateCompressorParams(_ compressor: CompressorParams) -> [String] {
+    var errors: [String] = []
+    if !(compressor.thresholdDb >= -60 && compressor.thresholdDb <= 0) {
+        errors.append("compressor.thresholdDb \(compressor.thresholdDb) outside [-60, 0]")
+    }
+    if !(compressor.ratio >= 1 && compressor.ratio <= 20) {
+        errors.append("compressor.ratio \(compressor.ratio) outside [1, 20]")
+    }
+    if !(compressor.attackMs > 0 && compressor.attackMs <= 100) {
+        errors.append("compressor.attackMs \(compressor.attackMs) outside (0, 100]")
+    }
+    if !(compressor.releaseMs > 0 && compressor.releaseMs <= 1000) {
+        errors.append("compressor.releaseMs \(compressor.releaseMs) outside (0, 1000]")
+    }
+    if !(compressor.makeupDb >= 0 && compressor.makeupDb <= 24) {
+        errors.append("compressor.makeupDb \(compressor.makeupDb) outside [0, 24]")
+    }
+    return errors
+}
+
 /// Non-throwing; empty = constructible on both platforms.
 public func validateInsert(_ spec: InsertSpec) -> [String] {
     switch spec {
@@ -244,6 +288,7 @@ public func validateInsert(_ spec: InsertSpec) -> [String] {
     case let .phaser(phaser): return validatePhaserParams(phaser)
     case let .rotary(rotary): return validateRotaryParams(rotary)
     case let .driveEq(driveEq): return validateDriveEqParams(driveEq)
+    case let .compressor(compressor): return validateCompressorParams(compressor)
     }
 }
 
@@ -260,5 +305,7 @@ public func createInsert(_ spec: InsertSpec, sampleRate: Double) -> EffectUnit {
         return RotarySpeaker(params: rotary, sampleRate: sampleRate)
     case let .driveEq(driveEq):
         return DriveEq(params: driveEq, sampleRate: sampleRate)
+    case let .compressor(compressor):
+        return Compressor(params: compressor, sampleRate: sampleRate)
     }
 }

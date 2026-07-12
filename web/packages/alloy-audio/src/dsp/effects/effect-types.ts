@@ -2,6 +2,7 @@
 // ordered, per-patch chain of stereo processors after the mono voice bus.
 // Twin: EffectTypes.swift.
 
+import { Compressor } from './compressor.js';
 import { DriveEq } from './drive-eq.js';
 import { Phaser } from './phaser.js';
 import { RotarySpeaker } from './rotary-speaker.js';
@@ -72,12 +73,26 @@ export interface DriveEqParams {
   levelDb: number;
 }
 
+export interface CompressorParams {
+  /** Detector threshold in dB, -60..0. */
+  thresholdDb: number;
+  /** Compression ratio, 1..20 (1 = no compression). */
+  ratio: number;
+  /** Detector attack time in ms, (0, 100]. */
+  attackMs: number;
+  /** Detector release time in ms, (0, 1000]. */
+  releaseMs: number;
+  /** Makeup gain in dB, 0..24. */
+  makeupDb: number;
+}
+
 export type InsertSpec =
   | { kind: 'chorus'; chorus: ChorusParams }
   | { kind: 'tremolo'; tremolo: TremoloParams }
   | { kind: 'phaser'; phaser: PhaserParams }
   | { kind: 'rotary'; rotary: RotaryParams }
-  | { kind: 'driveEq'; driveEq: DriveEqParams };
+  | { kind: 'driveEq'; driveEq: DriveEqParams }
+  | { kind: 'compressor'; compressor: CompressorParams };
 
 export const MAX_INSERTS = 3;
 
@@ -163,6 +178,26 @@ function validateDriveEqParams(driveEq: DriveEqParams): string[] {
   return errors;
 }
 
+function validateCompressorParams(compressor: CompressorParams): string[] {
+  const errors: string[] = [];
+  if (!(compressor.thresholdDb >= -60 && compressor.thresholdDb <= 0)) {
+    errors.push(`compressor.thresholdDb ${compressor.thresholdDb} outside [-60, 0]`);
+  }
+  if (!(compressor.ratio >= 1 && compressor.ratio <= 20)) {
+    errors.push(`compressor.ratio ${compressor.ratio} outside [1, 20]`);
+  }
+  if (!(compressor.attackMs > 0 && compressor.attackMs <= 100)) {
+    errors.push(`compressor.attackMs ${compressor.attackMs} outside (0, 100]`);
+  }
+  if (!(compressor.releaseMs > 0 && compressor.releaseMs <= 1000)) {
+    errors.push(`compressor.releaseMs ${compressor.releaseMs} outside (0, 1000]`);
+  }
+  if (!(compressor.makeupDb >= 0 && compressor.makeupDb <= 24)) {
+    errors.push(`compressor.makeupDb ${compressor.makeupDb} outside [0, 24]`);
+  }
+  return errors;
+}
+
 /**
  * Non-throwing; empty = constructible on both platforms. An unknown `kind`
  * (e.g. a future insert type from a newer build talking to an older bundle)
@@ -185,6 +220,8 @@ export function validateInsert(spec: InsertSpec): string[] {
       return validateRotaryParams(spec.rotary);
     case 'driveEq':
       return validateDriveEqParams(spec.driveEq);
+    case 'compressor':
+      return validateCompressorParams(spec.compressor);
     default:
       return [`unknown insert kind '${(spec as { kind: string }).kind}'`];
   }
@@ -208,6 +245,8 @@ export function createInsert(spec: InsertSpec, sampleRate: number): EffectUnit {
       return new RotarySpeaker(spec.rotary, sampleRate);
     case 'driveEq':
       return new DriveEq(spec.driveEq, sampleRate);
+    case 'compressor':
+      return new Compressor(spec.compressor, sampleRate);
     default:
       throw new Error(
         `createInsert: unknown insert kind '${(spec as { kind: string }).kind}' (unreachable — validateInsert must reject first)`,
