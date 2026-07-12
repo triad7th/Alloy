@@ -17,3 +17,5 @@ export { AlloyBusy } from './lib/spinner/busy.service';
 export { BusyHostComponent } from './lib/spinner/busy-host.component';
 export { AlloySnackbar, SnackbarClose, SnackbarOptions } from './lib/snackbar/snackbar.service';
 export { SnackbarHostComponent } from './lib/snackbar/snackbar-host.component';
+export { AlloyDialog, ConfirmOptions, AlertOptions } from './lib/dialog/dialog.service';
+export { DialogHostComponent } from './lib/dialog/dialog-host.component';

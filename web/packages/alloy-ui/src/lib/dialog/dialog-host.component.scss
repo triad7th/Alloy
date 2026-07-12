@@ -1,0 +1,82 @@
+@use '../../styles/tokens' as t;
+
+:host {
+  display: contents;
+}
+
+dialog.dialog {
+  padding: 0; // backdrop-vs-panel click detection relies on the body filling the panel
+  border: none;
+  border-radius: t.$sheet-corner-radius;
+  background: t.$sheet-bg;
+  color: t.$label;
+  min-width: 280px;
+  max-width: min(420px, calc(100vw - 32px));
+  animation: dialog-fade t.$overlay-fade ease both;
+
+  &::backdrop {
+    background: t.$backdrop;
+  }
+}
+
+.dialog-body {
+  padding: 24px;
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.dialog-message {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: t.$secondary-label;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.dialog-button {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: t.$secondary-surface;
+  color: t.$label;
+
+  &:hover {
+    background: t.$secondary-surface-hover;
+  }
+
+  &.confirm {
+    background: t.$tint;
+
+    &:hover {
+      background: t.$tint-hover;
+    }
+
+    &.destructive {
+      background: t.$destructive;
+
+      &:hover {
+        background: t.$destructive;
+        filter: brightness(1.1);
+      }
+    }
+  }
+}
+
+@keyframes dialog-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
