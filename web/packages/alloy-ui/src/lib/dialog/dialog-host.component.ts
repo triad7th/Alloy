@@ -38,6 +38,7 @@ let nextHostId = 0;
       <dialog
         #panel
         class="dialog"
+        animate.leave="dialog-leave"
         [attr.aria-labelledby]="titleId"
         (cancel)="onCancel($event)"
         (click)="onClick($event)"

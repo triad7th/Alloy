@@ -26,8 +26,19 @@ dialog.busy {
   color: t.$label;
 }
 
+// Exit twin of busy-fade; applied by animate.leave on removal.
+dialog.busy.busy-leave {
+  animation: busy-exit t.$overlay-fade ease both;
+}
+
 @keyframes busy-fade {
   from {
+    opacity: 0;
+  }
+}
+
+@keyframes busy-exit {
+  to {
     opacity: 0;
   }
 }

@@ -48,8 +48,21 @@
   }
 }
 
+// Exit twin of snack-enter; applied by animate.leave on removal. Higher
+// specificity than `.snack` so it overrides the entry animation.
+.snack.snack-leave {
+  animation: snack-exit t.$overlay-fade ease both;
+}
+
 @keyframes snack-enter {
   from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes snack-exit {
+  to {
     opacity: 0;
     transform: translateY(8px);
   }

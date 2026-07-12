@@ -63,4 +63,31 @@ describe('SnackbarHostComponent', () => {
     vi.advanceTimersByTime(1000);
     expect(snackbar.current()).toBeNull();
   });
+
+  it('keeps a queued snack paused when it advances under a stationary pointer', () => {
+    const snackbar = TestBed.inject(AlloySnackbar);
+    const fixture = TestBed.createComponent(SnackbarHostComponent);
+    fixture.detectChanges();
+    // Two snacks queued; the first carries an action so we can close it by click.
+    void snackbar.show('one', { durationMs: 1000, actionLabel: 'Undo' });
+    void snackbar.show('two', { durationMs: 1000 });
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const snack = host.querySelector('.snack') as HTMLElement;
+    snack.dispatchEvent(new Event('mouseenter')); // pointer over snack "one"
+    const action = host.querySelector('button.snack-action') as HTMLButtonElement;
+    action.click(); // close "one" -> "two" advances into the SAME element, no mouseenter fires
+    fixture.detectChanges();
+    expect(snackbar.current()?.message).toBe('two');
+
+    // Pointer is still over the snack, so "two" must not time out.
+    vi.advanceTimersByTime(5000);
+    expect(snackbar.current()?.message).toBe('two');
+
+    // Pointer leaves -> "two" resumes its countdown and closes.
+    snack.dispatchEvent(new Event('mouseleave'));
+    vi.advanceTimersByTime(1000);
+    expect(snackbar.current()).toBeNull();
+  });
 });

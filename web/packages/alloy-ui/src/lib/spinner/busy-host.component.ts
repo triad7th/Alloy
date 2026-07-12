@@ -21,7 +21,14 @@ import { SpinnerComponent } from './spinner.component';
   imports: [SpinnerComponent],
   template: `
     @if (busy.active()) {
-      <dialog #panel class="busy" aria-busy="true" aria-label="Busy" (cancel)="$event.preventDefault()">
+      <dialog
+        #panel
+        class="busy"
+        animate.leave="busy-leave"
+        aria-busy="true"
+        aria-label="Busy"
+        (cancel)="$event.preventDefault()"
+      >
         <app-spinner [size]="32" />
         @if (busy.label(); as label) {
           <p class="busy-label">{{ label }}</p>
