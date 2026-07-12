@@ -229,8 +229,13 @@ Each phase independently shippable:
    identically offline, in the worklet path, and in the source-node path.
    The 64-voice CPU benchmark is deferred to phase 2: its <25% envelope is
    defined "with full FX", which don't exist until the effects land.)
-2. **Effects** — inserts + algorithmic reverb/delay/limiter. (2a + 2b
-   landed — all six inserts; 2c: sends + limiter + benchmark.)
+2. **Effects** — inserts + algorithmic reverb/delay/limiter. **Phase 2
+   complete:** 2a + 2b landed all six inserts; 2c landed the FDN reverb
+   and stereo/ping-pong delay send buses, the in-core lookahead master
+   limiter (64-sample lookahead, true brickwall), the `MasterBus` wiring
+   the patch's `sends` through them inside `PatchEngine`, and the 64-voice
+   full-FX render benchmark (measured ~12% of one core in Swift release —
+   well under the <25% envelope).
 3. **Pipeline + piano** — `tools/samplepack/`, Salamander-derived clean
    piano pack (tiny tier first), piano patch tuned in the workbench.
    First audible "fantastic" checkpoint.
