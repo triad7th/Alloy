@@ -32,3 +32,4 @@ export * from './dsp/effects/stereo-chorus.js';
 export * from './dsp/effects/tremolo-auto-pan.js';
 export * from './worklet-host-core.js';
 export * from './worklet-synth-host.js';
+export * from './pack/manifest.js';
