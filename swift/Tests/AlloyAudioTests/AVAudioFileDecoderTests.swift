@@ -28,6 +28,33 @@ final class AVAudioFileDecoderTests: XCTestCase {
         XCTAssertLessThan(peak, 0.75, "decoded signal is far hotter than the 0.5 source")
     }
 
+    /// Stereo fixture: left amplitude 0.6, right amplitude 0.2, same 440 Hz
+    /// tone, in phase — asymmetric on purpose so the mono-downmix branch
+    /// (`channelCount > 1`) is numerically distinguishable from wrong
+    /// implementations. Twin of web `WebAudioDecoder.decode` (pack-source.ts),
+    /// which does `data[i] += ch[i] / channels`: a failure here means the two
+    /// decoders have diverged and stereo packs would play too hot (or with
+    /// only one channel's content) on Apple but not on web.
+    private func stereoFixtureBytes() throws -> Data {
+        let url = try XCTUnwrap(
+            Bundle.module.url(forResource: "stereo-lr", withExtension: "m4a", subdirectory: "Fixtures"),
+        )
+        return try Data(contentsOf: url)
+    }
+
+    func testDecodesStereoBytesAsAverageNotSum() async throws {
+        let pcm = try await AVAudioFileDecoder().decode(stereoFixtureBytes())
+
+        let peak = pcm.data.reduce(0) { max($0, abs($1)) }
+        // Correct average of 0.6 and 0.2 peaks at ~0.4. A sum-instead-of-average
+        // bug would peak near 0.8; a left-channel-only bug would peak near 0.6;
+        // a right-channel-only bug would peak near 0.2. Generous tolerances
+        // account for AAC's lossy encode, but the bands below keep those three
+        // wrong implementations well outside the passing range.
+        XCTAssertGreaterThan(peak, 0.3, "peak too low for the 0.4 average — looks like a right-only read")
+        XCTAssertLessThan(peak, 0.5, "peak too high for the 0.4 average — looks like a sum or left-only read")
+    }
+
     func testDecodeThrowsOnBytesThatAreNotAudio() async {
         let garbage = Data(repeating: 0x7f, count: 512)
         do {
