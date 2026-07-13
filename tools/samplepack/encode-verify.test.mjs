@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,7 +11,7 @@ import { encodeAac, decodeToWav, measureOffset, loopDrift, verifyZone } from './
 
 function hasBin(bin) {
   try {
-    execFileSync('command', ['-v', bin], { stdio: 'ignore', shell: '/bin/zsh' });
+    execSync(`command -v ${bin}`, { stdio: 'ignore' });
     return true;
   } catch {
     return false;
@@ -33,6 +33,26 @@ test('measureOffset recovers a known shift (decoded delayed by 137 samples)', ()
 test('loopDrift is the absolute difference between two offsets', () => {
   assert.equal(loopDrift(5, 5), 0);
   assert.equal(loopDrift(5, 18), 13);
+});
+
+test('verifyZone fires (ok: false) when the loop region is drifted relative to the early region', () => {
+  const { samples: original, sampleRate } = genTestPack().sources[0];
+  const { loopStart } = findLoop(original, sampleRate);
+
+  const shift = 50;
+  const decoded = new Float32Array(original.length + shift);
+  for (let i = 0; i < decoded.length; i++) {
+    if (i < loopStart) {
+      decoded[i] = original[i] ?? 0;
+    } else {
+      decoded[i] = i - shift >= 0 ? (original[i - shift] ?? 0) : 0;
+    }
+  }
+
+  const v = verifyZone(original, decoded, loopStart);
+  assert.equal(v.ok, false, `expected the drift gate to fire, got ok=${v.ok} drift=${v.drift}`);
+  // correlation on a periodic tone can land a sample or two off the true shift
+  assert.ok(Math.abs(v.drift - shift) <= 2, `expected drift near ${shift}, got ${v.drift}`);
 });
 
 test(
@@ -58,7 +78,13 @@ test(
       // Either way it must be small and non-negative, well under one window.
       const offset = measureOffset(original, decoded, Math.floor(original.length * 0.1));
       console.log(`measured AAC priming delay (post edit-list compensation): ${offset} samples`);
-      assert.ok(offset >= 0 && offset < 4096, `expected small non-negative priming delay, got ${offset}`);
+      // measureOffset structurally returns a value in [0, maxLag], so an
+      // `offset >= 0` assertion would be tautological; the informative bound
+      // is the upper one. This measures 0 here because afconvert writes a
+      // packet-table (priming/remainder sample count) into the m4a's edit
+      // list, which ffmpeg's demuxer honors on decode — the decoded WAV is
+      // already delay-compensated by the container, not by our code.
+      assert.ok(offset < 4096, `expected small priming delay, got ${offset}`);
 
       const { loopStart } = findLoop(original, sampleRate);
       const verify = verifyZone(original, decoded, loopStart);

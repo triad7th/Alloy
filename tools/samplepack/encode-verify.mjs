@@ -1,8 +1,8 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 
 function has(bin) {
   try {
-    execFileSync('command', ['-v', bin], { stdio: 'ignore', shell: '/bin/zsh' });
+    execSync(`command -v ${bin}`, { stdio: 'ignore' });
     return true;
   } catch {
     return false;
