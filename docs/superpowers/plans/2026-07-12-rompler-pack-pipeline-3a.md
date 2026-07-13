@@ -35,7 +35,7 @@
 - `tools/samplepack/build-pack.mjs` (+ `.test.mjs`) — orchestrator; writes pack dir + manifest.json + CREDITS.md.
 - `tools/samplepack/README.md` — how to run the pipeline.
 
-Tool tests run with `node --test tools/samplepack/`. Runtime tests: `cd web && npm test -- pack` (alloy-audio Vitest) and `cd swift && swift test --filter Pack`.
+Tool tests run with `node --test tools/samplepack/*.test.mjs` (use the glob, NOT the bare directory — on Node 25 `node --test <dir>` tries to load the directory as a module and errors). Runtime tests: `cd web && npm test -- pack` (alloy-audio Vitest) and `cd swift && swift test --filter Pack`.
 
 ---
 
