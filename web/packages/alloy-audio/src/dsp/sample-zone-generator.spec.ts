@@ -102,9 +102,50 @@ describe('SampleZoneGenerator', () => {
     hard.noteOn(60, 0.9);
     expect(render(hard, 16)[4]).toBeCloseTo(0.8 * 0.9, 3);
 
+    // Equal-power blend: on the boundary BOTH gains are sqrt(0.5) = 0.707, not
+    // 0.5 -- uncorrelated layers add in power, so linear gains would notch ~3 dB.
     const blended = new SampleZoneGenerator(layers, 0.2, FS);
     blended.noteOn(60, 0.5); // exactly on the boundary -> 50/50 blend
-    expect(render(blended, 16)[4]).toBeCloseTo((0.2 * 0.5 + 0.8 * 0.5) * 0.5, 2);
+    expect(render(blended, 16)[4]).toBeCloseTo((0.2 * Math.SQRT1_2 + 0.8 * Math.SQRT1_2) * 0.5, 2);
+  });
+
+  it('equal-power crossfade never dips below the single-layer level, and converges to it at the window edge', () => {
+    // Both zones hold 1.0, so the rendered sample is exactly (gLower + gUpper)
+    // once the velocity gain is stripped -- i.e. the test observes the gain law
+    // directly. The OLD linear law made that sum 1 everywhere in the window,
+    // which for uncorrelated layers is the ~3 dB hole this test guards.
+    const layers: VelocityLayerData[] = [
+      { topVelocity: 0.5, zones: [constantZone(60, 1)] },
+      { topVelocity: 1, zones: [constantZone(60, 1)] },
+    ];
+    const gainSum = (velocity: number): number => {
+      const gen = new SampleZoneGenerator(layers, 0.2, FS);
+      gen.noteOn(60, velocity);
+      return render(gen, 16)[4] / velocity;
+    };
+
+    // Exactly on the boundary: both gains sqrt(0.5), so the sum is sqrt(2).
+    expect(gainSum(0.5)).toBeCloseTo(Math.SQRT2, 4);
+
+    // Across the whole window the gains satisfy g^2 + g^2 = 1, so the sum stays
+    // within [1, sqrt(2)] and NEVER falls under 1 (the single-layer level).
+    for (const velocity of [0.45, 0.475, 0.5, 0.525, 0.549]) {
+      const sum = gainSum(velocity);
+      expect(sum).toBeGreaterThanOrEqual(1);
+      expect(sum).toBeLessThanOrEqual(Math.SQRT2 + 1e-9);
+    }
+
+    // Continuity: just outside the window a single clean layer plays at gain 1,
+    // and the blend converges DOWN to that as it approaches the edge from inside
+    // (the fading gain is sqrt(1-u), so it approaches 0 with a vertical tangent —
+    // the convergence is real but slow, hence a monotone check, not a fixed bound).
+    expect(gainSum(0.61)).toBeCloseTo(1, 6); // distance 0.11 > crossfade/2 -> no blend
+    const approach = [0.55, 0.59, 0.599, 0.5999, 0.59999].map(gainSum);
+    for (const sum of approach) expect(sum).toBeGreaterThan(1); // never dips
+    for (let i = 1; i < approach.length; i++) {
+      expect(approach[i]).toBeLessThan(approach[i - 1]); // strictly converging to 1
+    }
+    expect(approach[approach.length - 1]).toBeLessThan(1.01);
   });
 
   it('treats a zero-length loop region as a one-shot instead of hanging', () => {

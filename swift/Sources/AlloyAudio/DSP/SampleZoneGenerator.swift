@@ -98,11 +98,23 @@ public final class SampleZoneGenerator: ToneGenerator {
         }
     }
 
-    /// One or two layers with linear crossfade gains summing to 1. The
-    /// crossfade window straddles each boundary symmetrically: a velocity
-    /// within crossfade/2 of a boundary blends the layers on either side
-    /// (exactly on the boundary -> 50/50). Both directions must be checked
-    /// because firstIndex lands an on-boundary velocity in the LOWER layer.
+    /// One or two layers with EQUAL-POWER (sqrt) crossfade gains, i.e.
+    /// gainA^2 + gainB^2 = 1. The crossfade window straddles each boundary
+    /// symmetrically: a velocity within crossfade/2 of a boundary blends the
+    /// layers on either side (exactly on the boundary -> 50/50). Both
+    /// directions must be checked because firstIndex lands an on-boundary
+    /// velocity in the LOWER layer.
+    ///
+    /// Why sqrt and NOT linear gains summing to 1 (do not "simplify" this
+    /// back): two velocity layers are two DIFFERENT hammer strikes, so they
+    /// are essentially UNCORRELATED signals. Uncorrelated signals add in
+    /// POWER, not in amplitude. With linear gains the 50/50 point sums to
+    /// sqrt(0.5^2 + 0.5^2) = 0.707 -> an audible ~3 dB hole (measured -5.3 dB
+    /// on the real piano pack, since the layers also differ in energy) exactly
+    /// on every layer boundary: a crescendo DIPS as it crosses one. Taking the
+    /// sqrt of each blend weight keeps the summed power flat at 1 across the
+    /// window, and stays continuous with the no-blend case (at the window edge
+    /// the gains are exactly 1 and 0).
     private func pickLayers(velocity: Double) -> [(VelocityLayerData, Double)] {
         let primary = layers.firstIndex { $0.topVelocity >= velocity } ?? layers.count - 1
         if crossfade > 0 {
@@ -110,16 +122,16 @@ public final class SampleZoneGenerator: ToneGenerator {
                 let boundary = layers[primary - 1].topVelocity
                 let distance = velocity - boundary
                 if distance >= 0, distance < crossfade / 2 {
-                    let upperGain = 0.5 + distance / crossfade
-                    return [(layers[primary], upperGain), (layers[primary - 1], 1 - upperGain)]
+                    let upper = 0.5 + distance / crossfade // blend position, 0.5 .. 1
+                    return [(layers[primary], upper.squareRoot()), (layers[primary - 1], (1 - upper).squareRoot())]
                 }
             }
             if primary < layers.count - 1 {
                 let boundary = layers[primary].topVelocity
                 let distance = boundary - velocity
                 if distance >= 0, distance < crossfade / 2 {
-                    let lowerGain = 0.5 + distance / crossfade
-                    return [(layers[primary], lowerGain), (layers[primary + 1], 1 - lowerGain)]
+                    let lower = 0.5 + distance / crossfade // blend position, 0.5 .. 1
+                    return [(layers[primary], lower.squareRoot()), (layers[primary + 1], (1 - lower).squareRoot())]
                 }
             }
         }

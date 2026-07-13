@@ -108,9 +108,53 @@ final class SampleZoneGeneratorTests: XCTestCase {
         hard.noteOn(midi: 60, velocity: 0.9)
         XCTAssertEqual(Double(render(hard, 16)[4]), 0.8 * 0.9, accuracy: 5e-4)
 
+        // Equal-power blend: on the boundary BOTH gains are sqrt(0.5) = 0.707, not
+        // 0.5 -- uncorrelated layers add in power, so linear gains would notch ~3 dB.
+        let half = 0.5.squareRoot()
         let blended = SampleZoneGenerator(layers: layers, crossfade: 0.2, sampleRate: fs)
         blended.noteOn(midi: 60, velocity: 0.5) // exactly on the boundary -> 50/50 blend
-        XCTAssertEqual(Double(render(blended, 16)[4]), (0.2 * 0.5 + 0.8 * 0.5) * 0.5, accuracy: 5e-3)
+        XCTAssertEqual(Double(render(blended, 16)[4]), (0.2 * half + 0.8 * half) * 0.5, accuracy: 5e-3)
+    }
+
+    func testEqualPowerCrossfadeNeverDipsBelowSingleLayerLevel() {
+        // Both zones hold 1.0, so the rendered sample is exactly (gLower + gUpper)
+        // once the velocity gain is stripped -- i.e. the test observes the gain law
+        // directly. The OLD linear law made that sum 1 everywhere in the window,
+        // which for uncorrelated layers is the ~3 dB hole this test guards.
+        let layers = [
+            VelocityLayerData(topVelocity: 0.5, zones: [constantZone(rootMidi: 60, value: 1)]),
+            VelocityLayerData(topVelocity: 1, zones: [constantZone(rootMidi: 60, value: 1)]),
+        ]
+        func gainSum(_ velocity: Double) -> Double {
+            let gen = SampleZoneGenerator(layers: layers, crossfade: 0.2, sampleRate: fs)
+            gen.noteOn(midi: 60, velocity: velocity)
+            return Double(render(gen, 16)[4]) / velocity
+        }
+
+        // Exactly on the boundary: both gains sqrt(0.5), so the sum is sqrt(2).
+        XCTAssertEqual(gainSum(0.5), 2.0.squareRoot(), accuracy: 1e-4)
+
+        // Across the whole window the gains satisfy g^2 + g^2 = 1, so the sum stays
+        // within [1, sqrt(2)] and NEVER falls under 1 (the single-layer level).
+        for velocity in [0.45, 0.475, 0.5, 0.525, 0.549] {
+            let sum = gainSum(velocity)
+            XCTAssertGreaterThanOrEqual(sum, 1 - 1e-6)
+            XCTAssertLessThanOrEqual(sum, 2.0.squareRoot() + 1e-6)
+        }
+
+        // Continuity: just outside the window a single clean layer plays at gain 1,
+        // and the blend converges DOWN to that as it approaches the edge from inside
+        // (the fading gain is sqrt(1-u), so it approaches 0 with a vertical tangent --
+        // the convergence is real but slow, hence a monotone check, not a fixed bound).
+        XCTAssertEqual(gainSum(0.61), 1, accuracy: 1e-4) // distance 0.11 > crossfade/2 -> no blend
+        let approach = [0.55, 0.59, 0.599, 0.5999, 0.59999].map(gainSum)
+        for sum in approach {
+            XCTAssertGreaterThan(sum, 1) // never dips
+        }
+        for i in 1..<approach.count {
+            XCTAssertLessThan(approach[i], approach[i - 1]) // strictly converging to 1
+        }
+        XCTAssertLessThan(approach[approach.count - 1], 1.01)
     }
 
     func testTreatsZeroLengthLoopRegionAsOneShotInsteadOfHanging() {

@@ -97,11 +97,23 @@ export class SampleZoneGenerator implements ToneGenerator {
   }
 
   /**
-   * One or two layers with linear crossfade gains summing to 1. The
-   * crossfade window straddles each boundary symmetrically: a velocity
-   * within crossfade/2 of a boundary blends the layers on either side
-   * (exactly on the boundary -> 50/50). Both directions must be checked
-   * because findIndex lands an on-boundary velocity in the LOWER layer.
+   * One or two layers with EQUAL-POWER (sqrt) crossfade gains, i.e.
+   * gainA^2 + gainB^2 = 1. The crossfade window straddles each boundary
+   * symmetrically: a velocity within crossfade/2 of a boundary blends the
+   * layers on either side (exactly on the boundary -> 50/50). Both
+   * directions must be checked because findIndex lands an on-boundary
+   * velocity in the LOWER layer.
+   *
+   * Why sqrt and NOT linear gains summing to 1 (do not "simplify" this
+   * back): two velocity layers are two DIFFERENT hammer strikes, so they
+   * are essentially UNCORRELATED signals. Uncorrelated signals add in
+   * POWER, not in amplitude. With linear gains the 50/50 point sums to
+   * sqrt(0.5^2 + 0.5^2) = 0.707 -> an audible ~3 dB hole (measured -5.3 dB
+   * on the real piano pack, since the layers also differ in energy) exactly
+   * on every layer boundary: a crescendo DIPS as it crosses one. Taking the
+   * sqrt of each blend weight keeps the summed power flat at 1 across the
+   * window, and stays continuous with the no-blend case (at the window edge
+   * the gains are exactly 1 and 0).
    */
   private pickLayers(velocity: number): Array<{ layer: VelocityLayerData; gain: number }> {
     const idx = this.layers.findIndex((l) => l.topVelocity >= velocity);
@@ -111,10 +123,10 @@ export class SampleZoneGenerator implements ToneGenerator {
         const boundary = this.layers[primary - 1].topVelocity;
         const distance = velocity - boundary;
         if (distance >= 0 && distance < this.crossfade / 2) {
-          const upperGain = 0.5 + distance / this.crossfade;
+          const upper = 0.5 + distance / this.crossfade; // blend position, 0.5 .. 1
           return [
-            { layer: this.layers[primary], gain: upperGain },
-            { layer: this.layers[primary - 1], gain: 1 - upperGain },
+            { layer: this.layers[primary], gain: Math.sqrt(upper) },
+            { layer: this.layers[primary - 1], gain: Math.sqrt(1 - upper) },
           ];
         }
       }
@@ -122,10 +134,10 @@ export class SampleZoneGenerator implements ToneGenerator {
         const boundary = this.layers[primary].topVelocity;
         const distance = boundary - velocity;
         if (distance >= 0 && distance < this.crossfade / 2) {
-          const lowerGain = 0.5 + distance / this.crossfade;
+          const lower = 0.5 + distance / this.crossfade; // blend position, 0.5 .. 1
           return [
-            { layer: this.layers[primary], gain: lowerGain },
-            { layer: this.layers[primary + 1], gain: 1 - lowerGain },
+            { layer: this.layers[primary], gain: Math.sqrt(lower) },
+            { layer: this.layers[primary + 1], gain: Math.sqrt(1 - lower) },
           ];
         }
       }

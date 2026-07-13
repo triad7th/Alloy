@@ -383,7 +383,11 @@ const PATCH_CATALOG: CatalogEntry[] = [
   },
   {
     label: 'Piano',
-    velocity: 0.75,
+    // NOT 0.75: the pack's layer boundaries sit at 0.25/0.5/0.75/1, so a default
+    // of 0.75 lands exactly ON a boundary and every keypress would render a 50/50
+    // blend of two layers. 0.8 sits mid-layer, so the default is one clean layer
+    // and the velocity slider can be swept deliberately to judge the boundaries.
+    velocity: 0.8,
     patch: {
       schemaVersion: PATCH_SCHEMA_VERSION,
       meta: { id: 'salamander-piano', name: 'Salamander Piano', category: 'melodic', gmProgram: 0 },
@@ -516,7 +520,9 @@ type RomplerStatus = 'idle' | 'loading' | 'ready' | 'error';
       </div>
 
       @if (packStatus() !== 'idle' && packStatus() !== 'ready') {
-        <p class="hint">Piano pack: {{ packStatus() }}</p>
+        <p class="hint">
+          Piano pack: {{ packStatus() }}@if (packError()) { — {{ packError() }} }
+        </p>
       }
 
       <div class="keyboard" [style.width.rem]="whiteKeyCount() * 3">
@@ -637,6 +643,9 @@ export class RomplerSectionComponent implements OnDestroy {
   readonly errorDetail = signal('');
   readonly patchError = signal('');
   readonly packStatus = signal<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  /** Why the pack failed, rendered next to packStatus. Separate from errorDetail,
+   *  which the engine owns and which only renders when status() === 'error'. */
+  readonly packError = signal('');
 
   /** Base MIDI of the two-octave keyboard (C3 by default). */
   readonly octaveBase = signal(48);
@@ -770,6 +779,7 @@ export class RomplerSectionComponent implements OnDestroy {
    *  the engine's progressive-delivery path, not an error. */
   private async loadPianoPack(ctx: AudioContext, host: WorkletSynthHost): Promise<void> {
     this.packStatus.set('loading');
+    this.packError.set('');
     try {
       const loader = new PackLoader(
         new BasePathPackSource(PIANO_PACK_BASE, (url) => fetch(url)),
@@ -778,10 +788,20 @@ export class RomplerSectionComponent implements OnDestroy {
       await loader.load();
       const layers = loader.provide(PIANO_ZONE_SET_ID);
       if (layers === null) throw new Error(`pack has no zone set "${PIANO_ZONE_SET_ID}"`);
+      // setZoneSet TRANSFERS (detaches) the zone ArrayBuffers to the worklet, so
+      // this call CONSUMES `loader`: its buffers are gone afterwards and it must
+      // never be reused or have provide() called again. Safe today only because
+      // `loader` is method-local and createHost() (our only caller) is memoized.
       host.setZoneSet(PIANO_ZONE_SET_ID, toWireLayers(layers));
       this.packStatus.set('ready');
     } catch (err) {
+      // The pack is gitignored, so "missing on a fresh clone" is the EXPECTED
+      // failure. Surface the reason in the pack hint line: errorDetail only
+      // renders when status() === 'error', and a pack failure leaves the engine
+      // status at 'ready' — so writing there alone shows a bare, unexplained
+      // "error". errorDetail is still set for the engine's own reporting.
       this.packStatus.set('error');
+      this.packError.set(String(err));
       this.errorDetail.set(`piano pack: ${String(err)}`);
     }
   }
