@@ -79,3 +79,11 @@ test('truncateWithFade handles a sample shorter than the fade window', () => {
   assert.equal(out.length, 100);
   assert.equal(out[99], 0);
 });
+
+test('truncateWithFade still forces the final frame to zero when fadeFrames is 0', () => {
+  const src = new Float32Array(10000).fill(1);
+  const out = truncateWithFade(src, 5000, 0);
+  assert.equal(out.length, 5000);
+  assert.equal(out[out.length - 1], 0, 'the doc comment promises true zero even with no fade');
+  assert.equal(out[out.length - 2], 1, 'no other frame should be touched when fadeFrames is 0');
+});

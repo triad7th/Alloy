@@ -31,7 +31,10 @@ export function truncateWithFade(samples, maxFrames, fadeFrames) {
   const n = Math.min(samples.length, maxFrames);
   const out = samples.slice(0, n);
   const fade = Math.min(fadeFrames, n);
-  if (fade <= 0) return out;
+  if (fade <= 0) {
+    if (n > 0) out[n - 1] = 0;
+    return out;
+  }
   for (let i = 0; i < fade; i++) {
     const t = (i + 1) / fade; // (0, 1]
     out[n - fade + i] *= Math.cos((t * Math.PI) / 2);
