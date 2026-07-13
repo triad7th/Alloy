@@ -20,7 +20,13 @@ export class PackLoader {
    *  set into the resolver map as it completes (progressive). */
   async load(): Promise<void> {
     const manifest = await this.source.fetchManifest();
-    for (const [zoneSetId, spec] of Object.entries(manifest.zoneSets)) {
+    // Sort zone-set keys so the progressive-load order (which zone set
+    // publishes first) is deterministic and twin-stable. Twin: PackLoader.swift
+    // sorts manifest.zoneSets.keys for the same reason (Swift Dictionary order
+    // is otherwise unspecified); sorting here too keeps both platforms
+    // progressing through zone sets in the same order.
+    for (const zoneSetId of Object.keys(manifest.zoneSets).sort()) {
+      const spec = manifest.zoneSets[zoneSetId];
       const layers: VelocityLayerData[] = [];
       for (const layer of spec.layers) {
         const zones: SampleZoneData[] = [];

@@ -24,7 +24,12 @@ public final class PackLoader: @unchecked Sendable {
     /// zone set as it completes (progressive).
     public func load() async throws {
         let manifest = try await source.fetchManifest()
-        for (zoneSetId, spec) in manifest.zoneSets {
+        // Swift Dictionary iteration order is unspecified; sort keys so the
+        // progressive-load order (which zone set publishes first) is
+        // deterministic and stable across runs. Twin: pack-loader.ts sorts
+        // Object.keys(manifest.zoneSets) for the same reason.
+        for zoneSetId in manifest.zoneSets.keys.sorted() {
+            guard let spec = manifest.zoneSets[zoneSetId] else { continue }
             var layers: [VelocityLayerData] = []
             for layer in spec.layers {
                 var zones: [SampleZoneData] = []
@@ -49,9 +54,8 @@ public final class PackLoader: @unchecked Sendable {
 /// runtime SampleZoneData without touching SampleZoneGenerator.
 public func buildZone(_ spec: ZoneSpec, sampleRate: Double, pcm: [Float]) -> SampleZoneData {
     var data = [Float](repeating: 0, count: pcm.count)
-    let gain = Float(spec.gain)
     for i in 0..<pcm.count {
-        data[i] = pcm[i] * gain
+        data[i] = Float(Double(pcm[i]) * spec.gain)
     }
     let hasLoop = spec.loopStart != nil && spec.loopEnd != nil
     return SampleZoneData(
