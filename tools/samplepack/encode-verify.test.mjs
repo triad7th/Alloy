@@ -123,6 +123,28 @@ test('pickProbe on a steady signal probes the far end', () => {
   assert.equal(pickProbe(samples, 10000), 80000);
 });
 
+test('pickProbe throws when the buffer is shorter than the window', () => {
+  assert.throws(() => pickProbe(new Float32Array(2000), 100), /cannot hold a second/);
+});
+
+test('pickProbe throws when the buffer cannot hold a second window after earlyStart', () => {
+  // 50 frames total, winLen default 4096: nowhere near room for even one window.
+  assert.throws(() => pickProbe(new Float32Array(50), 0), /cannot hold a second/);
+});
+
+test('pickProbe fallback (fully decayed tail) still returns an in-bounds probe strictly past earlyStart', () => {
+  // tau tiny relative to buffer: the whole tail from 30% onward has decayed
+  // below minRatio, so every scan iteration is skipped and pickProbe falls
+  // through to the last-resort return. The gate must still be able to fail:
+  // the probe must differ from earlyStart and its window must fit.
+  const samples = decayingTone(10000, 50);
+  const earlyStart = 100;
+  const winLen = 4096;
+  const probe = pickProbe(samples, earlyStart, winLen);
+  assert.ok(probe > earlyStart, `probe ${probe} must be strictly greater than earlyStart ${earlyStart}`);
+  assert.ok(probe + winLen <= samples.length, `probe window [${probe}, ${probe + winLen}) must fit in ${samples.length} frames`);
+});
+
 test('encodeAac honors an explicit bitrate', (t) => {
   // 128k must produce a materially smaller file than the 192k default.
   const dir = mkdtempSync(join(tmpdir(), 'alloy-bitrate-'));

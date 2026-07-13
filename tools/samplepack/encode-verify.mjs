@@ -100,13 +100,28 @@ function windowRms(samples, start, winLen) {
  *  So: scan back from 80% of the buffer and take the LATEST window whose RMS is
  *  still at least `minRatio` of the early window's. If nothing qualifies (a very
  *  short, fast-decaying sample), fall back to the window immediately after the
- *  early one — a weaker but still honest second measurement. */
+ *  early one — a weaker but still honest second measurement.
+ *
+ *  A buffer too short to hold a second, distinct, in-bounds window after
+ *  `earlyStart` cannot be verified at all: THROW rather than silently return
+ *  an out-of-bounds probe or (worse) `earlyStart` itself, which would make
+ *  verifyZone compare the early measurement against itself and always report
+ *  ok: true — a gate that can never fail is worse than no gate. */
 export function pickProbe(samples, earlyStart, winLen = 4096, minRatio = 0.1) {
+  const maxStart = samples.length - winLen;
+  if (maxStart <= earlyStart) {
+    throw new Error(
+      `pickProbe: buffer of ${samples.length} frames cannot hold a second ${winLen}-frame window after ${earlyStart}`,
+    );
+  }
   const reference = windowRms(samples, earlyStart, winLen);
   for (let pct = 80; pct >= 30; pct -= 5) {
     const start = Math.floor((samples.length * pct) / 100);
     if (start <= earlyStart || start + winLen > samples.length) continue;
     if (windowRms(samples, start, winLen) >= minRatio * reference) return start;
   }
-  return Math.min(earlyStart + winLen, Math.max(0, samples.length - winLen));
+  // Both terms are > earlyStart and <= maxStart (guarded above), so the
+  // returned window is always in bounds AND always a genuinely different
+  // measurement point from the early one — the gate stays able to fail.
+  return Math.min(earlyStart + winLen, maxStart);
 }
