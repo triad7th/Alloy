@@ -383,11 +383,14 @@ const PATCH_CATALOG: CatalogEntry[] = [
   },
   {
     label: 'Piano',
-    // NOT 0.75: the pack's layer boundaries sit at 0.25/0.5/0.75/1, so a default
-    // of 0.75 lands exactly ON a boundary and every keypress would render a 50/50
-    // blend of two layers. 0.8 sits mid-layer, so the default is one clean layer
-    // and the velocity slider can be swept deliberately to judge the boundaries.
-    velocity: 0.8,
+    // With crossfade 0 (hard velocity switch, see the generator comment below)
+    // pickLayers always returns a single layer, so any velocity is "mid-layer"
+    // now. 0.7 is a deliberate mezzo default: the pack's layer boundaries sit
+    // at 0.25/0.5/0.75/1, and findIndex(topVelocity >= velocity) puts 0.7 in
+    // the v12 layer (0.5 < 0.7 < 0.75) rather than on an edge or in the v16
+    // fortissimo layer, so the default keypress plays a comfortably mid-layer
+    // take even if a crossfade is re-enabled later.
+    velocity: 0.7,
     patch: {
       schemaVersion: PATCH_SCHEMA_VERSION,
       meta: { id: 'salamander-piano', name: 'Salamander Piano', category: 'melodic', gmProgram: 0 },
