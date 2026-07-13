@@ -18,3 +18,7 @@ services/google-oauth/.env
 .netlify
 examples/apple-harness/AlloyHarnessIOS.entitlements
 services/google-oauth/deno.lock
+
+# sample packs are build artifacts (multi-MB binaries): built, never committed
+build/
+examples/web-harness/public/packs/
