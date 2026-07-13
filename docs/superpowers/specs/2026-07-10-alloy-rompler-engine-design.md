@@ -249,9 +249,16 @@ Each phase independently shippable:
      progressive delivery + synth fallback fall out of the voice's existing
      "unresolvable zoneSetId = layer inactive" behavior. Design:
      `docs/superpowers/specs/2026-07-12-rompler-pack-pipeline-3a-design.md`.
-   - **3b next** — the real Salamander-derived piano pack (download, select
-     layers/keys, loop, polish, encode) run through the proven machine, plus
-     the piano patch tuned by ear in the workbench.
+   - **3b complete** — the real Salamander Grand Piano V3 pack (CC-BY 3.0,
+     Alexander Holm) run through the proven machine into a tiny-tier pack:
+     120 zones (30 roots x 4 velocity layers), 18 MB, one-shot; Swift's
+     concrete `AVAudioFileDecoder`; and the piano patch tuned by ear in the
+     workbench (`crossfade: 0` — the four velocity layers are four different
+     takes of the same string, phase-incoherent, so they hard-switch rather
+     than blend; the equal-power velocity-layer gain law fixed mid-phase
+     stays, since it is correct for zone sets whose layers ARE meant to
+     blend). Design:
+     `docs/superpowers/specs/2026-07-13-rompler-piano-3b-design.md`.
 4. **First wave** — FM EP, tine EP, strings/pads, organs; factory bank v1.
 5. **AllyPiano migration** — patch voices in the app; legacy specs
    deprecated.

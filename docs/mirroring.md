@@ -355,6 +355,54 @@ explicit non-goal, documented on `setPatch`).
 and rompler-hosts entries above — `EffectUnit`, `InsertSpec`, and all six
 insert kinds are strict twins with identical, pinned numeric constants.
 
+**Rompler pack pipeline (phase 3a + 3b, mixed regime):** the offline
+`tools/samplepack/` pipeline feeds a twinned runtime under `pack/` on both
+platforms (`web/packages/alloy-audio/src/pack/` ↔
+`swift/Sources/AlloyAudio/Pack/`):
+- `PackManifest` / `validateManifest` — identical JSON schema both sides
+  (`schemaVersion`, `id`, `tier: 'tiny' | 'standard' | 'hq'`, `sampleRate`,
+  `format: 'm4a'`, `zoneSets: Record<string, { layers: LayerSpec[] }>`,
+  `LayerSpec { topVelocity, zones }`, `ZoneSpec { rootMidi, file, gain,
+  tuneCents, loopStart?, loopEnd? }`, `credits`); non-throwing, `string[]`
+  errors, empty = safe to construct from, on both platforms.
+- `PackSource` + `BasePathPackSource` — the byte origin. Both fetch
+  `${base}/manifest.json` and `${base}/<file>` through an injected
+  `FetchFn`: web injects `globalThis.fetch` or a test double behind a
+  minimal `{ json(); arrayBuffer() }` surface; Swift injects a fetch
+  closure (`(String) async throws -> Data`, backed by `URLSession` in
+  production) or a test double. `fetchManifest()` runs `validateManifest`
+  immediately and throws on any error on both sides.
+- `SampleDecoder` — the decode seam, and AlloyAudio's third sanctioned
+  platform edge (alongside the WebAudio/AVFoundation engine split and the
+  render-loop asymmetry above): web's `WebAudioDecoder` (WebAudio
+  `decodeAudioData`) and Swift's `AVAudioFileDecoder` (`AVAudioFile`,
+  landed phase 3b, public alongside `public enum SampleDecoderError`) are
+  deliberately NOT identical implementations, but share one contract —
+  any channel count is averaged to mono at equal weight, and the decoded
+  file's own sample rate is reported (never resampled to a fixed rate).
+- `PackLoader` — a stateful `ZoneSetProvider` (the `(zoneSetId) =>
+  VelocityLayerData[] | null` / `(String) -> [VelocityLayerData]?` seam
+  defined in `dsp/voice.ts` ↔ `DSP/Voice.swift`). `provide` returns
+  null/nil until that zone set has finished decoding — progressive
+  delivery, which falls out of `Voice`'s existing "unresolvable zoneSetId
+  = layer inactive" behavior with no engine change. Both platforms iterate
+  `manifest.zoneSets` keys **sorted** (`Object.keys(...).sort()` ↔
+  `manifest.zoneSets.keys.sorted()`) so progressive load order is
+  twin-stable even though only Swift's `Dictionary` iteration order is
+  actually unspecified.
+- **Equal-power velocity-layer gain law** (`SampleZoneGenerator.pickLayers`,
+  `dsp/sample-zone-generator.ts` ↔ `DSP/SampleZoneGenerator.swift`) is a
+  twin-tested behavioral contract, not an implementation detail: crossfade
+  gains between adjacent velocity layers are `sqrt(u)` / `sqrt(1-u)` (power
+  sums to 1), NOT linear (`u` / `1-u`, amplitude sums to 1). This is
+  deliberate — the layers are different, uncorrelated hammer strikes, so
+  they add in power; linear gains put an audible ~3 dB (measured -5.3 dB on
+  the real piano pack) notch at every layer boundary. Do not "simplify"
+  this back to linear. Twin-tested: `sample-zone-generator.spec.ts` ↔
+  `SampleZoneGeneratorTests.swift`, both asserting the boundary gain sum is
+  `Math.SQRT2` / `2.0.squareRoot()` and stays bounded in `[1, sqrt(2)]`
+  across the crossfade window.
+
 **Policy — param-level string-enum runtime validation:** whenever an
 `InsertSpec` param field's TS type is a string-literal union (e.g.
 `RotaryParams.speed: 'slow' | 'fast'`, `ChorusParams.mode: 'chorus' |
