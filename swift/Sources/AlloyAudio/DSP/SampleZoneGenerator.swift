@@ -3,13 +3,13 @@ import Foundation
 /// Sample playback with zones, velocity layers, loops, and Catmull-Rom
 /// interpolation. Twin of web src/dsp/sample-zone-generator.ts (canonical).
 public struct SampleZoneData {
-    public let rootMidi: Int
+    public let rootMidi: Double
     public let sampleRate: Double
     public let data: [Float]
     public let loopStart: Int?
     public let loopEnd: Int?
 
-    public init(rootMidi: Int, sampleRate: Double, data: [Float], loopStart: Int? = nil, loopEnd: Int? = nil) {
+    public init(rootMidi: Double, sampleRate: Double, data: [Float], loopStart: Int? = nil, loopEnd: Int? = nil) {
         self.rootMidi = rootMidi
         self.sampleRate = sampleRate
         self.data = data
@@ -130,8 +130,8 @@ public final class SampleZoneGenerator: ToneGenerator {
     private static func nearestZone(_ zones: [SampleZoneData], midi: Int) -> SampleZoneData {
         var best = zones[0]
         for zone in zones {
-            let d = abs(zone.rootMidi - midi)
-            let bestD = abs(best.rootMidi - midi)
+            let d = abs(zone.rootMidi - Double(midi))
+            let bestD = abs(best.rootMidi - Double(midi))
             if d < bestD || (d == bestD && zone.rootMidi < best.rootMidi) {
                 best = zone
             }

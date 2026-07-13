@@ -5,11 +5,10 @@
 // Twin: PackLoader.swift.
 
 import type { SampleZoneData, VelocityLayerData } from '../dsp/sample-zone-generator.js';
-import type { PackManifest, ZoneSpec } from './manifest.js';
+import type { ZoneSpec } from './manifest.js';
 import type { PackSource, SampleDecoder } from './pack-source.js';
 
 export class PackLoader {
-  private manifest: PackManifest | null = null;
   private readonly zoneSets = new Map<string, VelocityLayerData[]>();
 
   constructor(
@@ -21,7 +20,6 @@ export class PackLoader {
    *  set into the resolver map as it completes (progressive). */
   async load(): Promise<void> {
     const manifest = await this.source.fetchManifest();
-    this.manifest = manifest;
     for (const [zoneSetId, spec] of Object.entries(manifest.zoneSets)) {
       const layers: VelocityLayerData[] = [];
       for (const layer of spec.layers) {

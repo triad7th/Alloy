@@ -45,30 +45,20 @@ public final class PackLoader: @unchecked Sendable {
     }
 }
 
-/// Fold gain into the PCM and tuneCents into the effective root; produce the
+/// Fold gain into the PCM and tuneCents into a fractional root; produce the
 /// runtime SampleZoneData without touching SampleZoneGenerator.
-///
-/// **Sanctioned asymmetry** (see docs/mirroring.md): the TS twin folds
-/// tuneCents into a *fractional* `rootMidi` (`rootMidi + tuneCents / 100`) —
-/// `SampleZoneData.rootMidi` there is a plain `number`. Swift's
-/// `SampleZoneData.rootMidi` is `Int` (it predates this task and is in the
-/// HARD CONSTRAINT no-touch list along with `SampleZoneGenerator`, so it
-/// cannot be widened here), so Swift rounds the folded root to the nearest
-/// MIDI note instead of carrying the sub-semitone remainder. Fine tuning is
-/// deferred to 3b (by-ear pack tuning) regardless; today's generated packs
-/// use tuneCents 0, so this rounding is inert until real assets land.
 public func buildZone(_ spec: ZoneSpec, sampleRate: Double, pcm: [Float]) -> SampleZoneData {
     var data = [Float](repeating: 0, count: pcm.count)
     let gain = Float(spec.gain)
     for i in 0..<pcm.count {
         data[i] = pcm[i] * gain
     }
-    let foldedRoot = Double(spec.rootMidi) + spec.tuneCents / 100
+    let hasLoop = spec.loopStart != nil && spec.loopEnd != nil
     return SampleZoneData(
-        rootMidi: Int(foldedRoot.rounded()),
+        rootMidi: Double(spec.rootMidi) + spec.tuneCents / 100,
         sampleRate: sampleRate,
         data: data,
-        loopStart: spec.loopStart,
-        loopEnd: spec.loopEnd,
+        loopStart: hasLoop ? spec.loopStart : nil,
+        loopEnd: hasLoop ? spec.loopEnd : nil,
     )
 }

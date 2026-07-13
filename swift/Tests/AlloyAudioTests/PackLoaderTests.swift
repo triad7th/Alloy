@@ -99,19 +99,33 @@ final class PackLoaderTests: XCTestCase {
         }
     }
 
-    func testBuildZoneRoundsTuneCentsToNearestMidiNote() {
-        // Sanctioned asymmetry (docs/mirroring.md): TS folds tuneCents into a
-        // fractional rootMidi (60 + 50/100 = 60.5, exact); Swift's
-        // SampleZoneData.rootMidi is Int (HARD CONSTRAINT no-touch), so
-        // buildZone rounds instead — 60.5 rounds away from zero to 61.
+    func testBuildZoneFoldsTuneCentsIntoAFractionalRootMidi() {
+        // Twin pin with pack-loader.spec.ts: tuneCents folds exactly, no rounding.
         let spec = ZoneSpec(rootMidi: 60, file: "x.m4a", gain: 1, tuneCents: 50)
         let zone = buildZone(spec, sampleRate: fs, pcm: [0])
-        XCTAssertEqual(zone.rootMidi, 61)
+        XCTAssertEqual(zone.rootMidi, 60.5, accuracy: 1e-9)
 
-        // A correction under half a semitone rounds away entirely (inert
-        // until 3b's by-ear tuning needs finer precision than Int allows).
         let smallCorrection = ZoneSpec(rootMidi: 60, file: "x.m4a", gain: 1, tuneCents: 40)
-        XCTAssertEqual(buildZone(smallCorrection, sampleRate: fs, pcm: [0]).rootMidi, 60)
+        XCTAssertEqual(buildZone(smallCorrection, sampleRate: fs, pcm: [0]).rootMidi, 60.4, accuracy: 1e-9)
+    }
+
+    func testBuildZoneCarriesLoopPointsOnlyWhenBothAreSet() {
+        // Twin pin with pack-loader.spec.ts: partial loop specs are dropped entirely.
+        let withLoop = buildZone(
+            ZoneSpec(rootMidi: 60, file: "x.m4a", loopStart: 5, loopEnd: 10, gain: 1, tuneCents: 0),
+            sampleRate: fs,
+            pcm: [Float](repeating: 0, count: 10),
+        )
+        XCTAssertEqual(withLoop.loopStart, 5)
+        XCTAssertEqual(withLoop.loopEnd, 10)
+
+        let oneShot = buildZone(
+            ZoneSpec(rootMidi: 60, file: "x.m4a", gain: 1, tuneCents: 0),
+            sampleRate: fs,
+            pcm: [Float](repeating: 0, count: 10),
+        )
+        XCTAssertNil(oneShot.loopStart)
+        XCTAssertNil(oneShot.loopEnd)
     }
 
     // MARK: - PackLoader.provide
@@ -135,7 +149,7 @@ final class PackLoaderTests: XCTestCase {
 
         XCTAssertEqual(layers[1].topVelocity, 1)
         XCTAssertEqual(layers[1].zones.count, 1)
-        XCTAssertEqual(layers[1].zones[0].rootMidi, 61) // 60 + round(50/100) — see the rounding asymmetry test above.
+        XCTAssertEqual(layers[1].zones[0].rootMidi, 60.5, accuracy: 1e-9) // 60 + 50/100 — twin pin with the web test.
         XCTAssertEqual(layers[1].zones[0].loopStart, 0) // twin pin with the web test.
         XCTAssertEqual(layers[1].zones[0].loopEnd, zoneLength) // twin pin with the web test.
     }

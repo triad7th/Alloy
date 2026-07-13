@@ -6,8 +6,12 @@ public enum Pitch {
     static let noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
     static let blackPitchClasses: Set<Int> = [1, 3, 6, 8, 10]
 
+    public static func frequency(midi: Double) -> Double {
+        440 * pow(2, (midi - 69) / 12)
+    }
+
     public static func frequency(midi: Int) -> Double {
-        440 * pow(2, Double(midi - 69) / 12)
+        frequency(midi: Double(midi))
     }
 
     /// "C4", "F#3" — the same sharp-only spelling set the web labels use.

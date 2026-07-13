@@ -15,13 +15,13 @@ final class SampleZoneGeneratorTests: XCTestCase {
             data[i] = Float(sin(2 * Double.pi * Double(cycles) * Double(i) / Double(length)))
         }
         return loop
-            ? SampleZoneData(rootMidi: rootMidi, sampleRate: fs, data: data, loopStart: 0, loopEnd: length)
-            : SampleZoneData(rootMidi: rootMidi, sampleRate: fs, data: data)
+            ? SampleZoneData(rootMidi: Double(rootMidi), sampleRate: fs, data: data, loopStart: 0, loopEnd: length)
+            : SampleZoneData(rootMidi: Double(rootMidi), sampleRate: fs, data: data)
     }
 
     private func constantZone(rootMidi: Int, value: Float, length: Int = 4800) -> SampleZoneData {
         SampleZoneData(
-            rootMidi: rootMidi,
+            rootMidi: Double(rootMidi),
             sampleRate: fs,
             data: [Float](repeating: value, count: length),
             loopStart: 0,
