@@ -238,7 +238,20 @@ Each phase independently shippable:
    well under the <25% envelope).
 3. **Pipeline + piano** — `tools/samplepack/`, Salamander-derived clean
    piano pack (tiny tier first), piano patch tuned in the workbench.
-   First audible "fantastic" checkpoint.
+   First audible "fantastic" checkpoint. Split into two halves:
+   - **3a complete** — *the pack machine*: the offline pipeline (test-pack
+     generator, autocorrelation loop finder + crossfade, velocity-layer
+     assembler, AAC encode + loop-drift verifier, build-pack orchestrator
+     emitting `manifest.json` + `CREDITS.md`), the twinned `PackManifest`
+     schema, and the twinned runtime (`PackSource`, `SampleDecoder`, and a
+     progressive `PackLoader` that IS a stateful `ZoneSetProvider`). Proven
+     end to end against a generated pack; needed no engine change —
+     progressive delivery + synth fallback fall out of the voice's existing
+     "unresolvable zoneSetId = layer inactive" behavior. Design:
+     `docs/superpowers/specs/2026-07-12-rompler-pack-pipeline-3a-design.md`.
+   - **3b next** — the real Salamander-derived piano pack (download, select
+     layers/keys, loop, polish, encode) run through the proven machine, plus
+     the piano patch tuned by ear in the workbench.
 4. **First wave** — FM EP, tine EP, strings/pads, organs; factory bank v1.
 5. **AllyPiano migration** — patch voices in the app; legacy specs
    deprecated.
