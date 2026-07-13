@@ -59,3 +59,14 @@ export function bakeCrossfade(samples, loopStart, loopEnd, fadeLen) {
 export function wrapDiscontinuity(samples, loopStart, loopEnd) {
   return Math.abs(samples[loopStart] - samples[loopEnd - 1]);
 }
+
+/** Grow a single-period loop to the smallest integer number of periods that is
+ *  at least `minLength` samples, without running past `maxEnd`. Integer
+ *  multiples of the detected period keep the loop phase-aligned (seamless). */
+export function extendLoop(loopStart, loopEnd, minLength, maxEnd) {
+  const period = loopEnd - loopStart;
+  if (period <= 0) throw new Error('extendLoop: loopEnd must be greater than loopStart');
+  let k = Math.max(1, Math.ceil(minLength / period));
+  while (k > 1 && loopStart + k * period > maxEnd) k--;
+  return loopStart + k * period;
+}

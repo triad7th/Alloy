@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findLoop, bakeCrossfade, wrapDiscontinuity } from './loop-finder.mjs';
+import { findLoop, bakeCrossfade, wrapDiscontinuity, extendLoop } from './loop-finder.mjs';
 
 function makeSine(n, sampleRate, freq) {
   const out = new Float32Array(n);
@@ -46,4 +46,33 @@ test('bakeCrossfade throws when loopStart < fadeLen', () => {
   const sampleRate = 48000;
   const samples = makeSine(1000, sampleRate, 200);
   assert.throws(() => bakeCrossfade(samples, 10, 300, 20));
+});
+
+test('extendLoop grows a 367-sample period to the smallest multiple >= 4096', () => {
+  const loopStart = 1000;
+  const period = 367;
+  const loopEnd = extendLoop(loopStart, loopStart + period, 4096, 1_000_000);
+  assert.equal(loopEnd, loopStart + 4404); // k = 12: 12 * 367 = 4404
+  assert.equal((loopEnd - loopStart) % period, 0);
+  assert.ok(loopEnd - loopStart >= 4096);
+});
+
+test('extendLoop leaves an already-long-enough loop unchanged (k = 1)', () => {
+  const loopStart = 500;
+  const loopEnd = extendLoop(loopStart, loopStart + 5000, 4096, 1_000_000);
+  assert.equal(loopEnd, loopStart + 5000);
+});
+
+test('extendLoop clamps growth to maxEnd, never running past the buffer', () => {
+  const loopStart = 1000;
+  const period = 367;
+  const maxEnd = loopStart + 1200; // room for only k = 3 (1101), k = 4 would exceed
+  const loopEnd = extendLoop(loopStart, loopStart + period, 4096, maxEnd);
+  assert.ok(loopEnd <= maxEnd, `expected loopEnd (${loopEnd}) <= maxEnd (${maxEnd})`);
+  assert.equal((loopEnd - loopStart) % period, 0);
+});
+
+test('extendLoop throws when loopEnd <= loopStart', () => {
+  assert.throws(() => extendLoop(1000, 1000, 4096, 1_000_000));
+  assert.throws(() => extendLoop(1000, 900, 4096, 1_000_000));
 });
