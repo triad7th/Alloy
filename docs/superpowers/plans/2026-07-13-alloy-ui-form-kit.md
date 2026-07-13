@@ -524,7 +524,7 @@ export class TextFieldComponent {
 import { ChangeDetectionStrategy, Component, input, model } from '@angular/core';
 
 /**
- * Numeric input. Native spinners are hidden (see field.scss).
+ * Numeric input. Native spinners are hidden (see _input.scss).
  *
  * `input` emits exactly what was typed (clamping mid-typing would fight the
  * user — typing "1" toward "12" under min=10 would jump to 10). `blur` clamps
