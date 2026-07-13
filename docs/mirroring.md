@@ -196,6 +196,18 @@ render.
   range is already enforced by the decoder — Swift adds no runtime check
   (an unreachable one would be lint-flagged) and instead carries a comment
   pointing back to this entry.
+- `PackLoader.buildZone`'s tuneCents folding: TS folds `ZoneSpec.tuneCents`
+  into a *fractional* `SampleZoneData.rootMidi` (`rootMidi + tuneCents /
+  100`), exact, because TS `rootMidi` is a plain `number`. Swift's
+  `SampleZoneData.rootMidi` is `Int` — it predates pack loading and sits in
+  phase 3a's HARD CONSTRAINT no-touch list together with
+  `SampleZoneGenerator`, so it cannot be widened to `Double` from
+  `PackLoader.swift` — so Swift rounds the folded root to the nearest MIDI
+  note instead of carrying the sub-semitone remainder. Deferred-to-3b by-ear
+  pack tuning is the reason this matters in practice; today's generated
+  packs use `tuneCents: 0` everywhere, so the rounding is inert. Revisit by
+  widening `SampleZoneData.rootMidi` to `Double` (and its two call sites in
+  `SampleZoneGenerator.swift`) when 3b needs real sub-semitone correction.
 
 **Rompler hosts (phase 1b-ii, semantic twins — platform edges):**
 `WorkletHostCore` + `WorkletSynthHost` (web) ↔ `PatchCommandQueue` +

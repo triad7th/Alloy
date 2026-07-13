@@ -33,3 +33,5 @@ export * from './dsp/effects/tremolo-auto-pan.js';
 export * from './worklet-host-core.js';
 export * from './worklet-synth-host.js';
 export * from './pack/manifest.js';
+export * from './pack/pack-source.js';
+export * from './pack/pack-loader.js';
