@@ -398,7 +398,22 @@ const PATCH_CATALOG: CatalogEntry[] = [
           // The four velocity layers live INSIDE the zone set, not in patch
           // layers; SampleZoneGenerator picks and crossfades them. 0.1 blends
           // +-0.05 around each of the 0.25/0.5/0.75 boundaries.
-          generator: { kind: 'sample', zoneSetId: PIANO_ZONE_SET_ID, crossfade: 0.1 },
+          // crossfade 0 (hard velocity switch) is DELIBERATE and measured. The four
+          // layers are four different takes of the same string, so they are
+          // phase-incoherent: summing two of them does not blend, it interferes.
+          // Measured on this pack, sweeping velocity across a layer boundary
+          // (worst adjacent level step, 0.01 velocity apart; the velocity curve
+          // itself accounts for ~1.04x):
+          //   crossfade 0.1, linear gains       -> -5.3 dB NOTCH at the boundary
+          //   crossfade 0.1, equal-power gains  -> +2.8 dB bump at the window edge (1.37x)
+          //   crossfade 0   (this)              -> smooth (1.12x), no artifact
+          // The layers are peak-normalized and the TVA owns loudness, so a hard
+          // switch costs no level — it gives purely the intended timbre change,
+          // which is what hardware romplers do. (The equal-power gain law in
+          // SampleZoneGenerator is still the correct law, and matters for zone
+          // sets whose layers ARE meant to blend; it is just wrong to blend
+          // incoherent takes at all.)
+          generator: { kind: 'sample', zoneSetId: PIANO_ZONE_SET_ID, crossfade: 0 },
           // Gentle velocity -> brightness ON TOP of the sampled layers (which
           // already carry most of the timbral change). First thing to dial to
           // taste — including to zero.
