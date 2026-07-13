@@ -10,12 +10,17 @@ function has(bin) {
 }
 
 /** Encode a WAV to AAC (.m4a). Prefer afconvert (Apple native), fall back to
- *  ffmpeg. Throws if neither is available. */
-export function encodeAac(wavPath, m4aPath) {
+ *  ffmpeg. Throws if neither is available. The 192k default is what 3a's
+ *  build-pack has always used; the piano tiny tier passes 128000. */
+export function encodeAac(wavPath, m4aPath, bitrate = 192000) {
   if (has('afconvert')) {
-    execFileSync('afconvert', ['-f', 'm4af', '-d', 'aac', '-b', '192000', wavPath, m4aPath], { stdio: 'ignore' });
+    execFileSync('afconvert', ['-f', 'm4af', '-d', 'aac', '-b', String(bitrate), wavPath, m4aPath], {
+      stdio: 'ignore',
+    });
   } else if (has('ffmpeg')) {
-    execFileSync('ffmpeg', ['-y', '-i', wavPath, '-c:a', 'aac', '-b:a', '192k', m4aPath], { stdio: 'ignore' });
+    execFileSync('ffmpeg', ['-y', '-i', wavPath, '-c:a', 'aac', '-b:a', `${Math.round(bitrate / 1000)}k`, m4aPath], {
+      stdio: 'ignore',
+    });
   } else {
     throw new Error('no AAC encoder found (need afconvert or ffmpeg)');
   }
@@ -72,4 +77,36 @@ export function verifyZone(original, decoded, loopStart, tolerance = 8) {
   const atLoop = measureOffset(original, decoded, loopStart);
   const drift = loopDrift(early, atLoop);
   return { offset: early, drift, ok: drift <= tolerance };
+}
+
+/** RMS over `winLen` frames from `start` (clipped to the buffer). */
+function windowRms(samples, start, winLen) {
+  const end = Math.min(start + winLen, samples.length);
+  let acc = 0;
+  for (let i = start; i < end; i++) acc += samples[i] * samples[i];
+  const n = end - start;
+  return n > 0 ? Math.sqrt(acc / n) : 0;
+}
+
+/** Where verifyZone should take its SECOND alignment measurement.
+ *
+ *  The gate works by comparing the encoder delay measured early against the
+ *  delay measured somewhere else: equal means the timeline stayed rigid.
+ *  For a looped sample that second point was the loop. A one-shot has no loop,
+ *  and naively probing "late" is a trap — a high piano note truncated at 12 s
+ *  has decayed into near-silence by then, and correlating silence measures
+ *  noise, not delay, which would reject a perfectly good pack.
+ *
+ *  So: scan back from 80% of the buffer and take the LATEST window whose RMS is
+ *  still at least `minRatio` of the early window's. If nothing qualifies (a very
+ *  short, fast-decaying sample), fall back to the window immediately after the
+ *  early one — a weaker but still honest second measurement. */
+export function pickProbe(samples, earlyStart, winLen = 4096, minRatio = 0.1) {
+  const reference = windowRms(samples, earlyStart, winLen);
+  for (let pct = 80; pct >= 30; pct -= 5) {
+    const start = Math.floor((samples.length * pct) / 100);
+    if (start <= earlyStart || start + winLen > samples.length) continue;
+    if (windowRms(samples, start, winLen) >= minRatio * reference) return start;
+  }
+  return Math.min(earlyStart + winLen, Math.max(0, samples.length - winLen));
 }

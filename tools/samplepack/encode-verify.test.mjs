@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { genTestPack } from './gen-test-pack.mjs';
 import { writeWavMono, readWavMono } from './wav.mjs';
 import { findLoop } from './loop-finder.mjs';
-import { encodeAac, decodeToWav, measureOffset, loopDrift, verifyZone } from './encode-verify.mjs';
+import { encodeAac, decodeToWav, measureOffset, loopDrift, verifyZone, pickProbe } from './encode-verify.mjs';
 
 function hasBin(bin) {
   try {
@@ -94,3 +94,45 @@ test(
     }
   },
 );
+
+/** An exponentially decaying tone: `tau` frames to fall to 1/e. */
+function decayingTone(frames, tau) {
+  const s = new Float32Array(frames);
+  for (let i = 0; i < frames; i++) {
+    s[i] = Math.exp(-i / tau) * Math.sin((2 * Math.PI * 220 * i) / 48000);
+  }
+  return s;
+}
+
+test('pickProbe puts the probe late when the tail still has signal', () => {
+  const samples = decayingTone(100000, 200000); // barely decays
+  const probe = pickProbe(samples, 10000);
+  assert.equal(probe, 80000, 'a healthy tail should be probed at 80% of the buffer');
+});
+
+test('pickProbe backs off toward the head when the tail has decayed into noise', () => {
+  // tau = 4000: by 30% of the buffer the signal is ~e^-5 of the early window.
+  const samples = decayingTone(100000, 4000);
+  const probe = pickProbe(samples, 10000);
+  assert.ok(probe < 30000, `probe ${probe} landed in near-silence`);
+  assert.ok(probe > 10000, 'probe must be a genuinely different window from the early one');
+});
+
+test('pickProbe on a steady signal probes the far end', () => {
+  const samples = new Float32Array(100000).fill(0.5);
+  assert.equal(pickProbe(samples, 10000), 80000);
+});
+
+test('encodeAac honors an explicit bitrate', (t) => {
+  // 128k must produce a materially smaller file than the 192k default.
+  const dir = mkdtempSync(join(tmpdir(), 'alloy-bitrate-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const wav = join(dir, 'tone.wav');
+  writeFileSync(wav, writeWavMono(decayingTone(48000 * 4, 1e9), 48000));
+
+  encodeAac(wav, join(dir, 'hi.m4a')); // default 192000
+  encodeAac(wav, join(dir, 'lo.m4a'), 128000);
+  const hi = statSync(join(dir, 'hi.m4a')).size;
+  const lo = statSync(join(dir, 'lo.m4a')).size;
+  assert.ok(lo < hi * 0.85, `128k (${lo} B) should be well under 192k (${hi} B)`);
+});
