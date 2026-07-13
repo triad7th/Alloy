@@ -41,7 +41,7 @@ New folders under `web/packages/alloy-ui/src/lib/`. All standalone, OnPush,
 signal inputs, `app-` selector prefix, exported from `public-api.ts`.
 
 | Component | Selector | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `ButtonComponent` | `app-button` | Labeled button. `variant`: `primary` \| `secondary` \| `destructive`; `disabled`; `type`. AlloyUI has only an *icon* button today. |
 | `TextFieldComponent` | `app-text-field` | Styled `<input type="text">`. `value` model, `placeholder`, `disabled`, `invalid`. |
 | `NumberFieldComponent` | `app-number-field` | `<input type="number">` with native spinners hidden. `min`, `max`, `step`; value is `number \| null`. |
