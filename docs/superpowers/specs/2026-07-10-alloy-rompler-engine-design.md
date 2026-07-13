@@ -251,6 +251,14 @@ Direction after phase 6, recorded here so early design choices don't
 foreclose it. Ordered roughly by dependency, not priority; none of it is in
 scope for the current phases.
 
+**Stereo voice bus.** The voice bus and `ToneGenerator.render` are mono by
+design through phase 3 (samples play mono; stereo width comes from the stereo
+master reverb). True stereo sample playback — the standard/HQ piano tiers'
+recorded stereo image — requires a stereo `ToneGenerator.render`, a stereo
+voice mixer, regenerated golden tests, and a revised `L === R` insert-free
+invariant. It is its own phase and a prerequisite to the stereo tiers; the
+tiny tier deliberately ships mono first (decided phase 3a).
+
 **Drums at XV expansion-card level.** Polished studio drums in the same
 Japanese-synth aesthetic — tight, processed, zero room noise, the SRX-style
 "finished record" sound. Engine implications reserved in the patch schema
