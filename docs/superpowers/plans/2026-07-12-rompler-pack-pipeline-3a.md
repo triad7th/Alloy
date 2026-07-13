@@ -550,10 +550,30 @@ export function verifyZone(original, decoded, loopStart, tolerance = 8) {
 
 **Files:**
 - Create: `tools/samplepack/build-pack.mjs`, `tools/samplepack/build-pack.test.mjs`, `tools/samplepack/README.md`
+- Modify: `tools/samplepack/loop-finder.mjs` (+ `loop-finder.test.mjs`) — add the `extendLoop` export below.
 
 **Interfaces:**
 - Consumes: all of Tasks 2–5.
-- Produces: `buildPack(config) → { manifest, packDir }` (writes files); `renderCredits(credits) → string`.
+- Produces: `buildPack(config) → { manifest, packDir }` (writes files); `renderCredits(credits) → string`; `extendLoop(loopStart, loopEnd, minLength, maxEnd) → number`.
+
+**Why `extendLoop` exists (found by wiring the pipeline end to end):** `findLoop` returns a SINGLE fundamental period as the loop (367 samples for root 48 at 48 kHz = 7.6 ms). That is both musically unusable (a 7.6 ms loop buzzes) and shorter than the 512-sample crossfade, so `bakeCrossfade` throws on most sources. `extendLoop` grows the loop to the smallest **integer multiple** of the detected period that is at least `minLength` — integer multiples keep the loop phase-aligned, so it stays seamless — clamped so it never runs past `maxEnd`.
+
+- [ ] **Step 0: Add `extendLoop` to `tools/samplepack/loop-finder.mjs`:**
+
+```js
+/** Grow a single-period loop to the smallest integer number of periods that is
+ *  at least `minLength` samples, without running past `maxEnd`. Integer
+ *  multiples of the detected period keep the loop phase-aligned (seamless). */
+export function extendLoop(loopStart, loopEnd, minLength, maxEnd) {
+  const period = loopEnd - loopStart;
+  if (period <= 0) throw new Error('extendLoop: loopEnd must be greater than loopStart');
+  let k = Math.max(1, Math.ceil(minLength / period));
+  while (k > 1 && loopStart + k * period > maxEnd) k--;
+  return loopStart + k * period;
+}
+```
+
+Add to `loop-finder.test.mjs`: a period of 367 with `minLength` 4096 yields `k = 12` → `loopEnd = loopStart + 4404` (≥ minLength, and `(loopEnd - loopStart) % 367 === 0`); a loop already longer than `minLength` is returned unchanged (`k = 1`); extension is clamped by `maxEnd` (a small `maxEnd` forces `k` down, never past the buffer); `extendLoop` throws when `loopEnd <= loopStart`.
 
 - [ ] **Step 1: Write `build-pack.mjs`.** Orchestrate gen → loop → assemble → encode → verify; write `<packDir>/<zone>.m4a`, `manifest.json`, `CREDITS.md`. Loop points found per source feed BOTH the assembler and the verifier.
 
@@ -562,7 +582,7 @@ import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeWavMono, readWavMono } from './wav.mjs';
 import { genTestPack } from './gen-test-pack.mjs';
-import { findLoop, bakeCrossfade } from './loop-finder.mjs';
+import { findLoop, bakeCrossfade, extendLoop } from './loop-finder.mjs';
 import { assembleLayers } from './layer-assembler.mjs';
 import { encodeAac, decodeToWav, verifyZone } from './encode-verify.mjs';
 
@@ -572,10 +592,17 @@ export function renderCredits(credits) {
 }
 
 const FADE = 512;
+/** Minimum loop length in samples (~85 ms at 48k). findLoop returns a single
+ *  fundamental period — 367 samples for C3, i.e. 7.6 ms — which is both
+ *  musically unusable (buzzy) and too short to fit the 512-sample crossfade.
+ *  extendLoop grows it to an integer multiple of that period (preserving
+ *  phase alignment, so the loop stays seamless) of at least this length. */
+const MIN_LOOP = 4096;
 
-/** Build a full pack from the generated test sources into packDir. Finds and
- *  crossfade-bakes a loop per source, encodes to .m4a, verifies loop drift,
- *  and emits manifest.json + CREDITS.md. Throws if any zone fails verification. */
+/** Build a full pack from the generated test sources into packDir. Finds a
+ *  loop per source, extends it to a musical integer-period length,
+ *  crossfade-bakes it, encodes to .m4a, verifies loop drift, and emits
+ *  manifest.json + CREDITS.md. Throws if any zone fails verification. */
 export function buildPack(config = {}) {
   const packDir = config.packDir ?? 'build/piano-tiny';
   const zoneSetId = config.zoneSetId ?? 'piano';
@@ -586,8 +613,12 @@ export function buildPack(config = {}) {
   const pack = genTestPack(config.gen);
   const loops = {};
   for (const src of pack.sources) {
-    const { loopStart, loopEnd } = findLoop(src.samples, src.sampleRate);
-    const baked = bakeCrossfade(src.samples, loopStart, loopEnd, FADE);
+    const found = findLoop(src.samples, src.sampleRate);
+    const loopStart = found.loopStart;
+    const loopEnd = extendLoop(loopStart, found.loopEnd, MIN_LOOP, src.samples.length);
+    // Defensive: never ask for a fade longer than the loop or the pre-roll.
+    const fade = Math.min(FADE, loopEnd - loopStart, loopStart);
+    const baked = bakeCrossfade(src.samples, loopStart, loopEnd, fade);
     const wavPath = join(tmpDir, src.name);
     const m4aName = src.name.replace(/\.wav$/, '.m4a');
     const m4aPath = join(packDir, m4aName);
