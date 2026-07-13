@@ -12,9 +12,8 @@ public struct DecodedPcm {
 }
 
 /// Decodes encoded (.m4a) bytes to mono PCM. Host-injected. Twin of web
-/// `SampleDecoder` (pack-source.ts). An `AVAudioFile`-backed implementation
-/// may be added later (mirroring `BundleSampleSource`'s decode path); it is
-/// not required here — tests inject a fake.
+/// `SampleDecoder` (pack-source.ts).
+/// `AVAudioFileDecoder` is the production implementation; tests may inject a fake.
 public protocol SampleDecoder {
     func decode(_ bytes: Data) async throws -> DecodedPcm
 }
