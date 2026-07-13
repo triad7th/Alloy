@@ -6,10 +6,15 @@ import {
   signal,
 } from '@angular/core';
 import {
+  BasePathPackSource,
+  MinimalDecodeContext,
   MinimalWorkletContext,
   MinimalWorkletNode,
+  PackLoader,
   Patch,
   PATCH_SCHEMA_VERSION,
+  VelocityLayerData,
+  WebAudioDecoder,
   WireZoneLayer,
   WorkletSynthHost,
   isBlackKey,
@@ -79,6 +84,32 @@ function bakeGlassZoneLayers(): WireZoneLayer[] {
       zones: [{ rootMidi: 69, sampleRate, samples, loopStart: 0, loopEnd: length }],
     },
   ];
+}
+
+// ---------------------------------------------------------------------------
+// The real Salamander tiny-tier pack. Built by
+// `node tools/samplepack/build-piano-pack.mjs <src> examples/web-harness/public/packs/piano-tiny`
+// and served out of Angular's public/ asset folder. It is a gitignored build
+// artifact — if it is missing, the piano patch simply stays silent (the engine
+// treats an unresolvable zoneSetId as "layer not loaded yet", which is the same
+// progressive-delivery path a slow network takes).
+// ---------------------------------------------------------------------------
+const PIANO_ZONE_SET_ID = 'piano';
+const PIANO_PACK_BASE = '/packs/piano-tiny';
+
+/** SampleZoneData (loader) -> WireZone (worklet message port). Same fields,
+ *  different names: `data` crosses the port as `samples`. */
+function toWireLayers(layers: readonly VelocityLayerData[]): WireZoneLayer[] {
+  return layers.map((layer) => ({
+    topVelocity: layer.topVelocity,
+    zones: layer.zones.map((zone) => ({
+      rootMidi: zone.rootMidi,
+      sampleRate: zone.sampleRate,
+      samples: zone.data,
+      ...(zone.loopStart !== undefined ? { loopStart: zone.loopStart } : {}),
+      ...(zone.loopEnd !== undefined ? { loopEnd: zone.loopEnd } : {}),
+    })),
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -350,6 +381,34 @@ const PATCH_CATALOG: CatalogEntry[] = [
       ],
     },
   },
+  {
+    label: 'Piano',
+    velocity: 0.75,
+    patch: {
+      schemaVersion: PATCH_SCHEMA_VERSION,
+      meta: { id: 'salamander-piano', name: 'Salamander Piano', category: 'melodic', gmProgram: 0 },
+      layers: [
+        {
+          keyRange: { lowMidi: 21, highMidi: 108 },
+          velRange: { low: 0, high: 1 },
+          // The four velocity layers live INSIDE the zone set, not in patch
+          // layers; SampleZoneGenerator picks and crossfades them. 0.1 blends
+          // +-0.05 around each of the 0.25/0.5/0.75 boundaries.
+          generator: { kind: 'sample', zoneSetId: PIANO_ZONE_SET_ID, crossfade: 0.1 },
+          // Gentle velocity -> brightness ON TOP of the sampled layers (which
+          // already carry most of the timbral change). First thing to dial to
+          // taste — including to zero.
+          tvf: { mode: 'lowpass', cutoffHz: 6000, q: 0.7, envAmountHz: 0, keyTrack: 0.3, velAmountHz: 6000 },
+          // The SAMPLE carries the piano's decay (and its baked fade-out), so
+          // the TVA holds at sustain 1 and only supplies the key-up damper.
+          // velCurve is the TOTAL velocity exponent (voice.ts:39-41); ~1.8
+          // gives a piano-like ~35 dB dynamic span.
+          tva: { level: 1, adsr: { attack: 0.001, decay: 0.1, sustain: 1, release: 0.25 }, velCurve: 1.8 },
+        },
+      ],
+      sends: { reverb: 0.18, delay: 0 },
+    },
+  },
 ];
 
 // Dev assertion at module init: every catalog patch must pass validatePatch.
@@ -407,7 +466,7 @@ const OCTAVE_BASE_MAX = 72; // C5 (top key C7)
 
 type RomplerStatus = 'idle' | 'loading' | 'ready' | 'error';
 
-/** Rompler workbench: WorkletSynthHost + hand-authored six-patch catalog,
+/** Rompler workbench: WorkletSynthHost + hand-authored patch catalog,
  *  the first live consumer of the patch engine and the documented
  *  dist-as-asset worklet-serving path. */
 @Component({
@@ -423,8 +482,9 @@ type RomplerStatus = 'idle' | 'loading' | 'ready' | 'error';
       <h2 class="demo-title">Rompler</h2>
       <p class="demo-caption">
         WorkletSynthHost driving the patch engine in an AudioWorklet (loaded from the built
-        alloy-audio dist served as an asset). Six hand-authored patches cover every generator kind
-        and all six inserts. Computer keys: A W S E D F T G Y H U J = C..B, Z/X shift octave.
+        alloy-audio dist served as an asset). Hand-authored patches cover every generator kind
+        and all six inserts, plus a real sampled piano. Computer keys: A W S E D F T G Y H U J =
+        C..B, Z/X shift octave.
       </p>
 
       <div class="rompler-controls">
@@ -454,6 +514,10 @@ type RomplerStatus = 'idle' | 'loading' | 'ready' | 'error';
           </span>
         </div>
       </div>
+
+      @if (packStatus() !== 'idle' && packStatus() !== 'ready') {
+        <p class="hint">Piano pack: {{ packStatus() }}</p>
+      }
 
       <div class="keyboard" [style.width.rem]="whiteKeyCount() * 3">
         @for (key of keys(); track key.midi) {
@@ -514,6 +578,11 @@ type RomplerStatus = 'idle' | 'loading' | 'ready' | 'error';
         color: #ff6b6b;
       }
     }
+    .hint {
+      font-size: 0.75rem;
+      color: #8e8e96;
+      margin: 0.5rem 0 0;
+    }
     .keyboard {
       position: relative;
       height: 11rem;
@@ -567,6 +636,7 @@ export class RomplerSectionComponent implements OnDestroy {
   readonly status = signal<RomplerStatus>('idle');
   readonly errorDetail = signal('');
   readonly patchError = signal('');
+  readonly packStatus = signal<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
   /** Base MIDI of the two-octave keyboard (C3 by default). */
   readonly octaveBase = signal(48);
@@ -695,6 +765,27 @@ export class RomplerSectionComponent implements OnDestroy {
     this.rawCtx = null;
   }
 
+  /** Fetch + decode the piano pack on the main thread, then transfer its zone
+   *  buffers to the worklet. Until this resolves the piano patch is silent —
+   *  the engine's progressive-delivery path, not an error. */
+  private async loadPianoPack(ctx: AudioContext, host: WorkletSynthHost): Promise<void> {
+    this.packStatus.set('loading');
+    try {
+      const loader = new PackLoader(
+        new BasePathPackSource(PIANO_PACK_BASE, (url) => fetch(url)),
+        new WebAudioDecoder(ctx as unknown as MinimalDecodeContext),
+      );
+      await loader.load();
+      const layers = loader.provide(PIANO_ZONE_SET_ID);
+      if (layers === null) throw new Error(`pack has no zone set "${PIANO_ZONE_SET_ID}"`);
+      host.setZoneSet(PIANO_ZONE_SET_ID, toWireLayers(layers));
+      this.packStatus.set('ready');
+    } catch (err) {
+      this.packStatus.set('error');
+      this.errorDetail.set(`piano pack: ${String(err)}`);
+    }
+  }
+
   private currentEntry(): CatalogEntry {
     return PATCH_CATALOG.find((entry) => entry.patch.meta.id === this.patchId()) ?? PATCH_CATALOG[0];
   }
@@ -723,6 +814,7 @@ export class RomplerSectionComponent implements OnDestroy {
       });
       host.onPatchRejected = (errors) => this.patchError.set(errors.join('; '));
       host.setZoneSet(GLASS_ZONE_SET_ID, bakeGlassZoneLayers());
+      void this.loadPianoPack(raw, host);
       host.setPatch(this.currentEntry().patch);
       if (raw.state === 'suspended') {
         void raw.resume();
