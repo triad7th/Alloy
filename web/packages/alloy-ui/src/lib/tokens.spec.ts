@@ -24,6 +24,9 @@ describe('tokens', () => {
     expect(tokensScss).toContain('$secondary-surface: rgba(118, 118, 128, 0.24);');
     expect(tokensScss).toContain('$backdrop: rgba(0, 0, 0, 0.4);');
     expect(tokensScss).toContain('$knob-card: rgba(255, 255, 255, 0.04);');
+    expect(tokensScss).toContain('$field-bg: rgba(255, 255, 255, 0.06);');
+    expect(tokensScss).toContain('$field-border: rgba(255, 255, 255, 0.14);');
+    expect(tokensScss).toContain('$focus-ring: rgba(10, 132, 255, 0.6);');
     expect(tokensScss).toContain('$sheet-corner-radius: 24px;');
     expect(tokensScss).toContain('$snackbar-show: 4000ms;');
     expect(tokensScss).toContain('$overlay-fade: 150ms;');
