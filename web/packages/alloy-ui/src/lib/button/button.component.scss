@@ -1,0 +1,46 @@
+@use '../../styles/tokens' as t;
+
+:host {
+  display: inline-flex;
+}
+
+.alloy-button {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: t.$secondary-surface;
+  color: t.$label;
+
+  &:hover:not(:disabled) {
+    background: t.$secondary-surface-hover;
+  }
+
+  &:focus-visible {
+    outline: 2px solid t.$focus-ring;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  &.primary {
+    background: t.$tint;
+
+    &:hover:not(:disabled) {
+      background: t.$tint-hover;
+    }
+  }
+
+  &.destructive {
+    background: t.$destructive;
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.1);
+    }
+  }
+}

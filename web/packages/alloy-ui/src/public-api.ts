@@ -20,3 +20,4 @@ export { SnackbarHostComponent } from './lib/snackbar/snackbar-host.component';
 export { AlloyDialog, ConfirmOptions, AlertOptions } from './lib/dialog/dialog.service';
 export { DialogHostComponent } from './lib/dialog/dialog-host.component';
 export { OverlaysComponent } from './lib/overlays/overlays.component';
+export { ButtonComponent } from './lib/button/button.component';
