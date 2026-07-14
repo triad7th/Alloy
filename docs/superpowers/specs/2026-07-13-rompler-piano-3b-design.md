@@ -48,8 +48,9 @@ the source URL, and it ships inside the pack.
   piano; it remains for the looped instruments of phase 4 (strings/pads/organs).
   Going one-shot also sidesteps the 3a-flagged integer-lag phase residual in
   `findLoop` entirely for this pack.
-- **Tiny-tier budget — "balanced":** all **30 roots × 4 velocity layers**, each
-  truncated to **≤ 12 s**, **mono AAC @ 128 kbps**. Estimated **~23 MB** — well
+- **Tiny-tier budget — "balanced":** all **30 roots × 4 velocity layers**,
+  **mono AAC**. Originally specced as ≤ 12 s @ 128 kbps (~23 MB); the listening
+  pass revised both — see "As built" below. Well
   under the 100 MB tiny-tier ceiling. The budget is not the binding constraint
   here; quality is, so the headroom is spent on velocity layers and decay length
   rather than hoarded.
@@ -106,7 +107,8 @@ already accepts (`loopStart`/`loopEnd` are both-or-neither).
 
 ### 3. The pack
 
-`piano-tiny`: `zoneSetId: "piano"`, 4 layers × 30 zones, mono AAC 128 kbps,
+`piano-tiny`: `zoneSetId: "piano"`, 4 layers × 30 zones, mono AAC (128 kbps as
+specced; **256 kbps as built** — see below),
 `schemaVersion` 1, `tier: "tiny"`, `sampleRate` 48000, `format: "m4a"`, and a
 `credits` entry carrying the CC-BY 3.0 attribution to Alexander Holm.
 
@@ -151,3 +153,36 @@ should say so plainly rather than pretend a green test suite means success.
 - The `va` body-resonance layer (second tuning pass, after the raw pack is
   judged).
 - Phase 4's first wave (FM EP, tine EP, strings/pads, organs).
+
+## As built (revised by the listening pass, 2026-07-14)
+
+The spec's two size-driven guesses were both wrong, and the ear caught both.
+Recorded here so the numbers in this document are not misleading:
+
+- **Bitrate 128 kbps → 256 kbps.** Solo piano is one of the hardest signals
+  there is for a transform codec. At 128k the measured error against the source
+  was only **-43.6 dB** on C3 and **-38.6 dB** on a low note, and it was audibly
+  lofi. 256k (the AAC-LC mono ceiling) takes those to **-56.2 dB** / **-51.1 dB**.
+- **Truncation at 12 s → none.** 12 s cut **77 of the 120 zones**, and **42 of
+  them were still above -45 dB** of their peak when the fade began (`D#1v4` was
+  still at **-32 dB**). Held bass notes audibly died. The recordings are already
+  naturally bounded at ≤ 25.9 s, so `MAX_SECONDS` now sits above the longest
+  source and nothing is truncated — a 25 s cap and no cap cost the same.
+
+**Resulting pack: ~49 MB** (still well inside the 100 MB tiny-tier ceiling) and
+**~306 MB of decoded PCM in RAM**. RAM, not disk, is the binding constraint on
+this pack shape — the relevant lever is `MAX_SECONDS`, and it is the thing to
+revisit before this tier goes near a phone.
+
+Two further findings from the same pass, both of which only real content could
+have exposed:
+
+- The velocity-layer crossfade in `SampleZoneGenerator` used **linear** gains,
+  producing a **-5.3 dB notch** at every layer boundary. Fixed to equal-power in
+  both twins. Measurement then showed these four layers are four different
+  *takes of the same string* — phase-incoherent — so blending them interferes
+  rather than blends: the piano patch uses `crossfade: 0`.
+- The FM generator has **no anti-aliasing**. Unrelated to the piano, but exposed
+  by the same listening pass: a ratio-14 operator on G#6 runs at 23.3 kHz and
+  folds back **-24.7 dB** of inharmonic bass. Open decision, gating phase 4's
+  FM8-class EPs.

@@ -26,10 +26,24 @@ export const SALAMANDER_CREDITS = [
   },
 ];
 
-/** Longest note kept. The budget the tiny tier spends its headroom on. */
-export const MAX_SECONDS = 12;
-/** Baked fade-out. Long enough that a truncated 12 s decay dies away rather
- *  than being switched off. */
+/** Hard ceiling on note length. Set ABOVE the longest source (25.9 s), so in
+ *  practice NOTHING is truncated and every note rings out its full natural decay.
+ *
+ *  This started at 12 s and it was a mistake: 12 s cut 77 of the 120 zones, and
+ *  42 of those were still ABOVE -45 dB of their peak when the fade hit — D#1v4
+ *  was still at -32 dB. That is not a decay, it is an edit, and held bass notes
+ *  audibly died. Buying every one of them back costs +89 MB of decoded RAM
+ *  (217 -> 306 MB) and +15 MB of pack (36 -> 51 MB, still inside the 100 MB
+ *  tiny-tier budget) — because the recordings are already naturally bounded, so
+ *  a 25 s cap and no cap at all cost exactly the same.
+ *
+ *  This is the knob to turn if a future tier must fit a tighter RAM budget; it is
+ *  not the knob to turn to save disk. */
+export const MAX_SECONDS = 30;
+/** Baked fade-out, always applied at the end of the kept audio. With no
+ *  truncation this lands on a tail that is already near-silent, so it is
+ *  inaudible — it exists to guarantee the asset ends at exactly zero, since
+ *  SampleZoneGenerator does not fade unlooped content at runtime. */
 export const FADE_SECONDS = 0.5;
 /** Solo piano is one of the hardest signals there is for a transform codec, and
  *  128 kbps was audibly lofi — measured error vs the source was only -43.6 dB on

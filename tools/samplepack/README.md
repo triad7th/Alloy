@@ -76,12 +76,25 @@ Then build the pack:
 node tools/samplepack/build-piano-pack.mjs build/salamander-src build/piano-tiny
 ```
 
-This ingests the 120 source WAVs, trims leading silence, truncates each to
-`MAX_SECONDS` (12 s) with a baked fade-out, peak-normalizes, encodes to AAC,
-decodes and verifies the round trip, and writes `manifest.json` +
+This ingests the 120 source WAVs, trims leading silence, caps each at
+`MAX_SECONDS` with a baked fade-out, peak-normalizes, encodes to AAC at
+`BITRATE`, decodes and verifies the round trip, and writes `manifest.json` +
 `CREDITS.md` — the same `renderCredits` used by `build-pack.mjs`, carrying
 the CC-BY 3.0 attribution to Alexander Holm and the source URL. Takes about
-25 seconds and produces 120 zones (30 roots x 4 layers) at roughly 18 MB.
+30 seconds and produces 120 zones (30 roots x 4 layers) at roughly 49 MB.
+
+Two constants were tuned by ear and are worth understanding before changing:
+
+- **`BITRATE` = 256k** (the AAC-LC mono ceiling). Solo piano is one of the
+  hardest signals there is for a transform codec. At 128k the error vs the
+  source was only -43.6 dB on C3 and -38.6 dB on a low note, and it sounded
+  audibly lofi; 256k takes those to -56.2 dB and -51.1 dB.
+- **`MAX_SECONDS` = 30**, i.e. deliberately ABOVE the longest source (25.9 s),
+  so nothing is truncated in practice. It was 12 s, which cut 77 of the 120
+  zones — 42 of them while still above -45 dB of their peak — and held bass
+  notes audibly died. Since the recordings are naturally bounded, a 25 s cap
+  and no cap cost exactly the same. Lower this only to fit a tighter **RAM**
+  budget (decoded PCM is ~306 MB), not to save disk.
 
 Piano is **one-shot**: notes are truncated-with-fade rather than looped, so
 `loop-finder.mjs` is deliberately unused for this pack (`assembleLayers` is
