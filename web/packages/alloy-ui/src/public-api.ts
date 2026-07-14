@@ -25,3 +25,4 @@ export { TextFieldComponent } from './lib/forms/text-field.component';
 export { NumberFieldComponent } from './lib/forms/number-field.component';
 export { SelectComponent, SelectOption } from './lib/forms/select.component';
 export { FieldComponent } from './lib/forms/field.component';
+export { FormDialogComponent } from './lib/forms/form-dialog.component';

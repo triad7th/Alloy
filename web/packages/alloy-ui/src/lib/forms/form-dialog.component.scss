@@ -1,0 +1,26 @@
+@use '../../styles/tokens' as t;
+
+:host {
+  display: contents;
+}
+
+.form-dialog-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: t.$label;
+}
+
+.form-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.form-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
