@@ -22,6 +22,9 @@ import {
   validatePatch,
 } from '@allyworld/alloy-audio';
 import { KnobSegmentComponent, KnobSegmentOption } from '@allyworld/alloy-ui';
+import { PatchEditorComponent } from '../rompler/patch-editor.component.js';
+import { fromJson, toJson, toTypeScript } from '../rompler/patch-serialize.js';
+import { DEFAULT_ZONE_SET_ID } from '../rompler/patch-edit.js';
 
 // ---------------------------------------------------------------------------
 // Worklet module URL. The worklet runs the BUILT package dist, served as an
@@ -65,7 +68,9 @@ function wrapAudioContext(raw: AudioContext): MinimalWorkletContext {
 // the loop is click-free). No sample assets needed; exercises the
 // setZoneSet wire path (buffer transfer) and the sample generator kind.
 // ---------------------------------------------------------------------------
-const GLASS_ZONE_SET_ID = 'workbench.glass';
+// One source of truth: patch-edit.ts owns the workbench glass zone-set id, so
+// the baked default patch and this harness's setZoneSet call cannot drift.
+const GLASS_ZONE_SET_ID = DEFAULT_ZONE_SET_ID;
 
 function bakeGlassZoneLayers(): WireZoneLayer[] {
   const sampleRate = 48_000;
@@ -509,7 +514,7 @@ type RomplerStatus = 'idle' | 'loading' | 'ready' | 'error';
 @Component({
   selector: 'hx-rompler-section',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [KnobSegmentComponent],
+  imports: [KnobSegmentComponent, PatchEditorComponent],
   host: {
     '(document:keydown)': 'onKeyDown($event)',
     '(document:keyup)': 'onKeyUp($event)',
@@ -575,6 +580,30 @@ type RomplerStatus = 'idle' | 'loading' | 'ready' | 'error';
             <span class="key-label">{{ key.label }}</span>
           </button>
         }
+      </div>
+
+      <div class="rompler__workbench">
+        <div class="rompler__slots">
+          <button type="button" (click)="swapSlot()">Slot {{ activeSlot() }} — compare</button>
+          <button type="button" (click)="copyActiveToOther()">
+            Copy {{ activeSlot() }} &rarr; {{ activeSlot() === 'A' ? 'B' : 'A' }}
+          </button>
+          <label>
+            <input type="checkbox" [checked]="reStrike()" (change)="reStrike.set($any($event.target).checked)" />
+            Re-strike on edit
+          </label>
+          <button type="button" (click)="copyAsTs()">Copy as TS</button>
+          <button type="button" (click)="copyAsJson()">Copy as JSON</button>
+          <button type="button" (click)="pasteFromJson()">Paste JSON</button>
+          <button type="button" (click)="revertToCatalog()">Revert</button>
+          <span class="rompler__notice">{{ exportNotice() }}</span>
+        </div>
+
+        <app-patch-editor
+          [patch]="editedPatch()"
+          [errors]="editorErrors()"
+          (patchChange)="onPatchChange($event)"
+        />
       </div>
     </section>
   `,
@@ -667,6 +696,9 @@ type RomplerStatus = 'idle' | 'loading' | 'ready' | 'error';
     .key-label {
       pointer-events: none;
     }
+    .rompler__workbench { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+    .rompler__slots { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; font-size: 0.75rem; }
+    .rompler__notice { opacity: 0.6; }
   `,
 })
 export class RomplerSectionComponent implements OnDestroy {
@@ -710,6 +742,23 @@ export class RomplerSectionComponent implements OnDestroy {
     label: entry.label,
   }));
 
+  /** Two independent slots. setAt() never mutates, so A and B cannot alias. */
+  protected readonly slotA = signal<Patch>(this.currentEntry().patch);
+  protected readonly slotB = signal<Patch>(this.currentEntry().patch);
+  protected readonly activeSlot = signal<'A' | 'B'>('A');
+  protected readonly editorErrors = signal<readonly string[]>([]);
+  /** A knob turn is inaudible on a sustaining note — voices capture their
+   *  generator/TVF/TVA params at noteOn. So replay the last note on every edit. */
+  protected readonly reStrike = signal(true);
+  protected readonly exportNotice = signal('');
+  private lastNote = 60;
+
+  protected readonly editedPatch = computed(() =>
+    this.activeSlot() === 'A' ? this.slotA() : this.slotB(),
+  );
+
+  private readonly storageKey = computed(() => `alloy.workbench.${this.patchId()}`);
+
   // Lazy host: the AudioContext + worklet module load happen on the first
   // key press, inside a user gesture (browsers gate audio start on one).
   private host: WorkletSynthHost | null = null;
@@ -726,6 +775,7 @@ export class RomplerSectionComponent implements OnDestroy {
   }
 
   protected noteOn(midi: number): void {
+    this.lastNote = midi;
     if (this.pressed().has(midi)) {
       return;
     }
@@ -755,6 +805,83 @@ export class RomplerSectionComponent implements OnDestroy {
     this.host?.setPatch(this.currentEntry().patch);
     this.pressed.set(new Set());
     this.heldComputerKeys.clear();
+
+    const saved = localStorage.getItem(this.storageKey());
+    const restored = saved ? fromJson(saved) : null;
+    const patch = restored && 'patch' in restored ? restored.patch : this.currentEntry().patch;
+    this.slotA.set(patch);
+    this.slotB.set(this.currentEntry().patch);
+    this.activeSlot.set('A');
+    this.editorErrors.set([]);
+    this.host?.setPatch(patch);
+  }
+
+  protected onPatchChange(next: Patch): void {
+    (this.activeSlot() === 'A' ? this.slotA : this.slotB).set(next);
+
+    // PatchEngine.setPatch THROWS on an invalid patch. Surface the errors and
+    // keep the last good patch sounding rather than tearing down the audio.
+    const errors = validatePatch(next);
+    this.editorErrors.set(errors);
+    if (errors.length > 0) return;
+
+    this.host?.setPatch(next);
+    localStorage.setItem(this.storageKey(), toJson(next));
+    if (this.reStrike()) this.strikeLastNote();
+  }
+
+  private strikeLastNote(): void {
+    const midi = this.lastNote;
+    void this.ensureHost().then((host) => {
+      host?.noteOff(midi);
+      host?.noteOn(midi, this.currentEntry().velocity);
+    });
+  }
+
+  protected swapSlot(): void {
+    this.activeSlot.update((slot) => (slot === 'A' ? 'B' : 'A'));
+    const patch = this.editedPatch();
+    this.editorErrors.set(validatePatch(patch));
+    this.host?.setPatch(patch);
+    if (this.reStrike()) this.strikeLastNote();
+  }
+
+  protected copyActiveToOther(): void {
+    const patch = this.editedPatch();
+    (this.activeSlot() === 'A' ? this.slotB : this.slotA).set(patch);
+  }
+
+  protected revertToCatalog(): void {
+    const patch = this.currentEntry().patch;
+    (this.activeSlot() === 'A' ? this.slotA : this.slotB).set(patch);
+    localStorage.removeItem(this.storageKey());
+    this.editorErrors.set([]);
+    this.host?.setPatch(patch);
+  }
+
+  protected async copyAsTs(): Promise<void> {
+    // This is the bridge to phase 4b: the factory bank is authored by pasting
+    // this output into factory-bank.ts.
+    const name = this.currentEntry().patch.meta.id.replace(/[^A-Za-z0-9]+/g, '_').toUpperCase();
+    await navigator.clipboard.writeText(toTypeScript(this.editedPatch(), name));
+    this.exportNotice.set('Copied as TypeScript');
+  }
+
+  protected async copyAsJson(): Promise<void> {
+    await navigator.clipboard.writeText(toJson(this.editedPatch()));
+    this.exportNotice.set('Copied as JSON');
+  }
+
+  protected async pasteFromJson(): Promise<void> {
+    const text = await navigator.clipboard.readText();
+    const result = fromJson(text);
+    if ('errors' in result) {
+      this.editorErrors.set(result.errors);
+      this.exportNotice.set('Paste rejected');
+      return;
+    }
+    this.exportNotice.set('Imported from JSON');
+    this.onPatchChange(result.patch);
   }
 
   protected shiftOctave(direction: -1 | 1): void {
