@@ -69,6 +69,12 @@ if (!existsSync(join(root, 'web/node_modules'))) {
 }
 step('running Swift suite');
 run('swift test');
+// The AlloyAudio CPU budget (<25% of one core) only EXISTS in the release
+// config: `swift test` (debug, -Onone) runs the DSP loop ~50x slower and so
+// asserts a debug-only bound. CI never builds release, so the real budget is
+// gated here, on the dev machine it was calibrated on, before every tag.
+step('running Swift benchmark gate (release config — the <25%-of-a-core budget)');
+run('swift test -c release --filter BenchmarkTests', { stdio: ['inherit', 'inherit', 'inherit'] });
 step('running web suites');
 run('npm test', { cwd: join(root, 'web') });
 step('checking generated outputs are fresh');

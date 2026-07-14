@@ -5,7 +5,7 @@
 
 import { AdsrEnvelope, type AdsrParams } from './adsr-envelope.js';
 import { TWO_PI, type ToneGenerator } from './dsp-types.js';
-import { FmDecimator, chooseOversampling } from './fm-oversampling.js';
+import { FmDecimator, chooseOversampling, maxPitchModRatio } from './fm-oversampling.js';
 import { midiToFrequency } from '../pitch.js';
 
 export interface FmOperatorParams {
@@ -65,8 +65,12 @@ export class FmGenerator implements ToneGenerator {
   private pitchRatio = 1;
   private amp = 0;
   private keyed = false;
-  /** Highest ratio in the stack — hoisted so noteOn stays allocation-free. */
+  /** Highest ratio in the stack — hoisted out of noteOn (which is on the
+   *  note-event path and should stay cheap). */
   private readonly maxRatio: number;
+  /** Worst-case upward pitch bend the owning layer's LFO can reach; 1 when the
+   *  patch has no pitch modulation. Folded into the K choice at noteOn. */
+  private readonly maxPitchRatio: number;
   /** Oversampling factor for the current note; 1 = the original code path.
    *  Named `oversamplingFactor` because the public getter takes `oversampling`. */
   private oversamplingFactor = 1;
@@ -74,9 +78,14 @@ export class FmGenerator implements ToneGenerator {
   /** Envelope level per operator for the current OUTPUT sample. */
   private readonly envLevels: number[];
 
+  /** `pitchModCents` is the owning layer's LFO pitch-route depth
+   *  (`PatchLayer.mod.toPitchCents`), 0 when there is none. It is part of the
+   *  patch, known at noteOn, and it is what stops an LFO from bending a K=1
+   *  voice's modulator past Nyquist mid-note. */
   constructor(
     private readonly params: FmGeneratorParams,
     private readonly sampleRate: number,
+    pitchModCents = 0,
   ) {
     const errors = validateFmGeneratorParams(params);
     if (errors.length > 0) {
@@ -86,6 +95,7 @@ export class FmGenerator implements ToneGenerator {
     this.phases = params.operators.map(() => 0);
     this.outputs = params.operators.map(() => 0);
     this.maxRatio = Math.max(...params.operators.map((op) => op.ratio));
+    this.maxPitchRatio = maxPitchModRatio(pitchModCents);
     this.envLevels = params.operators.map(() => 0);
   }
 
@@ -104,10 +114,15 @@ export class FmGenerator implements ToneGenerator {
     this.frequency = midiToFrequency(midi);
     this.amp = velocity;
     // Decide the oversampling factor ONCE per note, from the highest frequency
-    // anywhere in the stack. setPitchRatio deliberately does not re-decide it
-    // mid-note — that would glitch — which is why the threshold carries ~2
-    // semitones of bend headroom.
-    this.oversamplingFactor = chooseOversampling(this.frequency * this.maxRatio, this.sampleRate);
+    // anywhere in the stack UNDER THE PATCH'S WORST-CASE PITCH MODULATION.
+    // setPitchRatio deliberately does not re-decide it mid-note (that would
+    // glitch), so the LFO's peak upward bend has to be priced in here — else a
+    // deep vibrato route sweeps a K=1 voice's modulator past Nyquist and the
+    // aliasing this phase exists to kill comes back, periodically.
+    this.oversamplingFactor = chooseOversampling(
+      this.frequency * this.maxRatio * this.maxPitchRatio,
+      this.sampleRate,
+    );
     this.decimator.reset();
     this.phases.fill(0);
     this.outputs.fill(0);

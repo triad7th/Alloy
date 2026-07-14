@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { FM_DECIMATION_TAPS, FM_OVERSAMPLING, FmDecimator, chooseOversampling } from './fm-oversampling.js';
+import {
+  FM_DECIMATION_TAPS,
+  FM_OVERSAMPLING,
+  FmDecimator,
+  chooseOversampling,
+  maxPitchModRatio,
+} from './fm-oversampling.js';
 
 const FS = 48_000;
 const FS_OS = FS * FM_OVERSAMPLING; // 192 kHz
@@ -59,10 +65,15 @@ describe('fm oversampling', () => {
   });
 
   it('keeps the audio band intact — the brightness must survive', () => {
+    // Two-sided: a passband BOOST is a defect too (in-band ripple), so bound the
+    // response from above as well. Measured: -0.0 dB at 1 kHz, -0.1 at 10 kHz,
+    // -1.2 at 15 kHz.
     const at = (hz: number) => 20 * Math.log10(rms(decimate(hz, 4096).subarray(64)) / 0.707);
     expect(at(1_000)).toBeGreaterThan(-0.5);
     expect(at(10_000)).toBeGreaterThan(-0.5);
+    expect(at(10_000)).toBeLessThan(0.5);
     expect(at(15_000)).toBeGreaterThan(-2); // -1.2 dB measured
+    expect(at(15_000)).toBeLessThan(0.5);
   });
 
   it('chooseOversampling switches at sampleRate/4 and nowhere else', () => {
@@ -79,12 +90,26 @@ describe('fm oversampling', () => {
     expect(chooseOversampling(25_000, 96_000)).toBe(FM_OVERSAMPLING);
   });
 
+  it('maxPitchModRatio is the LFO peak, is one without vibrato, and ignores the sign', () => {
+    // No pitch route: exactly 1, so K (and the CPU bill) is unchanged for every
+    // patch that has no vibrato.
+    expect(maxPitchModRatio(0)).toBe(1);
+    expect(maxPitchModRatio(1200)).toBeCloseTo(2, 12); // an octave of vibrato peaks at 2x
+    // A negative depth still bends UP on the LFO's -1 half-cycle: same worst case.
+    expect(maxPitchModRatio(-1200)).toBe(maxPitchModRatio(1200));
+    expect(maxPitchModRatio(100)).toBeCloseTo(2 ** (1 / 12), 12); // a semitone
+  });
+
   it('the modulo-free tap loop is BIT-identical to the naive modulo convolution', () => {
     // output() walks the ring as two contiguous runs instead of doing `% n` per
     // tap. That is only allowed because it visits the same samples with the same
     // taps in the SAME summation order — so the float result must be equal to the
     // last bit, not merely close. Object.is, no tolerance: if this ever needs a
     // tolerance, the summation order has changed and the optimization is wrong.
+    //
+    // The reference is textbook convolution — y[n] = sum_j h[j]*x[n-j], taps[0] on
+    // the NEWEST sample — written with `% n` addressing. It does not assume the
+    // tap table is symmetric (it is not, to the last ulp).
     const n = FM_DECIMATION_TAPS.length;
     const history = new Float64Array(n); // the naive reference: ring + `% n`
     let pos = 0;
@@ -94,7 +119,9 @@ describe('fm oversampling', () => {
     };
     const refOutput = () => {
       let y = 0;
-      for (let j = 0; j < n; j++) y += FM_DECIMATION_TAPS[j] * history[(pos + j) % n];
+      // x[n-j] lives at (pos - 1 - j) mod n; walk j downward so the samples are
+      // summed oldest-first, matching output()'s order exactly.
+      for (let j = n - 1; j >= 0; j--) y += FM_DECIMATION_TAPS[j] * history[(pos + n - 1 - j) % n];
       return y;
     };
 

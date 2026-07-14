@@ -85,7 +85,10 @@ export class Voice {
       if (!(layer.velRange.low <= velocity && velocity <= layer.velRange.high)) {
         continue;
       }
-      const generator = this.buildGenerator(layer.generator);
+      // The layer's pitch-mod depth goes IN to the generator: FmGenerator picks
+      // its oversampling factor once per note and must know how far this layer's
+      // LFO can bend the note up before it commits (see fm-oversampling.ts).
+      const generator = this.buildGenerator(layer.generator, layer.mod?.toPitchCents ?? 0);
       if (generator === null) {
         continue; // Unresolvable zoneSetId: layer inactive, not an error.
       }
@@ -190,10 +193,10 @@ export class Voice {
    * unresolvable sample zoneSetId or missing provider is progressive-loading
    * silence, not an error).
    */
-  private buildGenerator(spec: GeneratorSpec): ToneGenerator | null {
+  private buildGenerator(spec: GeneratorSpec, pitchModCents: number): ToneGenerator | null {
     switch (spec.kind) {
       case 'fm':
-        return new FmGenerator(spec.fm, this.sampleRate);
+        return new FmGenerator(spec.fm, this.sampleRate, pitchModCents);
       case 'additive':
         return new AdditiveGenerator(spec.partials, this.sampleRate);
       case 'va':

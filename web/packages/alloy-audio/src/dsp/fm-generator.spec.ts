@@ -217,6 +217,47 @@ describe('FmGenerator anti-aliasing', () => {
     expect(gen.oversampling).toBe(FM_OVERSAMPLING); // G#6 x 14 = 23.3 kHz
   });
 
+  it('prices the patch’s worst-case pitch modulation into the factor', () => {
+    // midi 80 x ratio 14 = 11.63 kHz: under the 12 kHz threshold, so K=1 — until
+    // the layer carries a deep LFO pitch route. At 1200 cents the LFO peak doubles
+    // the pitch, putting the modulator at 23.3 kHz WHILE the voice renders. K is
+    // committed at noteOn (re-picking it mid-note would glitch), so the depth has
+    // to be priced in up front or the aliasing sweeps back in every LFO cycle.
+    expect(new FmGenerator(EP_STACK, FS_AA, 0).oversampling).toBe(1); // not keyed yet
+    const plain = new FmGenerator(EP_STACK, FS_AA, 0);
+    plain.noteOn(80, 0.8);
+    expect(plain.oversampling).toBe(1); // no vibrato: unchanged, and free
+
+    const vibrato = new FmGenerator(EP_STACK, FS_AA, 1200);
+    vibrato.noteOn(80, 0.8);
+    expect(vibrato.oversampling).toBe(FM_OVERSAMPLING);
+
+    // Sign-blind: -1200 cents bends up just as far on the LFO's negative half.
+    const down = new FmGenerator(EP_STACK, FS_AA, -1200);
+    down.noteOn(80, 0.8);
+    expect(down.oversampling).toBe(FM_OVERSAMPLING);
+
+    // Shallow vibrato on a low note must not drag a voice onto the 4x path.
+    const shallow = new FmGenerator(EP_STACK, FS_AA, 50);
+    shallow.noteOn(60, 0.8);
+    expect(shallow.oversampling).toBe(1);
+  });
+
+  it('stays clean at the LFO’s pitch peak — the aliasing bug’s second door', () => {
+    // The behavioral half of the test above. Hold the LFO at its +1 peak
+    // (pitchRatio = 2 for the whole render) so the spectrum sits on 2*f0 and
+    // everything below it can only be foldback — no vibrato sweep to confound the
+    // measurement. midi 80 + 1200 cents: with the depth priced in, the voice runs
+    // at 4x and measures -66 dB. Ignoring the depth (the pre-fix behavior) leaves
+    // it on the 1x path at -25 dB — the shipped bug, back again.
+    const gen = new FmGenerator(EP_STACK, FS_AA, 1200);
+    gen.noteOn(80, 0.8);
+    gen.setPitchRatio(2);
+    const out = new Float32Array(FS_AA / 2);
+    gen.render(out, out.length);
+    expect(aliasFloorDb(out, midiHz(92))).toBeLessThan(-55); // -65.8 dB measured
+  });
+
   it('switches factor between adjacent notes without an audible level jump', () => {
     // The adaptive design is only legitimate because oversampling is a no-op
     // below the threshold. Two notes either side of the switch must match.

@@ -63,9 +63,14 @@ final class FmOversamplingTests: XCTestCase {
     }
 
     func testKeepsTheAudioBandIntactSoTheBrightnessSurvives() {
+        // Two-sided: a passband BOOST is a defect too (in-band ripple), so bound
+        // the response from above as well. Measured: -0.0 dB at 1 kHz, -0.1 at
+        // 10 kHz, -1.2 at 15 kHz.
         XCTAssertGreaterThan(attenuationDb(1_000), -0.5)
         XCTAssertGreaterThan(attenuationDb(10_000), -0.5)
+        XCTAssertLessThan(attenuationDb(10_000), 0.5)
         XCTAssertGreaterThan(attenuationDb(15_000), -2) // -1.2 dB measured
+        XCTAssertLessThan(attenuationDb(15_000), 0.5)
     }
 
     func testChooseOversamplingSwitchesAtQuarterSampleRate() {
@@ -81,6 +86,16 @@ final class FmOversamplingTests: XCTestCase {
         XCTAssertEqual(chooseOversampling(maxOpFrequency: 25_000, sampleRate: 96_000), FM_OVERSAMPLING)
     }
 
+    func testMaxPitchModRatioIsTheLfoPeakAndIgnoresTheSign() {
+        // No pitch route: exactly 1, so K (and the CPU bill) is unchanged for
+        // every patch that has no vibrato.
+        XCTAssertEqual(maxPitchModRatio(pitchModCents: 0), 1)
+        XCTAssertEqual(maxPitchModRatio(pitchModCents: 1200), 2, accuracy: 1e-12) // an octave peaks at 2x
+        // A negative depth still bends UP on the LFO's -1 half-cycle.
+        XCTAssertEqual(maxPitchModRatio(pitchModCents: -1200), maxPitchModRatio(pitchModCents: 1200))
+        XCTAssertEqual(maxPitchModRatio(pitchModCents: 100), pow(2, 1.0 / 12), accuracy: 1e-12)
+    }
+
     func testModuloFreeTapLoopIsBitIdenticalToNaiveConvolution() {
         // output() walks the ring as two contiguous runs instead of doing `% n`
         // per tap. That is only allowed because it visits the same samples with
@@ -88,6 +103,10 @@ final class FmOversamplingTests: XCTestCase {
         // to the last bit, not merely close. Exact ==, no accuracy: if this ever
         // needs a tolerance, the summation order changed and the optimization is
         // wrong.
+        //
+        // The reference is textbook convolution — y[n] = sum_j h[j]*x[n-j],
+        // taps[0] on the NEWEST sample — written with `% n` addressing. It does
+        // not assume the tap table is symmetric (it is not, to the last ulp).
         let n = FM_DECIMATION_TAPS.count
         var history = [Double](repeating: 0, count: n) // naive reference: ring + `% n`
         var pos = 0
@@ -97,8 +116,10 @@ final class FmOversamplingTests: XCTestCase {
         }
         func refOutput() -> Double {
             var y = 0.0
-            for j in 0..<n {
-                y += FM_DECIMATION_TAPS[j] * history[(pos + j) % n]
+            // x[n-j] lives at (pos - 1 - j) mod n; walk j downward so the samples
+            // are summed oldest-first, matching output()'s order exactly.
+            for j in stride(from: n - 1, through: 0, by: -1) {
+                y += FM_DECIMATION_TAPS[j] * history[(pos + n - 1 - j) % n]
             }
             return y
         }

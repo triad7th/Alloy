@@ -205,6 +205,46 @@ final class FmGeneratorTests: XCTestCase {
         XCTAssertEqual(gen.oversampling, FM_OVERSAMPLING) // G#6 x 14 = 23.3 kHz
     }
 
+    func testPricesTheWorstCasePitchModulationIntoTheFactor() {
+        // midi 80 x ratio 14 = 11.63 kHz: under the 12 kHz threshold, so K=1 —
+        // until the layer carries a deep LFO pitch route. At 1200 cents the LFO
+        // peak doubles the pitch, putting the modulator at 23.3 kHz WHILE the
+        // voice renders. K is committed at noteOn (re-picking it mid-note would
+        // glitch), so the depth has to be priced in up front.
+        let plain = FmGenerator(params: epStack, sampleRate: fs, pitchModCents: 0)
+        plain.noteOn(midi: 80, velocity: 0.8)
+        XCTAssertEqual(plain.oversampling, 1) // no vibrato: unchanged, and free
+
+        let vibrato = FmGenerator(params: epStack, sampleRate: fs, pitchModCents: 1200)
+        vibrato.noteOn(midi: 80, velocity: 0.8)
+        XCTAssertEqual(vibrato.oversampling, FM_OVERSAMPLING)
+
+        // Sign-blind: -1200 cents bends up just as far on the LFO's negative half.
+        let down = FmGenerator(params: epStack, sampleRate: fs, pitchModCents: -1200)
+        down.noteOn(midi: 80, velocity: 0.8)
+        XCTAssertEqual(down.oversampling, FM_OVERSAMPLING)
+
+        // Shallow vibrato on a low note must not drag a voice onto the 4x path.
+        let shallow = FmGenerator(params: epStack, sampleRate: fs, pitchModCents: 50)
+        shallow.noteOn(midi: 60, velocity: 0.8)
+        XCTAssertEqual(shallow.oversampling, 1)
+    }
+
+    func testStaysCleanAtTheLfoPitchPeak() {
+        // The behavioral half of the test above. Hold the LFO at its +1 peak
+        // (pitchRatio = 2 for the whole render) so the spectrum sits on 2*f0 and
+        // everything below it can only be foldback — no vibrato sweep to confound
+        // the measurement. With the depth priced in the voice runs at 4x and
+        // measures -66 dB; ignoring it leaves the voice on the 1x path at -25 dB,
+        // the shipped bug, back again.
+        let gen = FmGenerator(params: epStack, sampleRate: fs, pitchModCents: 1200)
+        gen.noteOn(midi: 80, velocity: 0.8)
+        gen.setPitchRatio(2)
+        var out = [Float](repeating: 0, count: 24_000)
+        gen.render(into: &out, frames: out.count)
+        XCTAssertLessThan(aliasFloorDb(out, f0: midiHz(92)), -55) // -65.8 dB measured
+    }
+
     func testSwitchesFactorBetweenAdjacentNotesWithoutALevelJump() {
         // The adaptive design is only legitimate because oversampling is a no-op
         // below the threshold. ratio 14 puts the 12 kHz threshold at f0 = 857 Hz,

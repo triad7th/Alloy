@@ -20,7 +20,9 @@ export const FM_OVERSAMPLING = 4;
  *  libraries, and these coefficients are part of the twin contract.
  *  64 taps measured no better than 32. Group delay is 15.5 oversampled samples
  *  = 3.875 output samples (~83 us) — an oversampled voice sits a hair behind a
- *  non-oversampled one in a layered patch. Inaudible, but real. */
+ *  non-oversampled one. Between independent voices that is inaudible; between
+ *  two CORRELATED layers of one patch (one over the K threshold, one under) it
+ *  is a comb notch near 6 kHz. Real, accepted, recorded. */
 export const FM_DECIMATION_TAPS: readonly number[] = [
   2.8477986181713758e-19, -6.047798834019103e-5, -4.3340271636890365e-5, 5.2916070916784888e-4,
   1.9038353814484067e-3, 3.3115968607472083e-3, 2.6042373642096179e-3, -2.7237870035835541e-3,
@@ -33,18 +35,38 @@ export const FM_DECIMATION_TAPS: readonly number[] = [
 ];
 
 /** The oversampling factor a voice needs, from the highest frequency anywhere in
- *  its operator stack. A pure function of the note and the patch, so it is
- *  deterministic and twin-identical, and it is decided ONCE per note rather than
- *  per sample.
+ *  its operator stack — `maxOpFrequency` must ALREADY include the worst case of
+ *  anything that can bend the note up while it sounds (see maxPitchModRatio).
+ *  A pure function of the note and the patch, so it is deterministic and
+ *  twin-identical, and it is decided ONCE per note rather than per sample.
  *
  *  The threshold is sampleRate/4, placed from measurement: sweeping the highest
  *  operator frequency, 1x and 4x are indistinguishable up to 13.1 kHz and
- *  diverge by +9..+38 dB from 14.7 kHz upward. 12 kHz sits just below that,
- *  which also leaves ~2 semitones of upward pitch-bend headroom — setPitchRatio
- *  does NOT re-pick the factor mid-note (that would glitch), so the margin
- *  matters. */
+ *  diverge by +9..+38 dB from 14.7 kHz upward. 12 kHz sits below that with
+ *  ~1.5 semitones of proven-clean headroom (12 kHz -> 13.1 kHz) and ~3.5
+ *  semitones to the first measured divergence (14.7 kHz). That margin is now
+ *  slack, not a load-bearing allowance: pitch modulation is folded into
+ *  maxOpFrequency explicitly, because setPitchRatio must NOT re-pick the factor
+ *  mid-note (switching K under a sounding voice would glitch). */
 export function chooseOversampling(maxOpFrequency: number, sampleRate: number): number {
   return maxOpFrequency > sampleRate / 4 ? FM_OVERSAMPLING : 1;
+}
+
+/** Worst-case upward pitch multiplier a layer's LFO pitch route can reach.
+ *
+ *  Derived from the modulation model, not guessed: a PatchLayer has at most ONE
+ *  `mod` (one LFO, one `toPitchCents`), and Voice.tickModulation is the only
+ *  caller of setPitchRatio — it sets `2 ** (toPitchCents * lfoVal / 1200)` with
+ *  `lfoVal` in [-1, 1] (Lfo.nextSample: a sine/triangle scaled by a 0..1 gate).
+ *  So the largest UPWARD excursion is `2 ** (|toPitchCents| / 1200)`: the
+ *  absolute value, because a negative depth still bends up on the LFO's -1
+ *  half-cycle. No pitch route (or depth 0) gives exactly 1 — so every patch
+ *  without vibrato keeps the K it had, at zero CPU cost.
+ *
+ *  If a second route to pitch is ever added, this must become the sum of the
+ *  absolute depths (assume every contributing LFO peaks at once). */
+export function maxPitchModRatio(pitchModCents: number): number {
+  return 2 ** (Math.abs(pitchModCents) / 1200);
 }
 
 /** Ring-buffered FIR: push every oversampled sample, read one output per
@@ -63,28 +85,27 @@ export class FmDecimator {
     this.pos = (this.pos + 1) % this.history.length;
   }
 
-  /** Convolve the window. After push(), `pos` indexes the OLDEST sample, so
-   *  tap j lines up with history[(pos + j) % n] — oldest to newest.
-   *
-   *  NOTE: applying taps[0] to the OLDEST sample is the time-REVERSE of textbook
-   *  convolution. It is numerically inert only because FM_DECIMATION_TAPS is
-   *  exactly palindromic. Swap in an asymmetric table and this filter silently
-   *  becomes its own time reversal — reverse the tap index if you ever do.
+  /** Textbook convolution, y[n] = sum_j taps[j] * x[n-j]: taps[0] multiplies the
+   *  NEWEST sample. After push(), `pos` indexes the OLDEST sample, so walking
+   *  i = pos..newest visits x oldest-first and the matching tap is taps[n-1-j].
+   *  (The table is near-symmetric but NOT bit-exactly palindromic — 10 of its 16
+   *  mirror pairs differ in the last ulps — so the tap index has to be right;
+   *  there is no symmetry to lean on.)
    *
    *  The window is walked as two contiguous runs (pos..<n, then 0..<pos) rather
    *  than with a `% n` per tap: 32 modulos per output sample was the dominant
    *  added cost for a 2-op voice. Same samples, same taps, same summation order,
-   *  so it is BIT-identical to the modulo form — pinned by a test. */
+   *  so it is BIT-identical to the naive modulo form — pinned by a test. */
   output(): number {
     const n = this.history.length;
     const p = this.pos;
     let y = 0;
     let j = 0;
     for (let i = p; i < n; i++, j++) {
-      y += FM_DECIMATION_TAPS[j] * this.history[i];
+      y += FM_DECIMATION_TAPS[n - 1 - j] * this.history[i];
     }
     for (let i = 0; i < p; i++, j++) {
-      y += FM_DECIMATION_TAPS[j] * this.history[i];
+      y += FM_DECIMATION_TAPS[n - 1 - j] * this.history[i];
     }
     return y;
   }

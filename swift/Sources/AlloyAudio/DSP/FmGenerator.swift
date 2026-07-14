@@ -89,15 +89,23 @@ public final class FmGenerator: ToneGenerator {
     private var pitchRatio = 1.0
     private var amp = 0.0
     private var keyed = false
-    /// Highest ratio in the stack — hoisted so noteOn stays allocation-free.
+    /// Highest ratio in the stack — hoisted out of noteOn (which is on the
+    /// note-event path and should stay cheap).
     private let maxRatio: Double
+    /// Worst-case upward pitch bend the owning layer's LFO can reach; 1 when the
+    /// patch has no pitch modulation. Folded into the K choice at noteOn.
+    private let maxPitchRatio: Double
     /// Oversampling factor for the current note; 1 = the original code path.
     private var oversamplingFactor = 1
     private let decimator = FmDecimator()
     /// Envelope level per operator for the current OUTPUT sample.
     private var envLevels: [Double]
 
-    public init(params: FmGeneratorParams, sampleRate: Double) {
+    /// `pitchModCents` is the owning layer's LFO pitch-route depth
+    /// (`PatchLayer.mod.toPitchCents`), 0 when there is none. It is part of the
+    /// patch, known at noteOn, and it is what stops an LFO from bending a K=1
+    /// voice's modulator past Nyquist mid-note.
+    public init(params: FmGeneratorParams, sampleRate: Double, pitchModCents: Double = 0) {
         let errors = validateFmGeneratorParams(params)
         precondition(errors.isEmpty, errors.joined(separator: "; "))
         let opCount = params.operators.count
@@ -107,6 +115,7 @@ public final class FmGenerator: ToneGenerator {
         phases = [Double](repeating: 0, count: opCount)
         outputs = [Double](repeating: 0, count: opCount)
         maxRatio = params.operators.map(\.ratio).max() ?? 1
+        maxPitchRatio = maxPitchModRatio(pitchModCents: pitchModCents)
         envLevels = [Double](repeating: 0, count: opCount)
     }
 
@@ -123,10 +132,15 @@ public final class FmGenerator: ToneGenerator {
         frequency = Pitch.frequency(midi: midi)
         amp = velocity
         // Decide the oversampling factor ONCE per note, from the highest frequency
-        // anywhere in the stack. setPitchRatio deliberately does not re-decide it
-        // mid-note — that would glitch — which is why the threshold carries ~2
-        // semitones of bend headroom.
-        oversamplingFactor = chooseOversampling(maxOpFrequency: frequency * maxRatio, sampleRate: sampleRate)
+        // anywhere in the stack UNDER THE PATCH'S WORST-CASE PITCH MODULATION.
+        // setPitchRatio deliberately does not re-decide it mid-note (that would
+        // glitch), so the LFO's peak upward bend has to be priced in here — else a
+        // deep vibrato route sweeps a K=1 voice's modulator past Nyquist and the
+        // aliasing this phase exists to kill comes back, periodically.
+        oversamplingFactor = chooseOversampling(
+            maxOpFrequency: frequency * maxRatio * maxPitchRatio,
+            sampleRate: sampleRate,
+        )
         decimator.reset()
         for i in phases.indices {
             phases[i] = 0

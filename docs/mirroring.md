@@ -412,21 +412,34 @@ the output rate and decimates back down, where K is chosen per VOICE:
   Blackman-windowed sinc, cutoff 0.45/4 of the oversampled rate, normalized to
   unity DC gain. It must NEVER be computed at runtime: JS `Math.sin` and Swift
   `sin` may differ in the last ulp, which would silently diverge the twins'
-  audio while every structural test still passed. The table is exactly
-  palindromic, which is also why `FmDecimator.output()` gets away with applying
-  `taps[0]` to the OLDEST sample (the time-reverse of textbook convolution) —
-  an asymmetric table dropped in later would be silently time-reversed.
+  audio while every structural test still passed. `FmDecimator.output()` is
+  textbook convolution — `taps[0]` multiplies the NEWEST sample — and depends on
+  no symmetry of the table (the table is near-symmetric but NOT bit-exactly
+  palindromic: 10 of its 16 mirror pairs differ in the last ulps, so an
+  implementation that leaned on symmetry would be resting on a false premise).
   `output()` walks the ring as two contiguous runs rather than `% n` per tap;
-  a twin test pins that this is BIT-identical to the naive modulo form (exact
-  equality, no tolerance), since it is the same taps over the same samples in
-  the same summation order.
+  a twin test pins that this is BIT-identical to the naive modulo convolution
+  (exact equality, no tolerance), since it is the same taps over the same
+  samples in the same summation order.
 - `chooseOversampling(maxOpFrequency, sampleRate)` — threshold `sampleRate / 4`,
   **exclusive** (`maxOpFrequency > sampleRate/4`; exactly at the threshold, K=1).
   A pure function of the note and the patch: deterministic, twin-identical, and
-  decided ONCE per `noteOn` from the highest frequency anywhere in the operator
-  stack. `setPitchRatio` deliberately does NOT re-decide it mid-note — switching
-  K under a sounding voice would glitch, and the threshold sits ~2 semitones
-  below the danger zone precisely to leave pitch-bend headroom.
+  decided ONCE per `noteOn`. `setPitchRatio` deliberately does NOT re-decide it
+  mid-note — switching K under a sounding voice would glitch.
+- **Pitch modulation is priced into K, not clamped out of the patch.** Because K
+  is committed at `noteOn`, `maxOpFrequency` must be the worst case the note can
+  reach while it sounds:
+  `midiToFrequency(midi) * max(op.ratio) * maxPitchModRatio(toPitchCents)`, where
+  `maxPitchModRatio(c) = 2 ** (|c| / 1200)` — the LFO's peak (its value is in
+  [-1, 1], and a negative depth still bends UP on the negative half-cycle). A
+  `PatchLayer` has at most one `mod` route, so this is a single term today; a
+  second route to pitch would make it the sum of the absolute depths. `Voice`
+  passes `layer.mod?.toPitchCents ?? 0` into `FmGenerator`'s constructor
+  (`pitchModCents`, default 0 → ratio exactly 1 → K and CPU unchanged for every
+  patch without vibrato). Without this, a 1200-cent vibrato route on midi 80 with
+  a ratio-14 modulator renders at K=1 while the LFO sweeps the modulator to
+  23.3 kHz — measured -25 dB of foldback, i.e. the exact bug phase 3c exists to
+  kill. Twin-tested on both sides.
 - **The behavioral contract that matters most: operator envelopes step once per
   OUTPUT sample, held constant across the K sub-samples.** This is what keeps the
   K=1 path bit-identical to the pre-3c code, and therefore what keeps the golden

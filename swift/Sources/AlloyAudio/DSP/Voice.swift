@@ -91,7 +91,14 @@ public final class Voice {
         for layer in patch.layers {
             guard layer.keyRange.lowMidi <= midi, midi <= layer.keyRange.highMidi else { continue }
             guard layer.velRange.low <= velocity, velocity <= layer.velRange.high else { continue }
-            guard let generator = buildGenerator(layer.generator) else {
+            // The layer's pitch-mod depth goes IN to the generator: FmGenerator
+            // picks its oversampling factor once per note and must know how far
+            // this layer's LFO can bend the note up before it commits (see
+            // FmOversampling.swift).
+            guard let generator = buildGenerator(
+                layer.generator,
+                pitchModCents: layer.mod?.toPitchCents ?? 0,
+            ) else {
                 continue // Unresolvable zoneSetId: layer inactive, not an error.
             }
             let tva = AdsrEnvelope(params: layer.tva.adsr, sampleRate: sampleRate)
@@ -190,10 +197,10 @@ public final class Voice {
     /// Builds the layer's generator; nil marks the layer inactive (an
     /// unresolvable sample zoneSetId or missing provider is progressive-loading
     /// silence, not an error).
-    private func buildGenerator(_ spec: GeneratorSpec) -> ToneGenerator? {
+    private func buildGenerator(_ spec: GeneratorSpec, pitchModCents: Double) -> ToneGenerator? {
         switch spec {
         case let .fm(params):
-            return FmGenerator(params: params, sampleRate: sampleRate)
+            return FmGenerator(params: params, sampleRate: sampleRate, pitchModCents: pitchModCents)
         case let .additive(partials):
             return AdditiveGenerator(partials: partials, sampleRate: sampleRate)
         case let .va(params, seed):

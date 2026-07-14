@@ -52,26 +52,45 @@ costs precisely the brightness an FM8-class EP needs. **C8 is worse still
 
 ## Architecture
 
-All of it lives inside `FmGenerator`. **No other generator, the voice, the
-patch schema, and the `ToneGenerator` interface are untouched** — oversampling
-is an implementation detail of one generator, not an engine-wide concern.
+All of it lives inside `FmGenerator`. **No other generator, the patch schema, and
+the `ToneGenerator` interface are untouched** — oversampling is an implementation
+detail of one generator, not an engine-wide concern. `Voice` contributes exactly
+one thing: it hands the layer's pitch-modulation depth to the `FmGenerator`
+constructor, because K is chosen at `noteOn` and must account for how far the
+LFO can bend the note (see below).
 
 ### 1. Oversampling factor, chosen at `noteOn`
 
 ```
-maxOpFreq = midiToFrequency(midi) × max(op.ratio for op in operators)
-K = maxOpFreq > sampleRate / 4  ?  4  :  1
+maxPitchRatio = 2 ^ (|layer.mod.toPitchCents| / 1200)      // 1 when there is no vibrato
+maxOpFreq     = midiToFrequency(midi) × max(op.ratio) × maxPitchRatio
+K             = maxOpFreq > sampleRate / 4  ?  4  :  1
 ```
 
 A pure function of the note and the patch: deterministic, twin-identical, and
 decided once per note rather than per sample.
 
+**The modulation depth is part of the patch, so it is part of K.** `setPitchRatio`
+does not re-pick K mid-note (switching K under a sounding voice would glitch), so
+the worst upward bend the note can reach must be priced in at `noteOn`. The
+engine has no pitch bend; the mechanism is LFO vibrato: `Voice.tickModulation`
+sets `pitchRatio = 2^(toPitchCents × lfoVal / 1200)` with `lfoVal ∈ [-1, 1]`, and
+a layer has at most one `mod` route — hence the absolute value (a negative depth
+still bends up on the LFO's negative half-cycle). Without this, a 1200-cent
+vibrato on midi 80 with a ratio-14 modulator renders at K=1 while the LFO drives
+that modulator to 23.3 kHz: **-25 dB of foldback, the original bug, swept back in
+once per LFO cycle**. Patches without vibrato get `maxPitchRatio == 1`, so their K
+— and their CPU cost — is unchanged. (This is the one place the fix reaches
+outside `FmGenerator`: `Voice` passes `layer.mod?.toPitchCents ?? 0` to the
+generator's constructor. The patch schema and `ToneGenerator` are untouched.)
+
 The threshold is placed from measurement, not taste. Sweeping `maxOpFreq`, 1×
 and 4× are indistinguishable up to **13.1 kHz** (SR/3.7) and diverge by
-+9…+38 dB from **14.7 kHz** (SR/3.3) upward. `sampleRate / 4` (12 kHz) sits just
-below where divergence begins, which also buys ≈2 semitones of upward
-pitch-bend headroom — `setPitchRatio` does **not** re-pick K mid-note (that
-would glitch), so the margin matters.
++9…+38 dB from **14.7 kHz** (SR/3.3) upward. `sampleRate / 4` (12 kHz) sits below
+where divergence begins: **≈1.5 semitones of proven-clean headroom** (12 → 13.1
+kHz) and **≈3.5 semitones to the first measured divergence** (12 → 14.7 kHz). With
+modulation depth now handled explicitly, that margin is slack — cover for
+unmodelled excursions — not an allowance anything is relying on.
 
 Because oversampling is a no-op below the threshold, **the K=1/K=4 switch
 between adjacent notes is inaudible**. That is a measured property, not an
@@ -104,8 +123,11 @@ no runtime filter design, nothing to drift between platforms. At K=1 the filter
 is bypassed entirely (that is what preserves bit-exactness).
 
 **Accepted cost — group delay:** ~4 output samples (83 µs) at K=4. In a layered
-patch an oversampled voice sits a hair behind a non-oversampled one. Inaudible,
-but real, and recorded here rather than discovered later.
+patch an oversampled voice sits a hair behind a non-oversampled one. Between
+independent voices that is inaudible. The one case where it may not be: a LAYERED
+patch whose layers are CORRELATED (the same note, two FM layers, one over the K
+threshold and one under) — there the 83 µs offset combs the sum, with the first
+notch near 6 kHz. Real, accepted, recorded here rather than discovered later.
 
 **Accepted cost — transition band.** What matters about a decimation filter is
 not its response *at* a frequency but where that frequency **folds to**. The
@@ -161,7 +183,14 @@ Swift computes in `Double`, buffers stay `[Float]`, per the existing convention.
   adaptive design.
 - **Benchmark gate.** The existing 64-voice full-FX benchmark plays midi 36–99,
   so it *will* exercise the oversampled path. It must stay under the
-  **<25% of one core** envelope. This is a hard gate, not an observation.
+  **<25% of one core** envelope. This is a hard gate, not an observation — and it
+  only means anything where it executes: the 0.25 bound lives in the RELEASE
+  config, which CI (plain `swift test`, debug) never builds, so `tools/release.mjs`
+  runs `swift test -c release --filter BenchmarkTests` in its preflight and no tag
+  is cut without it. CI enforces the debug bound (13.5 vs ~10.4 measured) as the
+  per-PR regression net. The benchmark takes the **minimum of 3 runs**: noise only
+  makes a run slower, so the min is the robust estimate and the bound needs no
+  slack for flake.
 - **Determinism.** Repeat renders bit-identical; twins agree.
 
 ## Out of scope
