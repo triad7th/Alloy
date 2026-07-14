@@ -14,16 +14,25 @@ final class BenchmarkTests: XCTestCase {
     private let block = 128
 
     /// `swift test`'s default debug config (-Onone: no inlining, full ARC
-    /// traffic) renders this DSP-heavy loop roughly 4x slower than the -O
-    /// release config the app actually ships with — measured ~420% of
-    /// realtime for the 64-voice case in debug vs. ~12% in release. A fixed
-    /// `< 1.0` bound is a guaranteed failure under plain `swift test`, not a
-    /// flake, so the realtime bound gets debug-config headroom (well above
-    /// the observed debug ratio) while staying at the brief's intended
-    /// `< 1.0` for release, which is what the < 25%-of-one-core target is
-    /// actually about. `_isDebugAssertConfiguration()` is the stdlib's own
-    /// way to tell the two configs apart at runtime.
-    private let realtimeBound = _isDebugAssertConfiguration() ? 8.0 : 1.0
+    /// traffic, array bounds checks) renders this DSP-heavy loop an order of
+    /// magnitude slower than the -O release config the app actually ships
+    /// with — measured 1053% of realtime for the 64-voice case in debug vs.
+    /// 21% in release. A fixed `< 1.0` bound is a guaranteed failure under
+    /// plain `swift test`, not a flake, so the realtime bound gets
+    /// debug-config headroom (well above the observed debug ratio) while
+    /// staying at the brief's intended `< 1.0` for release, which is what the
+    /// < 25%-of-one-core target is actually about.
+    /// `_isDebugAssertConfiguration()` is the stdlib's own way to tell the two
+    /// configs apart at runtime.
+    ///
+    /// The debug bound was 8.0 (against a measured 419%) until FM anti-aliasing
+    /// landed: the golden FM patch modulates at ratio 14, so 19 of the 64
+    /// benchmark voices (midi 81..99, whose modulator clears the 12 kHz
+    /// threshold) now run the operator loop at 4x plus a 32-tap decimator. That
+    /// costs 2.5x in debug (419% -> 1053%) and 1.75x in release (12% -> 21%);
+    /// release still clears both the < 1.0 bound and the 25%-of-one-core target,
+    /// so only the debug fudge factor moves.
+    private let realtimeBound = _isDebugAssertConfiguration() ? 20.0 : 1.0
 
     func testSixtyFourVoiceFullFxFasterThanRealtime() {
         let seconds = 4

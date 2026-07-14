@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AdsrEnvelope } from './adsr-envelope.js';
 import { FmGenerator, type FmGeneratorParams, validateFmGeneratorParams } from './fm-generator.js';
+import { FM_OVERSAMPLING } from './fm-oversampling.js';
 
 const FS = 48_000;
 const FAST_ADSR = { attack: 0.001, decay: 1, sustain: 1, release: 0.01 };
@@ -133,5 +134,104 @@ describe('FmGenerator', () => {
     // console.log(JSON.stringify(Array.from(out.subarray(0, 8))));
     expect(TWIN_REFERENCE).toHaveLength(8);
     TWIN_REFERENCE.forEach((v, i) => expect(out[i]).toBeCloseTo(v, 6));
+  });
+});
+
+// --- anti-aliasing (phase 3c) ---------------------------------------------
+
+const FS_AA = 48_000;
+
+/** The workbench EP operator stack, at the ratio-14 modulator that made it
+ *  alias. Operator 2 runs at 14x the note: on G#6 that is 23.3 kHz, against a
+ *  24 kHz Nyquist. */
+const EP_STACK: FmGeneratorParams = {
+  operators: [
+    { ratio: 1, level: 1, adsr: { attack: 0.002, decay: 1.3, sustain: 0.16, release: 0.4 } },
+    { ratio: 1, level: 0.55, adsr: { attack: 0.001, decay: 0.5, sustain: 0.1, release: 0.3 } },
+    { ratio: 14, level: 0.3, adsr: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.05 } },
+  ],
+  algorithm: {
+    routes: [
+      { from: 1, to: 0 },
+      { from: 2, to: 0 },
+    ],
+    carriers: [0],
+  },
+};
+
+function renderNote(params: FmGeneratorParams, midi: number, frames: number): Float32Array {
+  const gen = new FmGenerator(params, FS_AA);
+  gen.noteOn(midi, 0.8);
+  const out = new Float32Array(frames);
+  gen.render(out, frames);
+  return out;
+}
+
+/** Energy below the fundamental, in dB relative to it. An FM spectrum built on
+ *  f0 has NO legitimate content beneath f0, so whatever is down there is aliased
+ *  foldback — which makes this a direct measurement of the defect. */
+function aliasFloorDb(x: Float32Array, f0: number): number {
+  const mag = (f: number) => {
+    let re = 0;
+    let im = 0;
+    for (let i = 0; i < x.length; i++) {
+      const t = (2 * Math.PI * f * i) / FS_AA;
+      re += x[i] * Math.cos(t);
+      im += x[i] * Math.sin(t);
+    }
+    return Math.hypot(re, im) / x.length;
+  };
+  const fundamental = mag(f0);
+  let worst = 0;
+  for (let f = 40; f < f0 * 0.75; f += 20) worst = Math.max(worst, mag(f));
+  return 20 * Math.log10(worst / (fundamental + 1e-15));
+}
+
+const midiHz = (m: number) => 440 * 2 ** ((m - 69) / 12);
+
+describe('FmGenerator anti-aliasing', () => {
+  it('does not fold sidebands into the bass on G#6 (this is the bug that shipped)', () => {
+    // Before oversampling this measured -25 dB. Oversampled it measures -63 dB;
+    // -55 leaves margin without being so loose the regression could return.
+    const y = renderNote(EP_STACK, 92, FS_AA / 2);
+    expect(aliasFloorDb(y, midiHz(92))).toBeLessThan(-55);
+  });
+
+  it('holds up at C7', () => {
+    const y = renderNote(EP_STACK, 96, FS_AA / 2);
+    expect(aliasFloorDb(y, midiHz(96))).toBeLessThan(-55);
+  });
+
+  it('improves C8, even though C8 is not fully clean by design', () => {
+    // Accepted limit: 8x would be needed to get C8 below -60, at ~9x the CPU.
+    // Before oversampling this measured -21 dB; after, -46 dB.
+    const y = renderNote(EP_STACK, 108, FS_AA / 2);
+    expect(aliasFloorDb(y, midiHz(108))).toBeLessThan(-40);
+  });
+
+  it('leaves low notes on the original 1x path — oversampling there is a no-op', () => {
+    const gen = new FmGenerator(EP_STACK, FS_AA);
+    gen.noteOn(60, 0.8);
+    expect(gen.oversampling).toBe(1); // C4 x 14 = 3.7 kHz, well under 12 kHz
+    gen.noteOn(92, 0.8);
+    expect(gen.oversampling).toBe(FM_OVERSAMPLING); // G#6 x 14 = 23.3 kHz
+  });
+
+  it('switches factor between adjacent notes without an audible level jump', () => {
+    // The adaptive design is only legitimate because oversampling is a no-op
+    // below the threshold. Two notes either side of the switch must match.
+    // ratio 14: the threshold (12 kHz) falls at f0 = 857 Hz, i.e. between midi
+    // 80 (830 Hz -> 1x) and midi 81 (880 Hz -> 4x).
+    const below = renderNote(EP_STACK, 80, FS_AA / 4);
+    const above = renderNote(EP_STACK, 81, FS_AA / 4);
+    const rms = (v: Float32Array) => Math.sqrt(v.reduce((s, x) => s + x * x, 0) / v.length);
+    const ratioDb = 20 * Math.log10(rms(above) / rms(below));
+    expect(Math.abs(ratioDb)).toBeLessThan(1.5); // no step at the switch
+  });
+
+  it('is deterministic', () => {
+    const a = renderNote(EP_STACK, 92, 4096);
+    const b = renderNote(EP_STACK, 92, 4096);
+    expect(Array.from(a)).toEqual(Array.from(b));
   });
 });

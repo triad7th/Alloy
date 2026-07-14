@@ -89,6 +89,13 @@ public final class FmGenerator: ToneGenerator {
     private var pitchRatio = 1.0
     private var amp = 0.0
     private var keyed = false
+    /// Highest ratio in the stack — hoisted so noteOn stays allocation-free.
+    private let maxRatio: Double
+    /// Oversampling factor for the current note; 1 = the original code path.
+    private var oversamplingFactor = 1
+    private let decimator = FmDecimator()
+    /// Envelope level per operator for the current OUTPUT sample.
+    private var envLevels: [Double]
 
     public init(params: FmGeneratorParams, sampleRate: Double) {
         let errors = validateFmGeneratorParams(params)
@@ -99,17 +106,28 @@ public final class FmGenerator: ToneGenerator {
         envelopes = params.operators.map { AdsrEnvelope(params: $0.adsr, sampleRate: sampleRate) }
         phases = [Double](repeating: 0, count: opCount)
         outputs = [Double](repeating: 0, count: opCount)
+        maxRatio = params.operators.map(\.ratio).max() ?? 1
+        envLevels = [Double](repeating: 0, count: opCount)
     }
 
     public var finished: Bool {
         keyed && params.algorithm.carriers.allSatisfy { !envelopes[$0].isActive }
     }
 
+    /// Oversampling factor chosen for the current note (1 or `FM_OVERSAMPLING`).
+    public var oversampling: Int { oversamplingFactor }
+
     public func noteOn(midi: Int, velocity: Double) {
         keyed = true
         pitchRatio = 1
         frequency = Pitch.frequency(midi: midi)
         amp = velocity
+        // Decide the oversampling factor ONCE per note, from the highest frequency
+        // anywhere in the stack. setPitchRatio deliberately does not re-decide it
+        // mid-note — that would glitch — which is why the threshold carries ~2
+        // semitones of bend headroom.
+        oversamplingFactor = chooseOversampling(maxOpFrequency: frequency * maxRatio, sampleRate: sampleRate)
+        decimator.reset()
         for i in phases.indices {
             phases[i] = 0
             outputs[i] = 0
@@ -133,24 +151,48 @@ public final class FmGenerator: ToneGenerator {
         let operators = params.operators
         let algorithm = params.algorithm
         let carrierScale = amp / Double(algorithm.carriers.count)
+        let os = oversamplingFactor
+        // The rate the operator loop actually runs at. At os == 1 this is exactly
+        // sampleRate (x1 is bit-exact), so the phase increment below is the same
+        // expression, evaluated in the same order, as the pre-oversampling code —
+        // which is why the goldens do not move.
+        let osSampleRate = sampleRate * Double(os)
         for n in 0..<frames {
             if finished { return }
-            for i in stride(from: operators.count - 1, through: 0, by: -1) {
-                var mod = 0.0
-                for route in algorithm.routes where route.to == i {
-                    mod += outputs[route.from]
-                }
-                if let feedback = algorithm.feedback, feedback.op == i {
-                    mod += outputs[i] * feedback.amount
-                }
-                let env = envelopes[i].nextSample()
-                outputs[i] = sin(DspConstants.twoPi * (phases[i] + mod)) * env * operators[i].level
-                phases[i] += frequency * pitchRatio * operators[i].ratio / sampleRate
-                phases[i] -= phases[i].rounded(.down)
+            // Envelopes advance ONCE per output sample and are held across the K
+            // sub-samples. They are slow control signals (<= 83 us of hold at K=4),
+            // so this is inaudible — and it is the other half of what makes the
+            // os == 1 path bit-identical to the pre-oversampling code. Do NOT
+            // "tidy" this back inside the operator loop.
+            for i in operators.indices {
+                envLevels[i] = envelopes[i].nextSample()
             }
             var sample = 0.0
-            for c in algorithm.carriers {
-                sample += outputs[c]
+            for k in 0..<os {
+                for i in stride(from: operators.count - 1, through: 0, by: -1) {
+                    var mod = 0.0
+                    for route in algorithm.routes where route.to == i {
+                        mod += outputs[route.from]
+                    }
+                    if let feedback = algorithm.feedback, feedback.op == i {
+                        mod += outputs[i] * feedback.amount
+                    }
+                    outputs[i] = sin(DspConstants.twoPi * (phases[i] + mod)) * envLevels[i] * operators[i].level
+                    phases[i] += frequency * pitchRatio * operators[i].ratio / osSampleRate
+                    phases[i] -= phases[i].rounded(.down)
+                }
+                var sum = 0.0
+                for c in algorithm.carriers {
+                    sum += outputs[c]
+                }
+                if os == 1 {
+                    sample = sum
+                } else {
+                    decimator.push(sum)
+                    if k == os - 1 {
+                        sample = decimator.output()
+                    }
+                }
             }
             out[n] += Float(sample * carrierScale)
         }

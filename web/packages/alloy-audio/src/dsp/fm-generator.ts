@@ -5,6 +5,7 @@
 
 import { AdsrEnvelope, type AdsrParams } from './adsr-envelope.js';
 import { TWO_PI, type ToneGenerator } from './dsp-types.js';
+import { FmDecimator, chooseOversampling } from './fm-oversampling.js';
 import { midiToFrequency } from '../pitch.js';
 
 export interface FmOperatorParams {
@@ -64,6 +65,14 @@ export class FmGenerator implements ToneGenerator {
   private pitchRatio = 1;
   private amp = 0;
   private keyed = false;
+  /** Highest ratio in the stack — hoisted so noteOn stays allocation-free. */
+  private readonly maxRatio: number;
+  /** Oversampling factor for the current note; 1 = the original code path.
+   *  Named `oversamplingFactor` because the public getter takes `oversampling`. */
+  private oversamplingFactor = 1;
+  private readonly decimator = new FmDecimator();
+  /** Envelope level per operator for the current OUTPUT sample. */
+  private readonly envLevels: number[];
 
   constructor(
     private readonly params: FmGeneratorParams,
@@ -76,10 +85,17 @@ export class FmGenerator implements ToneGenerator {
     this.envelopes = params.operators.map((op) => new AdsrEnvelope(op.adsr, sampleRate));
     this.phases = params.operators.map(() => 0);
     this.outputs = params.operators.map(() => 0);
+    this.maxRatio = Math.max(...params.operators.map((op) => op.ratio));
+    this.envLevels = params.operators.map(() => 0);
   }
 
   get finished(): boolean {
     return this.keyed && this.params.algorithm.carriers.every((c) => !this.envelopes[c].isActive);
+  }
+
+  /** Oversampling factor chosen for the current note (1 or FM_OVERSAMPLING). */
+  get oversampling(): number {
+    return this.oversamplingFactor;
   }
 
   noteOn(midi: number, velocity: number): void {
@@ -87,6 +103,12 @@ export class FmGenerator implements ToneGenerator {
     this.pitchRatio = 1;
     this.frequency = midiToFrequency(midi);
     this.amp = velocity;
+    // Decide the oversampling factor ONCE per note, from the highest frequency
+    // anywhere in the stack. setPitchRatio deliberately does not re-decide it
+    // mid-note — that would glitch — which is why the threshold carries ~2
+    // semitones of bend headroom.
+    this.oversamplingFactor = chooseOversampling(this.frequency * this.maxRatio, this.sampleRate);
+    this.decimator.reset();
     this.phases.fill(0);
     this.outputs.fill(0);
     for (const env of this.envelopes) {
@@ -107,29 +129,53 @@ export class FmGenerator implements ToneGenerator {
   render(out: Float32Array, frames: number): void {
     const { operators, algorithm } = this.params;
     const carrierScale = this.amp / algorithm.carriers.length;
+    const os = this.oversamplingFactor;
+    // The rate the operator loop actually runs at. At os === 1 this is exactly
+    // this.sampleRate (x1 is bit-exact), so the phase increment below is the
+    // same expression, evaluated in the same order, as the pre-oversampling
+    // code — which is why the goldens do not move.
+    const osSampleRate = this.sampleRate * os;
     for (let n = 0; n < frames; n++) {
       if (this.finished) {
         return;
       }
-      for (let i = operators.length - 1; i >= 0; i--) {
-        let mod = 0;
-        for (const route of algorithm.routes) {
-          if (route.to === i) {
-            mod += this.outputs[route.from];
-          }
-        }
-        const feedback = algorithm.feedback;
-        if (feedback && feedback.op === i) {
-          mod += this.outputs[i] * feedback.amount;
-        }
-        const env = this.envelopes[i].nextSample();
-        this.outputs[i] = Math.sin(TWO_PI * (this.phases[i] + mod)) * env * operators[i].level;
-        this.phases[i] += (this.frequency * this.pitchRatio * operators[i].ratio) / this.sampleRate;
-        this.phases[i] -= Math.floor(this.phases[i]);
+      // Envelopes advance ONCE per output sample and are held across the K
+      // sub-samples. They are slow control signals (<= 83 us of hold at K=4), so
+      // this is inaudible — and it is the other half of what makes the os === 1
+      // path bit-identical to the pre-oversampling code. Do NOT "tidy" this back
+      // inside the operator loop.
+      for (let i = 0; i < operators.length; i++) {
+        this.envLevels[i] = this.envelopes[i].nextSample();
       }
       let sample = 0;
-      for (const c of algorithm.carriers) {
-        sample += this.outputs[c];
+      for (let k = 0; k < os; k++) {
+        for (let i = operators.length - 1; i >= 0; i--) {
+          let mod = 0;
+          for (const route of algorithm.routes) {
+            if (route.to === i) {
+              mod += this.outputs[route.from];
+            }
+          }
+          const feedback = algorithm.feedback;
+          if (feedback && feedback.op === i) {
+            mod += this.outputs[i] * feedback.amount;
+          }
+          this.outputs[i] = Math.sin(TWO_PI * (this.phases[i] + mod)) * this.envLevels[i] * operators[i].level;
+          this.phases[i] += (this.frequency * this.pitchRatio * operators[i].ratio) / osSampleRate;
+          this.phases[i] -= Math.floor(this.phases[i]);
+        }
+        let sum = 0;
+        for (const c of algorithm.carriers) {
+          sum += this.outputs[c];
+        }
+        if (os === 1) {
+          sample = sum;
+        } else {
+          this.decimator.push(sum);
+          if (k === os - 1) {
+            sample = this.decimator.output();
+          }
+        }
       }
       out[n] += sample * carrierScale;
     }
