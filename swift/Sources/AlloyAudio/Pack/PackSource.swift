@@ -32,7 +32,28 @@ public struct BasePathPackSource: PackSource {
     }
 
     public func fetchZone(_ file: String) async throws -> Data {
-        try await fetchFn("\(base)/\(file)")
+        try await fetchFn("\(base)/\(Self.encodeZonePath(file))")
+    }
+
+    /// Percent-encode each path segment of a manifest `file` entry.
+    ///
+    /// Zone filenames are content, not URLs, and real packs carry characters a
+    /// URL parses as syntax — the piano pack's sharps are literally
+    /// `D#4v12.m4a`, and an unencoded `#` is a FRAGMENT delimiter: the request
+    /// silently becomes `<base>/D`, a static host answers with its index page,
+    /// and the decoder then fails on markup. Encoding per segment (not the whole
+    /// string) keeps `/` working for packs that nest zones in subdirectories.
+    /// Twin: pack-source.ts (canonical).
+    static func encodeZonePath(_ file: String) -> String {
+        file.split(separator: "/", omittingEmptySubsequences: false)
+            .map { segment in
+                // .urlPathAllowed leaves `#` and `?` intact, which is exactly the
+                // bug; subtract them so a segment can never introduce URL syntax.
+                var allowed = CharacterSet.urlPathAllowed
+                allowed.remove(charactersIn: "#?")
+                return String(segment).addingPercentEncoding(withAllowedCharacters: allowed) ?? String(segment)
+            }
+            .joined(separator: "/")
     }
 }
 

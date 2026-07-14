@@ -60,6 +60,35 @@ describe('BasePathPackSource', () => {
     expect(result).toBeInstanceOf(Uint8Array);
     expect(Array.from(result)).toEqual([1, 2, 3, 4]);
   });
+
+  it('fetchZone percent-encodes a sharp in the filename (an unencoded # is a URL fragment)', async () => {
+    // The real piano pack names 14 of its 30 roots with a sharp: `D#4v12.m4a`.
+    // Unencoded, the browser cuts the URL at `#` and requests `packs/piano/D`,
+    // a static host answers with its index page, and the decoder fails on HTML.
+    const requested: string[] = [];
+    const fetchFn: FetchFn = async (url) => {
+      requested.push(url);
+      return { json: async () => ({}), arrayBuffer: async () => new Uint8Array([9]).buffer };
+    };
+    const source = new BasePathPackSource('packs/piano', fetchFn);
+
+    await source.fetchZone('D#4v12.m4a');
+
+    expect(requested).toEqual(['packs/piano/D%234v12.m4a']);
+  });
+
+  it('fetchZone keeps `/` intact so a pack can nest zones in subdirectories', async () => {
+    const requested: string[] = [];
+    const fetchFn: FetchFn = async (url) => {
+      requested.push(url);
+      return { json: async () => ({}), arrayBuffer: async () => new Uint8Array([9]).buffer };
+    };
+    const source = new BasePathPackSource('packs/piano', fetchFn);
+
+    await source.fetchZone('layer3/D#4v12.m4a');
+
+    expect(requested).toEqual(['packs/piano/layer3/D%234v12.m4a']);
+  });
 });
 
 describe('WebAudioDecoder', () => {

@@ -77,4 +77,33 @@ final class PackSourceTests: XCTestCase {
         XCTAssertEqual(requested, ["packs/piano/c4.m4a"])
         XCTAssertEqual(result, bytes)
     }
+
+    /// Twin of pack-source.spec.ts. The real piano pack names 14 of its 30 roots
+    /// with a sharp (`D#4v12.m4a`); unencoded, `#` is a URL fragment delimiter
+    /// and the request silently truncates to `packs/piano/D`.
+    func testFetchZonePercentEncodesASharpInTheFilename() async throws {
+        var requested: [String] = []
+        let fetchFn: FetchFn = { url in
+            requested.append(url)
+            return Data([9])
+        }
+        let source = BasePathPackSource(base: "packs/piano", fetchFn: fetchFn)
+
+        _ = try await source.fetchZone("D#4v12.m4a")
+
+        XCTAssertEqual(requested, ["packs/piano/D%234v12.m4a"])
+    }
+
+    func testFetchZoneKeepsSlashesSoZonesCanNestInSubdirectories() async throws {
+        var requested: [String] = []
+        let fetchFn: FetchFn = { url in
+            requested.append(url)
+            return Data([9])
+        }
+        let source = BasePathPackSource(base: "packs/piano", fetchFn: fetchFn)
+
+        _ = try await source.fetchZone("layer3/D#4v12.m4a")
+
+        XCTAssertEqual(requested, ["packs/piano/layer3/D%234v12.m4a"])
+    }
 }

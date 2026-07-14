@@ -29,6 +29,19 @@ export type FetchFn = (url: string) => Promise<{
   arrayBuffer(): Promise<ArrayBuffer>;
 }>;
 
+/** Percent-encode each path segment of a manifest `file` entry.
+ *
+ *  Zone filenames are content, not URLs, and real packs carry characters that
+ *  a URL parses as syntax — the piano pack's sharps are literally `D#4v12.m4a`,
+ *  and an unencoded `#` is a FRAGMENT delimiter: the request silently becomes
+ *  `<base>/D`, a static host answers with its index page, and the decoder then
+ *  fails on HTML. Encoding per segment (not the whole string) keeps `/` working
+ *  for packs that nest their zones in subdirectories.
+ *  Twin: PackSource.swift. */
+function encodeZonePath(file: string): string {
+  return file.split('/').map(encodeURIComponent).join('/');
+}
+
 /** Pack fetched from a base URL/path: `${base}/manifest.json`, `${base}/<file>`. */
 export class BasePathPackSource implements PackSource {
   constructor(
@@ -45,7 +58,7 @@ export class BasePathPackSource implements PackSource {
   }
 
   async fetchZone(file: string): Promise<EncodedBytes> {
-    const res = await this.fetchFn(`${this.base}/${file}`);
+    const res = await this.fetchFn(`${this.base}/${encodeZonePath(file)}`);
     return new Uint8Array(await res.arrayBuffer());
   }
 }
