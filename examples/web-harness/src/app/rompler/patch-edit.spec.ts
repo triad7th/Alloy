@@ -55,7 +55,12 @@ describe('getAt', () => {
   });
 
   it('reaches into an FM operator', () => {
-    const expected = (REFERENCE_PATCH.layers[0].generator as { fm: { operators: { ratio: number }[] } }).fm.operators[1].ratio;
+    // Narrow on the discriminant rather than casting: a cast would keep compiling
+    // if layer 0 ever stopped being the FM layer, and the test would then compare
+    // undefined to undefined and pass while asserting nothing.
+    const generator = REFERENCE_PATCH.layers[0].generator;
+    if (generator.kind !== 'fm') throw new Error('layer 0 of REFERENCE_PATCH must be the FM layer');
+    const expected = generator.fm.operators[1].ratio;
     expect(getAt(REFERENCE_PATCH, 'layers.0.generator.fm.operators.1.ratio')).toBe(expected);
   });
 
