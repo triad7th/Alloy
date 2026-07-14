@@ -251,7 +251,11 @@ Each phase independently shippable:
      `docs/superpowers/specs/2026-07-12-rompler-pack-pipeline-3a-design.md`.
    - **3b complete** — the real Salamander Grand Piano V3 pack (CC-BY 3.0,
      Alexander Holm) run through the proven machine into a tiny-tier pack:
-     120 zones (30 roots x 4 velocity layers), 18 MB, one-shot; Swift's
+     120 zones (30 roots x 4 velocity layers), ~49 MB, one-shot, untruncated,
+     mono AAC 256 kbps (both revised UP by the listening pass — 128 kbps was
+     audibly lofi on solo piano, and a 12 s cap was chopping 77 of 120 notes
+     while still above -45 dB); ~306 MB decoded, so RAM (not download size) is
+     the binding constraint on this pack shape. Plus Swift's
      concrete `AVAudioFileDecoder`; and the piano patch tuned by ear in the
      workbench (`crossfade: 0` — the four velocity layers are four different
      takes of the same string, phase-incoherent, so they hard-switch rather
