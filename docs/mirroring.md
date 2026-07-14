@@ -462,6 +462,15 @@ the output rate and decimates back down, where K is chosen per VOICE:
 - `FmGenerator.oversampling` is a read-only accessor (the chosen K) on both
   sides, exposed for tests only.
 
+**Patch workbench (phase 4a) is deliberately web-only.** The patch editor and
+its harness wiring (`examples/web-harness/src/app/rompler/`) are a private
+authoring tool for the phase-4b factory bank, in the same spirit as the
+`tools/samplepack/` pipeline: they live in a harness that is never packed,
+tagged, or released, and consume only the existing public `alloy-audio` API
+(`Patch`, `validatePatch`, `WorkletSynthHost`). The workbench adds **no**
+library surface and requires **no** Swift twin — it is outside the twin
+contract entirely. Do not "fix" this asymmetry by porting it.
+
 **Policy — param-level string-enum runtime validation:** whenever an
 `InsertSpec` param field's TS type is a string-literal union (e.g.
 `RotaryParams.speed: 'slow' | 'fast'`, `ChorusParams.mode: 'chorus' |
