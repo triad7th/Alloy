@@ -148,7 +148,15 @@ const PATCH_CATALOG: CatalogEntry[] = [
                 // Warm 1:1 body modulation, fades as the note blooms.
                 { ratio: 1, level: 0.55, adsr: { attack: 0.001, decay: 0.5, sustain: 0.1, release: 0.3 } },
                 // The hammer "clank": high-ratio, very fast decay.
-                { ratio: 14, level: 0.3, adsr: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.05 } },
+                // Ratio 7, not 14: the FM generator has NO anti-aliasing. At ratio
+                // 14 this operator runs at 23.3 kHz on G#6 (midi 92) — right at
+                // Nyquist — and its sidebands fold back down as inharmonic bass
+                // junk, measured at -24.7 dB below the fundamental there (vs
+                // -57 dB at C4). That is audible as a "weird bassy noise" on high
+                // notes. Ratio 7 keeps the clank but stays under Nyquist across
+                // the keyboard (-50.8 dB at G#6). The real fix is oversampling in
+                // the FM generator; see the roadmap note in the founding spec.
+                { ratio: 7, level: 0.3, adsr: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.05 } },
               ],
               algorithm: {
                 routes: [
@@ -425,10 +433,21 @@ const PATCH_CATALOG: CatalogEntry[] = [
           // the TVA holds at sustain 1 and only supplies the key-up damper.
           // velCurve is the TOTAL velocity exponent (voice.ts:39-41); ~1.8
           // gives a piano-like ~35 dB dynamic span.
-          tva: { level: 1, adsr: { attack: 0.001, decay: 0.1, sustain: 1, release: 0.25 }, velCurve: 1.8 },
+          // level 0.5, not 1: each zone is peak-normalized to 0.9, so at level 1 a
+          // hard low note arrived at the master already at ~0.9 and pinned the
+          // brickwall limiter (measured: midi 36 at velocity 0.95 output exactly
+          // 0.9661 = the ceiling). The limiter was squashing SINGLE NOTES, which
+          // is most of what "heavily compressed" was. Halving the level buys ~6 dB
+          // of headroom so the limiter only catches genuine polyphonic peaks.
+          tva: { level: 0.5, adsr: { attack: 0.001, decay: 0.1, sustain: 1, release: 0.25 }, velCurve: 1.8 },
         },
       ],
-      sends: { reverb: 0.18, delay: 0 },
+      // The reverb's delay lines are LFO-modulated, which chorused the piano's
+      // own unison-string beating (measured: reverb raised spectral-centroid
+      // wobble on C3 from 2.56% to 3.73%). A real grand already beats; it does
+      // not need help. Keep the send subtle — it is only here for stereo width,
+      // since the voice bus is mono.
+      sends: { reverb: 0.08, delay: 0 },
     },
   },
 ];

@@ -31,7 +31,14 @@ export const MAX_SECONDS = 12;
 /** Baked fade-out. Long enough that a truncated 12 s decay dies away rather
  *  than being switched off. */
 export const FADE_SECONDS = 0.5;
-export const BITRATE = 128000;
+/** Solo piano is one of the hardest signals there is for a transform codec, and
+ *  128 kbps was audibly lofi — measured error vs the source was only -43.6 dB on
+ *  C3 and -38.6 dB on a low note. 256k (the AAC-LC mono ceiling; afconvert
+ *  rejects 320k) takes those to -56.2 dB and -51.1 dB. The pack grows 18 -> ~43 MB,
+ *  still comfortably inside the 100 MB tiny-tier budget, and decoded RAM is
+ *  unchanged (bitrate does not affect PCM size). Quality is the binding
+ *  constraint here, not size. */
+export const BITRATE = 256000;
 export const PEAK_TARGET = 0.9;
 
 /** Read every WAV in srcDir, keep the selected roots/velocities, and polish each
