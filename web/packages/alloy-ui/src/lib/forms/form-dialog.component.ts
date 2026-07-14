@@ -7,7 +7,7 @@ import {
   input,
   output,
 } from '@angular/core';
-import { ModalShellComponent } from '../modal/modal-shell.component';
+import { ModalDirective } from '../modal/modal.directive';
 import { ButtonComponent } from '../button/button.component';
 
 /** Module-level counter so multiple mounted dialogs never collide on id. */
@@ -23,27 +23,39 @@ let nextFormDialogId = 0;
  * type="submit", so pressing Enter in a field triggers the browser's implicit
  * submission and `submitted` fires. Esc and backdrop click both emit
  * `cancelled`.
+ *
+ * The native-<dialog> behavior lives in ModalDirective, but the exit fade
+ * (animate.leave="modal-leave") must stay on the <dialog> here: Angular only
+ * runs a leave animation when the view that declares the element is destroyed,
+ * and that view is this template's @if block. See ModalDirective.
  */
 @Component({
   selector: 'app-form-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ModalShellComponent, ButtonComponent],
+  imports: [ModalDirective, ButtonComponent],
   template: `
     @if (open()) {
-      <app-modal-shell [labelledBy]="titleId" (dismissed)="cancelled.emit()">
-        <form class="form-dialog" (submit)="onSubmit($event)">
-          <h2 class="form-dialog-title" [id]="titleId">{{ title() }}</h2>
-          <div class="form-dialog-body">
-            <ng-content />
-          </div>
-          <div class="form-dialog-actions">
-            <app-button (click)="cancelled.emit()">{{ cancelLabel() }}</app-button>
-            <app-button type="submit" variant="primary" [disabled]="submitDisabled()">
-              {{ submitLabel() }}
-            </app-button>
-          </div>
-        </form>
-      </app-modal-shell>
+      <dialog
+        alloyModal
+        animate.leave="modal-leave"
+        [attr.aria-labelledby]="titleId"
+        (dismissed)="cancelled.emit()"
+      >
+        <div class="alloy-modal-body">
+          <form class="form-dialog" (submit)="onSubmit($event)">
+            <h2 class="form-dialog-title" [id]="titleId">{{ title() }}</h2>
+            <div class="form-dialog-body">
+              <ng-content />
+            </div>
+            <div class="form-dialog-actions">
+              <app-button (click)="cancelled.emit()">{{ cancelLabel() }}</app-button>
+              <app-button type="submit" variant="primary" [disabled]="submitDisabled()">
+                {{ submitLabel() }}
+              </app-button>
+            </div>
+          </form>
+        </div>
+      </dialog>
     }
   `,
   styleUrl: './form-dialog.component.scss',

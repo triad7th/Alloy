@@ -1,9 +1,5 @@
 @use '../../styles/tokens' as t;
 
-:host {
-  display: contents;
-}
-
 dialog.alloy-modal {
   padding: 0; // backdrop-vs-panel click detection relies on the body filling the panel
   border: none;

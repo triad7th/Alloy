@@ -124,8 +124,9 @@ Note the encoding difference: `durationMs` in JSON are milliseconds on web, tran
   `docs/superpowers/specs/2026-07-13-alloy-ui-form-kit-design.md`):
   `ButtonComponent`, `TextFieldComponent`, `NumberFieldComponent`,
   `SelectComponent`, `FieldComponent`, and the declarative
-  `FormDialogComponent`, plus the internal `ModalShellComponent` that now
-  backs both the form dialog and the confirm/alert `DialogHostComponent`.
+  `FormDialogComponent`, plus the internal `ModalDirective` (`dialog[alloyModal]`)
+  that now backs both the form dialog and the confirm/alert
+  `DialogHostComponent`.
   Apple apps use native SwiftUI `TextField` / `Picker` / `Form` instead.
   Two-way binding uses Angular `model()` signals, so `@angular/forms` is NOT
   a dependency. The kit's colors (`color.field-bg`, `color.field-border`,

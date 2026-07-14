@@ -25,7 +25,6 @@ describe('SelectComponent', () => {
     }
     const fixture = TestBed.createComponent(HostComponent);
     fixture.detectChanges();
-    fixture.detectChanges(); // Ensure model binding is established
     const select = (fixture.nativeElement as HTMLElement).querySelector(
       'select.alloy-select',
     ) as HTMLSelectElement;

@@ -1,20 +1,22 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ModalShellComponent } from './modal-shell.component';
+import { ModalDirective } from './modal.directive';
 
-describe('ModalShellComponent', () => {
+describe('ModalDirective', () => {
   beforeEach(async () => {
-    await TestBed.configureTestingModule({ imports: [ModalShellComponent] }).compileComponents();
+    await TestBed.configureTestingModule({ imports: [ModalDirective] }).compileComponents();
   });
 
   @Component({
-    imports: [ModalShellComponent],
+    imports: [ModalDirective],
     template: `
       @if (open()) {
-        <app-modal-shell (dismissed)="dismissals = dismissals + 1">
-          <p class="inner">body</p>
-        </app-modal-shell>
+        <dialog alloyModal animate.leave="modal-leave" (dismissed)="dismissals = dismissals + 1">
+          <div class="alloy-modal-body">
+            <p class="inner">body</p>
+          </div>
+        </dialog>
       }
     `,
   })
