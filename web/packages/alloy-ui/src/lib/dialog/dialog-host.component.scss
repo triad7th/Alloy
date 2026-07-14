@@ -4,25 +4,6 @@
   display: contents;
 }
 
-dialog.dialog {
-  padding: 0; // backdrop-vs-panel click detection relies on the body filling the panel
-  border: none;
-  border-radius: t.$sheet-corner-radius;
-  background: t.$sheet-bg;
-  color: t.$label;
-  min-width: 280px;
-  max-width: min(420px, calc(100vw - 32px));
-  animation: dialog-fade t.$overlay-fade ease both;
-
-  &::backdrop {
-    background: t.$backdrop;
-  }
-}
-
-.dialog-body {
-  padding: 24px;
-}
-
 .dialog-title {
   margin: 0;
   font-size: 17px;
@@ -40,55 +21,4 @@ dialog.dialog {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
-}
-
-.dialog-button {
-  border: none;
-  border-radius: 10px;
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  background: t.$secondary-surface;
-  color: t.$label;
-
-  &:hover {
-    background: t.$secondary-surface-hover;
-  }
-
-  &.confirm {
-    background: t.$tint;
-
-    &:hover {
-      background: t.$tint-hover;
-    }
-
-    &.destructive {
-      background: t.$destructive;
-
-      &:hover {
-        background: t.$destructive;
-        filter: brightness(1.1);
-      }
-    }
-  }
-}
-
-// Exit twin of dialog-fade; applied by animate.leave on removal.
-dialog.dialog.dialog-leave {
-  animation: dialog-exit t.$overlay-fade ease both;
-}
-
-@keyframes dialog-fade {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-}
-
-@keyframes dialog-exit {
-  to {
-    opacity: 0;
-    transform: scale(0.96);
-  }
 }

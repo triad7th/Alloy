@@ -20,7 +20,7 @@ describe('DialogHostComponent', () => {
 
   it('renders nothing while idle', () => {
     const { host } = setup();
-    expect(host.querySelector('dialog.dialog')).toBeNull();
+    expect(host.querySelector('dialog.alloy-modal')).toBeNull();
   });
 
   it('renders title, message, and both buttons for confirm; confirm click resolves true', async () => {
@@ -29,21 +29,21 @@ describe('DialogHostComponent', () => {
     fixture.detectChanges();
     expect(host.querySelector('.dialog-title')?.textContent).toContain('Delete score?');
     expect(host.querySelector('.dialog-message')?.textContent).toContain('This cannot be undone.');
-    const buttons = host.querySelectorAll('button.dialog-button');
+    const buttons = host.querySelectorAll('button.alloy-button');
     expect(buttons.length).toBe(2);
     expect(buttons[0].textContent).toContain('Cancel');
     expect(buttons[1].textContent).toContain('OK');
     (buttons[1] as HTMLButtonElement).click();
     await expect(confirmed).resolves.toBe(true);
     fixture.detectChanges();
-    expect(host.querySelector('dialog.dialog')).toBeNull();
+    expect(host.querySelector('dialog.alloy-modal')).toBeNull();
   });
 
   it('cancel click resolves false', async () => {
     const { dialog, fixture, host } = setup();
     const confirmed = dialog.confirm({ title: 'Delete?' });
     fixture.detectChanges();
-    const cancel = host.querySelector('button.dialog-button') as HTMLButtonElement;
+    const cancel = host.querySelector('button.alloy-button') as HTMLButtonElement;
     cancel.click();
     await expect(confirmed).resolves.toBe(false);
   });
@@ -52,15 +52,16 @@ describe('DialogHostComponent', () => {
     const { dialog, fixture, host } = setup();
     void dialog.confirm({ title: 'Delete?', destructive: true, confirmLabel: 'Delete' });
     fixture.detectChanges();
-    const confirmButton = host.querySelector('button.dialog-button.confirm');
-    expect(confirmButton?.classList.contains('destructive')).toBe(true);
+    const buttons = host.querySelectorAll('button.alloy-button');
+    const confirmButton = buttons[buttons.length - 1];
+    expect(confirmButton.classList.contains('destructive')).toBe(true);
   });
 
   it('native cancel (Esc) resolves confirm to false', async () => {
     const { dialog, fixture, host } = setup();
     const confirmed = dialog.confirm({ title: 'Delete?' });
     fixture.detectChanges();
-    const panel = host.querySelector('dialog.dialog') as HTMLDialogElement;
+    const panel = host.querySelector('dialog.alloy-modal') as HTMLDialogElement;
     panel.dispatchEvent(new Event('cancel', { cancelable: true }));
     await expect(confirmed).resolves.toBe(false);
   });
@@ -69,7 +70,7 @@ describe('DialogHostComponent', () => {
     const { dialog, fixture, host } = setup();
     const confirmed = dialog.confirm({ title: 'Delete?' });
     fixture.detectChanges();
-    const panel = host.querySelector('dialog.dialog') as HTMLDialogElement;
+    const panel = host.querySelector('dialog.alloy-modal') as HTMLDialogElement;
     panel.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await expect(confirmed).resolves.toBe(false);
   });
@@ -81,14 +82,14 @@ describe('DialogHostComponent', () => {
     const title = host.querySelector('.dialog-title') as HTMLElement;
     title.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     fixture.detectChanges();
-    expect(host.querySelector('dialog.dialog')).not.toBeNull();
+    expect(host.querySelector('dialog.alloy-modal')).not.toBeNull();
   });
 
   it('alert renders a single OK button that resolves void', async () => {
     const { dialog, fixture, host } = setup();
     const alerted = dialog.alert({ title: 'Heads up' });
     fixture.detectChanges();
-    const buttons = host.querySelectorAll('button.dialog-button');
+    const buttons = host.querySelectorAll('button.alloy-button');
     expect(buttons.length).toBe(1);
     (buttons[0] as HTMLButtonElement).click();
     await expect(alerted).resolves.toBeUndefined();
@@ -98,7 +99,7 @@ describe('DialogHostComponent', () => {
     const { dialog, fixture, host } = setup();
     void dialog.confirm({ title: 'Delete?' });
     fixture.detectChanges();
-    const panel = host.querySelector('dialog.dialog');
+    const panel = host.querySelector('dialog.alloy-modal');
     const labelledby = panel?.getAttribute('aria-labelledby');
     expect(labelledby).toBeTruthy();
     expect(host.querySelector(`#${labelledby}`)?.textContent).toContain('Delete?');
@@ -110,7 +111,7 @@ describe('DialogHostComponent', () => {
     void dialog.confirm({ title: 'two' });
     fixture.detectChanges();
     expect(host.querySelector('.dialog-title')?.textContent).toContain('one');
-    const buttons = host.querySelectorAll('button.dialog-button');
+    const buttons = host.querySelectorAll('button.alloy-button');
     (buttons[1] as HTMLButtonElement).click();
     await first;
     fixture.detectChanges();
@@ -121,7 +122,7 @@ describe('DialogHostComponent', () => {
     const { dialog, fixture, host } = setup();
     void dialog.confirm({ title: 'Delete?', destructive: true, confirmLabel: 'Delete' });
     fixture.detectChanges();
-    const buttons = host.querySelectorAll('button.dialog-button');
+    const buttons = host.querySelectorAll('button.alloy-button');
     expect(document.activeElement).toBe(buttons[0]);
   });
 
@@ -130,12 +131,12 @@ describe('DialogHostComponent', () => {
     const first = dialog.confirm({ title: 'one' });
     void dialog.confirm({ title: 'two', destructive: true, confirmLabel: 'Delete' });
     fixture.detectChanges();
-    const firstButtons = host.querySelectorAll('button.dialog-button');
+    const firstButtons = host.querySelectorAll('button.alloy-button');
     // Click dialog A's confirm button (simulating a reflexive click/Enter on OK).
     (firstButtons[1] as HTMLButtonElement).click();
     await first;
     fixture.detectChanges();
-    const secondButtons = host.querySelectorAll('button.dialog-button');
+    const secondButtons = host.querySelectorAll('button.alloy-button');
     expect(host.querySelector('.dialog-title')?.textContent).toContain('two');
     // Focus must land on dialog B's first button (its Cancel), never its destructive confirm.
     expect(document.activeElement).toBe(secondButtons[0]);
