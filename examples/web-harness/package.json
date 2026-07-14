@@ -9,7 +9,8 @@
     "start": "ng serve",
     "prebuild": "npm --prefix ../../web/packages/alloy-audio run build",
     "build": "ng build",
-    "watch": "ng build --watch --configuration development"
+    "watch": "ng build --watch --configuration development",
+    "test": "vitest run"
   },
   "dependencies": {
     "@angular/common": "^21.2.0",
@@ -23,7 +24,8 @@
     "@angular/build": "^21.2.0",
     "@angular/cli": "^21.2.0",
     "@angular/compiler-cli": "^21.2.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.7"
   },
   "engines": {
     "node": ">=20"
