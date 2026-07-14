@@ -19,13 +19,12 @@ export interface SelectOption {
   template: `
     <select
       class="alloy-select"
-      [value]="value()"
       [disabled]="disabled()"
       [attr.aria-label]="selectLabel() || null"
       (change)="onChange($event)"
     >
       @for (option of options(); track option.value) {
-        <option [value]="option.value">{{ option.label }}</option>
+        <option [value]="option.value" [selected]="option.value === value()">{{ option.label }}</option>
       }
     </select>
   `,
