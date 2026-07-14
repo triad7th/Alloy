@@ -7,6 +7,7 @@ import { SynthSectionComponent } from './sections/synth-section.component';
 import { RomplerSectionComponent } from './sections/rompler-section.component';
 import { StorageSectionComponent } from './sections/storage-section.component';
 import { OverlaysSectionComponent } from './sections/overlays-section.component';
+import { FormsSectionComponent } from './sections/forms-section.component';
 
 @Component({
   selector: 'hx-root',
@@ -20,6 +21,7 @@ import { OverlaysSectionComponent } from './sections/overlays-section.component'
     StorageSectionComponent,
     OverlaysComponent,
     OverlaysSectionComponent,
+    FormsSectionComponent,
   ],
   template: `
     <main class="harness">
@@ -37,6 +39,7 @@ import { OverlaysSectionComponent } from './sections/overlays-section.component'
       <hx-rompler-section />
       <hx-storage-section />
       <hx-overlays-section />
+      <hx-forms-section />
     </main>
     <app-overlays />
   `,

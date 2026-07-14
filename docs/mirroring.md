@@ -120,6 +120,18 @@ Note the encoding difference: `durationMs` in JSON are milliseconds on web, tran
   (`durationMs.snackbar-show`, `durationMs.overlay-fade`) live in
   `tokens.json` and emit to all three outputs regardless. Revisit Swift
   twins only on demonstrated app need.
+- **Form kit** is web-only (spec:
+  `docs/superpowers/specs/2026-07-13-alloy-ui-form-kit-design.md`):
+  `ButtonComponent`, `TextFieldComponent`, `NumberFieldComponent`,
+  `SelectComponent`, `FieldComponent`, and the declarative
+  `FormDialogComponent`, plus the internal `ModalShellComponent` that now
+  backs both the form dialog and the confirm/alert `DialogHostComponent`.
+  Apple apps use native SwiftUI `TextField` / `Picker` / `Form` instead.
+  Two-way binding uses Angular `model()` signals, so `@angular/forms` is NOT
+  a dependency. The kit's colors (`color.field-bg`, `color.field-border`,
+  `color.focus-ring`) live in `tokens.json` and emit to all three outputs
+  regardless; the Swift constants are unused. Segmented rows reuse
+  `KnobSegmentComponent` — there is no second segmented control.
 - **Knobs row** — web's card/label are stylesheet classes, not components. Web exports `_knobs.scss` classes (`cfg`, `knobs-panel`, `knobs-section`, `knobs-section-label`, `knobs-pair`, `knobs-cell`, `knobs-row`, `knobs-toggle`, `knobs-segment`, `knobs-slider`) + three attach-in-place controls (`KnobToggleComponent`, `KnobSegmentComponent`, `KnobSliderDirective`). iOS exports seven views (`KnobCard`, `KnobLabel`, `KnobToggle`, `KnobSwitch`, `KnobSegment`, `KnobField`, `KnobSlider`) + `knobColumns` helper function. `KnobSlider` is the twin of `KnobSliderDirective`; `KnobSwitch` is the twin of `KnobToggleComponent` (the bare pill, hosts compose the row); `KnobToggle` is the label-above convenience composition (KnobLabel + KnobSwitch) with no web component twin — web hosts compose the same arrangement from classes. The asymmetry is intentional: web markup applies classes; iOS markup composes views. `KnobField` has no library-side web twin: its web counterpart, `.knobs-tz`, stayed app-local in allyclock rather than joining the shared stylesheet.
 - **Chrome sizes** — sheet corner radius is now tokenized (`sizePx.sheet-corner-radius: 24`; see "Token generation" above). Button height and padding remain untokenized: web buttons are 34 px, iOS buttons are 36 pt — deliberately left asymmetric to avoid pixel churn during iteration. Tokenize the rest when they stabilize.
 - **Flag artwork** is app-supplied on both sides, but addressed differently: web composes a URL under an injectable base path (`provideAlloyFlags`, default `flags/1x1`); Apple resolves `<assetPrefix><code>` (default `Flags/`) in an injectable bundle. Same fallback contract: blank code or missing artwork renders the `globe` icon.
