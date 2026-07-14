@@ -747,11 +747,17 @@ export class RomplerSectionComponent implements OnDestroy {
   protected readonly slotB = signal<Patch>(this.currentEntry().patch);
   protected readonly activeSlot = signal<'A' | 'B'>('A');
   protected readonly editorErrors = signal<readonly string[]>([]);
-  /** A knob turn is inaudible on a sustaining note — voices capture their
-   *  generator/TVF/TVA params at noteOn. So replay the last note on every edit. */
+  /** A voice captures its generator/TVF/TVA/LFO params at noteOn, so an edit to
+   *  those is inaudible on a sustaining note and needs a re-strike to be heard.
+   *  Sends and inserts, by contrast, apply live (setPatch rebuilds the shared
+   *  insert chain and send levels under the sounding voice). So re-strike only
+   *  when a *captured* param changed — see onPatchChange. */
   protected readonly reStrike = signal(true);
   protected readonly exportNotice = signal('');
   private lastNote = 60;
+  /** The patch currently loaded in the host, used to decide whether an edit
+   *  touched a captured param (worth a re-strike) or only sends/inserts. */
+  private appliedPatch: Patch = this.currentEntry().patch;
 
   protected readonly editedPatch = computed(() =>
     this.activeSlot() === 'A' ? this.slotA() : this.slotB(),
@@ -802,10 +808,12 @@ export class RomplerSectionComponent implements OnDestroy {
     this.patchId.set(id);
     this.patchError.set('');
     this.host?.allNotesOff();
-    this.host?.setPatch(this.currentEntry().patch);
     this.pressed.set(new Set());
     this.heldComputerKeys.clear();
 
+    // Restore a saved edit for this catalog id if one exists; a corrupt or
+    // older-schema value returns {errors} from the hardened fromJson and we fall
+    // back to the catalog patch rather than crashing.
     const saved = localStorage.getItem(this.storageKey());
     const restored = saved ? fromJson(saved) : null;
     const patch = restored && 'patch' in restored ? restored.patch : this.currentEntry().patch;
@@ -813,7 +821,7 @@ export class RomplerSectionComponent implements OnDestroy {
     this.slotB.set(this.currentEntry().patch);
     this.activeSlot.set('A');
     this.editorErrors.set([]);
-    this.host?.setPatch(patch);
+    this.sendToHost(patch);
   }
 
   protected onPatchChange(next: Patch): void {
@@ -825,9 +833,22 @@ export class RomplerSectionComponent implements OnDestroy {
     this.editorErrors.set(errors);
     if (errors.length > 0) return;
 
-    this.host?.setPatch(next);
+    // setAt shares untouched subtrees by reference (a tested property of
+    // patch-edit), so a sends- or insert-only edit leaves `layers` reference-
+    // identical while any generator/TVF/TVA/LFO edit replaces it. That reference
+    // check is exactly "did a captured param change?" — no deep compare needed.
+    const capturedParamChanged = next.layers !== this.appliedPatch.layers;
+    this.sendToHost(next);
     localStorage.setItem(this.storageKey(), toJson(next));
-    if (this.reStrike()) this.strikeLastNote();
+    if (this.reStrike() && capturedParamChanged) this.strikeLastNote();
+  }
+
+  /** Load a patch into the host and remember it as the re-strike baseline. Every
+   *  path that changes what the host is playing must go through here, or the
+   *  captured-param diff in onPatchChange would compare against a stale patch. */
+  private sendToHost(patch: Patch): void {
+    this.host?.setPatch(patch);
+    this.appliedPatch = patch;
   }
 
   private strikeLastNote(): void {
@@ -841,8 +862,15 @@ export class RomplerSectionComponent implements OnDestroy {
   protected swapSlot(): void {
     this.activeSlot.update((slot) => (slot === 'A' ? 'B' : 'A'));
     const patch = this.editedPatch();
-    this.editorErrors.set(validatePatch(patch));
-    this.host?.setPatch(patch);
+    // Mirror onPatchChange's guard: a slot can hold an invalid patch (a
+    // cross-field range like keyRange.lowMidi > highMidi passes every per-field
+    // bound but fails validation), and the editor must never send it to the host.
+    const errors = validatePatch(patch);
+    this.editorErrors.set(errors);
+    if (errors.length > 0) return;
+
+    // A swap is a full sound change, so re-strike whenever the toggle is on.
+    this.sendToHost(patch);
     if (this.reStrike()) this.strikeLastNote();
   }
 
@@ -856,7 +884,7 @@ export class RomplerSectionComponent implements OnDestroy {
     (this.activeSlot() === 'A' ? this.slotA : this.slotB).set(patch);
     localStorage.removeItem(this.storageKey());
     this.editorErrors.set([]);
-    this.host?.setPatch(patch);
+    this.sendToHost(patch);
   }
 
   protected async copyAsTs(): Promise<void> {
@@ -995,7 +1023,10 @@ export class RomplerSectionComponent implements OnDestroy {
       host.onPatchRejected = (errors) => this.patchError.set(errors.join('; '));
       host.setZoneSet(GLASS_ZONE_SET_ID, bakeGlassZoneLayers());
       void this.loadPianoPack(raw, host);
+      // Host isn't yet assigned to this.host, so load it directly and keep the
+      // re-strike baseline in sync with what actually loaded.
       host.setPatch(this.currentEntry().patch);
+      this.appliedPatch = this.currentEntry().patch;
       if (raw.state === 'suspended') {
         void raw.resume();
       }
