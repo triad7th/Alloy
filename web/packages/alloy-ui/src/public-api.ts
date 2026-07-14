@@ -23,3 +23,4 @@ export { OverlaysComponent } from './lib/overlays/overlays.component';
 export { ButtonComponent } from './lib/button/button.component';
 export { TextFieldComponent } from './lib/forms/text-field.component';
 export { NumberFieldComponent } from './lib/forms/number-field.component';
+export { SelectComponent, SelectOption } from './lib/forms/select.component';

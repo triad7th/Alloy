@@ -1,0 +1,37 @@
+@use '../../styles/tokens' as t;
+
+:host {
+  display: inline-flex;
+}
+
+.alloy-select {
+  // Renders the OS popup list dark instead of white.
+  color-scheme: dark;
+  appearance: none;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 30px 8px 10px;
+  border-radius: 8px;
+  border: 1px solid t.$field-border;
+  background-color: t.$field-bg;
+  color: t.$label;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+
+  // Chevron, drawn as an inline SVG data URI so no asset ships with the lib.
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%2398989e' d='M1.4 1.7 6 6.3l4.6-4.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 7px;
+
+  &:focus-visible {
+    outline: 2px solid t.$focus-ring;
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
