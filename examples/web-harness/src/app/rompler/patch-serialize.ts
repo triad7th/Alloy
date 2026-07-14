@@ -62,7 +62,12 @@ export function fromJson(text: string): { patch: Patch } | { errors: string[] } 
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return { errors: ['not a patch object'] };
   }
-  const errors = validatePatch(parsed as Patch);
+  let errors: string[];
+  try {
+    errors = validatePatch(parsed as Patch);
+  } catch (error) {
+    return { errors: [`not a valid patch: ${(error as Error).message}`] };
+  }
   if (errors.length > 0) return { errors };
   return { patch: parsed as Patch };
 }

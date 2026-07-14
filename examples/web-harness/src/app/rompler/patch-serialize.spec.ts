@@ -38,9 +38,19 @@ describe('JSON round-trip', () => {
   });
 
   it('reports errors instead of throwing on JSON that is not a valid patch', () => {
-    const result = fromJson(JSON.stringify({ schemaVersion: 1, layers: [] }));
-    expect('errors' in result).toBe(true);
-    expect((result as { errors: string[] }).errors.length).toBeGreaterThan(0);
+    const inputs = [
+      JSON.stringify({ schemaVersion: 1, layers: [] }),
+      '{}',
+      '{"foo":1}',
+      JSON.stringify({ schemaVersion: 1, layers: [{}] }),
+    ];
+    for (const input of inputs) {
+      let result: ReturnType<typeof fromJson> | undefined;
+      expect(() => {
+        result = fromJson(input);
+      }).not.toThrow();
+      expect(result && 'errors' in result).toBe(true);
+    }
   });
 });
 
