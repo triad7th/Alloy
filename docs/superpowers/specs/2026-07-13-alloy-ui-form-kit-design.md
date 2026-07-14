@@ -1,7 +1,17 @@
 # AlloyUI Form Kit + Form Dialog (Web-Only)
 
 - **Date:** 2026-07-13
-- **Status:** Approved design, pending implementation plan
+- **Status:** Implemented. **Post-implementation correction:** the shared
+  modal shell shipped as an internal *attribute directive*
+  `ModalDirective` (`dialog[alloyModal]`), not a `ModalShellComponent`.
+  Angular registers `animate.leave` in the LView that declares the element,
+  so the exit fade only runs when the `<dialog>` is declared directly in
+  each consumer's `@if` view — a component-owned `<dialog>` behind a
+  projection boundary never animates on teardown. The directive keeps one
+  implementation of the native-dialog behavior while satisfying that
+  constraint. Read `web/packages/alloy-ui/src/lib/modal/modal.directive.ts`
+  for the shipped shape; the "Shared modal shell" section below describes
+  the original (component) design.
 - **Scope:** `@allyworld/alloy-ui` (web). No Swift twins — documented asymmetry.
 - **Driver:** AllyScore's Time Signature modal is built from raw native
   `<input>` and `<select>` elements and does not match the AlloyUI look. Apps
