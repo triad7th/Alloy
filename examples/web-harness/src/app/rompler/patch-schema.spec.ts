@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validatePatch, type Patch } from '@allyworld/alloy-audio';
-import { REFERENCE_PATCH, getAt, setAt, GENERATOR_KINDS, INSERT_KINDS, setGeneratorKind, addInsert, setInsertKind } from './patch-edit.js';
+import { REFERENCE_PATCH, getAt, setAt, GENERATOR_KINDS, INSERT_KINDS, setGeneratorKind, addInsert } from './patch-edit.js';
 import { describePatch, STRUCTURAL_PATHS, type ParamDescriptor } from './patch-schema.js';
 
 function allParams(patch: Patch): ParamDescriptor[] {
@@ -20,6 +20,23 @@ function leafPaths(node: unknown, prefix = ''): string[] {
 
 function isStructural(path: string): boolean {
   return STRUCTURAL_PATHS.some((pattern) => new RegExp(pattern).test(path));
+}
+
+// REFERENCE_PATCH can hold only MAX_INSERTS (3) of the 6 insert kinds, and one
+// generator kind per layer. Walking it alone leaves tremolo/phaser/rotary — and
+// any field only they carry — untested by coverage AND bounds. This set puts
+// every generator kind and every insert kind into slot 0 of some patch, so the
+// leaf-level loops below see them all. addInsert grows an empty MINIMAL rather
+// than replacing a reference insert, so no kind is masked by another.
+const MINIMAL_ONE_INSERT: Patch = { ...REFERENCE_PATCH, inserts: [] };
+const COVERAGE_PATCHES: Patch[] = [
+  REFERENCE_PATCH,
+  ...GENERATOR_KINDS.map((kind) => setGeneratorKind(REFERENCE_PATCH, 0, kind)),
+  ...INSERT_KINDS.map((kind) => addInsert(MINIMAL_ONE_INSERT, kind)),
+];
+
+function everyParam(patches: Patch[]): { patch: Patch; param: ParamDescriptor }[] {
+  return patches.flatMap((patch) => allParams(patch).map((param) => ({ patch, param })));
 }
 
 describe('descriptor coverage', () => {
@@ -48,9 +65,9 @@ describe('descriptor coverage', () => {
     }
   });
 
-  it('covers every insert kind', () => {
+  it('covers every insert kind, including the three the reference patch cannot hold', () => {
     for (const kind of INSERT_KINDS) {
-      const patch = setInsertKind(REFERENCE_PATCH, 0, kind);
+      const patch = addInsert(MINIMAL_ONE_INSERT, kind);
       const params = allParams(patch).filter((p) => p.path.startsWith('inserts.0.'));
       expect(params.length, `insert kind '${kind}' has no editable params`).toBeGreaterThan(0);
       for (const p of params) {
@@ -64,35 +81,35 @@ describe('bounds safety', () => {
   // The editor must be INCAPABLE of building a patch the engine would reject —
   // PatchEngine.setPatch THROWS on an invalid patch.
   it('every numeric descriptor, pinned to its min, still yields a valid patch', () => {
-    for (const p of allParams(REFERENCE_PATCH)) {
-      if (p.kind !== 'number' || p.min === undefined) continue;
-      const patch = setAt(REFERENCE_PATCH, p.path, p.min);
-      expect(validatePatch(patch), `${p.path} at min ${p.min}`).toEqual([]);
+    for (const { patch, param } of everyParam(COVERAGE_PATCHES)) {
+      if (param.kind !== 'number' || param.min === undefined) continue;
+      const next = setAt(patch, param.path, param.min);
+      expect(validatePatch(next), `${param.path} at min ${param.min}`).toEqual([]);
     }
   });
 
   it('every numeric descriptor, pinned to its max, still yields a valid patch', () => {
-    for (const p of allParams(REFERENCE_PATCH)) {
-      if (p.kind !== 'number' || p.max === undefined) continue;
-      const patch = setAt(REFERENCE_PATCH, p.path, p.max);
-      expect(validatePatch(patch), `${p.path} at max ${p.max}`).toEqual([]);
+    for (const { patch, param } of everyParam(COVERAGE_PATCHES)) {
+      if (param.kind !== 'number' || param.max === undefined) continue;
+      const next = setAt(patch, param.path, param.max);
+      expect(validatePatch(next), `${param.path} at max ${param.max}`).toEqual([]);
     }
   });
 
   it('every enum descriptor, set to each of its options, yields a valid patch', () => {
-    for (const p of allParams(REFERENCE_PATCH)) {
-      if (p.kind !== 'enum' || !p.options) continue;
-      for (const option of p.options) {
-        const patch = setAt(REFERENCE_PATCH, p.path, option);
-        expect(validatePatch(patch), `${p.path} = ${String(option)}`).toEqual([]);
+    for (const { patch, param } of everyParam(COVERAGE_PATCHES)) {
+      if (param.kind !== 'enum' || !param.options) continue;
+      for (const option of param.options) {
+        const next = setAt(patch, param.path, option);
+        expect(validatePatch(next), `${param.path} = ${String(option)}`).toEqual([]);
       }
     }
   });
 
   it('every numeric descriptor declares BOTH bounds — a half-open slider is a bug', () => {
-    const halfOpen = allParams(REFERENCE_PATCH).filter(
-      (p) => p.kind === 'number' && (p.min === undefined || p.max === undefined),
-    );
+    const halfOpen = everyParam(COVERAGE_PATCHES)
+      .map(({ param }) => param)
+      .filter((p) => p.kind === 'number' && (p.min === undefined || p.max === undefined));
     expect(halfOpen.map((p) => p.path)).toEqual([]);
   });
 });
