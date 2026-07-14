@@ -1,0 +1,41 @@
+@use '../../styles/tokens' as t;
+
+.alloy-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid t.$field-border;
+  background: t.$field-bg;
+  color: t.$label;
+  font-size: 14px;
+  font-family: inherit;
+
+  &::placeholder {
+    color: t.$secondary-label;
+  }
+
+  &:focus-visible {
+    outline: 2px solid t.$focus-ring;
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+  }
+
+  &[aria-invalid='true'] {
+    border-color: t.$destructive;
+  }
+}
+
+// Hide the native number spinners — they do not match the kit's chrome.
+.alloy-input[type='number'] {
+  appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+}
