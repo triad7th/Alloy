@@ -1,0 +1,17 @@
+@use '../../styles/tokens' as t;
+
+:host {
+  display: block;
+}
+
+.alloy-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.alloy-field-label {
+  flex: 0 0 auto;
+  color: t.$secondary-label;
+  font-size: 14px;
+}
