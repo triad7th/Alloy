@@ -80,10 +80,17 @@ final class BenchmarkTests: XCTestCase {
             return elapsedMs / (Double(seconds) * 1000)
         }
 
-        // MIN of 3 runs, not the mean: machine noise (another process, thermal
+        // MIN of N runs, not the mean: machine noise (another process, thermal
         // throttling) only ever makes a run SLOWER, so the minimum is the robust
         // estimate of the true cost. This kills flake without loosening the bound.
-        let ratios = (0..<3).map { _ in renderRatio() }
+        //
+        // Only RELEASE pays for the repeats. Its 0.25 bound sits ~13% above the
+        // measured 21.4-21.7%, tight enough that one noisy run could trip it. Debug's
+        // 13.5 has a ~30% margin over its measured ~10.2 and does not need the noise
+        // protection — and debug is what CI runs on every PR, where a 3x-longer
+        // benchmark is a real cost for no gain.
+        let runs = _isDebugAssertConfiguration() ? 1 : 3
+        let ratios = (0..<runs).map { _ in renderRatio() }
         let ratio = ratios.min() ?? .infinity
         print(
             "64-voice full-FX: runs "
