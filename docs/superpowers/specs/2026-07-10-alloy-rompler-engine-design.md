@@ -263,6 +263,23 @@ Each phase independently shippable:
      stays, since it is correct for zone sets whose layers ARE meant to
      blend). Design:
      `docs/superpowers/specs/2026-07-13-rompler-piano-3b-design.md`.
+   - **3c complete** — *FM anti-aliasing*: adaptive per-voice oversampling in
+     `FmGenerator`. K is chosen once at `noteOn` from the highest frequency
+     anywhere in the operator stack — K=4 above `sampleRate/4`, K=1 below it
+     (below the threshold, oversampling measured as a no-op, so those notes
+     keep the original code path at the original cost) — and the oversampled
+     stream is band-limited by a pinned 32-tap Blackman-sinc decimator. The
+     alias floor on the workbench EP dropped from -25 to -63 dB at G#6 and
+     from -21 to -46 dB at C8, so the EP's hammer clank goes back to ratio 14
+     (it had been crippled to ratio 7 as a workaround). C8 is deliberately
+     ACCEPTED at -46 dB rather than paying ~9x the FM CPU for the 8x that
+     would clean it. The K=1 path is bit-identical to the pre-3c code — the
+     operator envelopes step once per OUTPUT sample, held across sub-samples —
+     so no golden moved. Cost: the 64-voice full-FX benchmark went from ~12%
+     to ~21% of one core in Swift release (19 of its 64 voices oversample),
+     still inside the <25% envelope, which is now a hard test bound rather
+     than a printed observation. Design:
+     `docs/superpowers/specs/2026-07-14-rompler-fm-antialiasing-3c-design.md`.
 4. **First wave** — FM EP, tine EP, strings/pads, organs; factory bank v1.
 5. **AllyPiano migration** — patch voices in the app; legacy specs
    deprecated.

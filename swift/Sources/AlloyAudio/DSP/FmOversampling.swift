@@ -63,11 +63,29 @@ public final class FmDecimator {
 
     /// After push(), `pos` indexes the OLDEST sample, so tap j lines up with
     /// history[(pos + j) % n] — oldest to newest.
+    ///
+    /// NOTE: applying taps[0] to the OLDEST sample is the time-REVERSE of
+    /// textbook convolution. It is numerically inert only because
+    /// FM_DECIMATION_TAPS is exactly palindromic. An asymmetric table dropped in
+    /// later would be silently time-reversed.
+    ///
+    /// The window is walked as two contiguous runs (pos..<n, then 0..<pos)
+    /// rather than with a `% n` per tap: 32 modulos per output sample was the
+    /// dominant added cost for a 2-op voice. Same samples, same taps, same
+    /// summation order, so it is BIT-identical to the modulo form — pinned by a
+    /// test.
     public func output() -> Double {
         let n = history.count
+        let p = pos
         var y = 0.0
-        for j in 0..<n {
-            y += FM_DECIMATION_TAPS[j] * history[(pos + j) % n]
+        var j = 0
+        for i in p..<n {
+            y += FM_DECIMATION_TAPS[j] * history[i]
+            j += 1
+        }
+        for i in 0..<p {
+            y += FM_DECIMATION_TAPS[j] * history[i]
+            j += 1
         }
         return y
     }

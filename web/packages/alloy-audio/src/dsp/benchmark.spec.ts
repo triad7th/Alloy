@@ -5,6 +5,12 @@
 // all) that will never flake in CI. The actual realtime ratio and its
 // implied "% of one core" are logged for a human to read against the 25%
 // target. Twin: swift/Tests/AlloyAudioTests/BenchmarkTests.swift.
+//
+// Deliberate twin asymmetry: the Swift side asserts the spec's real 0.25
+// budget in its RELEASE config, because that is the code that ships to a
+// phone. Nothing here corresponds — this runs in Vitest on Node, whose JIT
+// warmup and GC are not the browser's worklet thread — so the web twin stays
+// an indicative logger with a loose bound, and the hard gate lives in Swift.
 
 import { describe, expect, it } from 'vitest';
 import { PatchEngine } from './patch-engine.js';

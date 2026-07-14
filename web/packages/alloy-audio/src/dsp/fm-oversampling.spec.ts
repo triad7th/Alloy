@@ -78,4 +78,45 @@ describe('fm oversampling', () => {
     expect(chooseOversampling(20_000, 96_000)).toBe(1); // 96k/4 = 24 kHz
     expect(chooseOversampling(25_000, 96_000)).toBe(FM_OVERSAMPLING);
   });
+
+  it('the modulo-free tap loop is BIT-identical to the naive modulo convolution', () => {
+    // output() walks the ring as two contiguous runs instead of doing `% n` per
+    // tap. That is only allowed because it visits the same samples with the same
+    // taps in the SAME summation order — so the float result must be equal to the
+    // last bit, not merely close. Object.is, no tolerance: if this ever needs a
+    // tolerance, the summation order has changed and the optimization is wrong.
+    const n = FM_DECIMATION_TAPS.length;
+    const history = new Float64Array(n); // the naive reference: ring + `% n`
+    let pos = 0;
+    const refPush = (x: number) => {
+      history[pos] = x;
+      pos = (pos + 1) % n;
+    };
+    const refOutput = () => {
+      let y = 0;
+      for (let j = 0; j < n; j++) y += FM_DECIMATION_TAPS[j] * history[(pos + j) % n];
+      return y;
+    };
+
+    const dec = new FmDecimator();
+    // An FM-shaped signal (asymmetric, wideband) rather than a pure sine, and a
+    // varying number of pushes per output so `pos` lands on every offset 0..n-1
+    // — including 0, where the second run is empty.
+    let t = 0;
+    let peak = 0;
+    for (let i = 0; i < 500; i++) {
+      const pushes = 1 + (i % 7);
+      for (let k = 0; k < pushes; k++) {
+        const x = Math.sin(0.031 * t + 3.7 * Math.sin(0.0017 * t)) * (1 - 0.001 * (t % 400));
+        dec.push(x);
+        refPush(x);
+        t++;
+      }
+      const got = dec.output();
+      const want = refOutput();
+      expect(Object.is(got, want)).toBe(true);
+      peak = Math.max(peak, Math.abs(got));
+    }
+    expect(peak).toBeGreaterThan(0.1); // the equality above was on real signal, not silence
+  });
 });

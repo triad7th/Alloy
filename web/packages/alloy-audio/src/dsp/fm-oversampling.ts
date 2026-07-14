@@ -64,12 +64,27 @@ export class FmDecimator {
   }
 
   /** Convolve the window. After push(), `pos` indexes the OLDEST sample, so
-   *  tap j lines up with history[(pos + j) % n] — oldest to newest. */
+   *  tap j lines up with history[(pos + j) % n] — oldest to newest.
+   *
+   *  NOTE: applying taps[0] to the OLDEST sample is the time-REVERSE of textbook
+   *  convolution. It is numerically inert only because FM_DECIMATION_TAPS is
+   *  exactly palindromic. Swap in an asymmetric table and this filter silently
+   *  becomes its own time reversal — reverse the tap index if you ever do.
+   *
+   *  The window is walked as two contiguous runs (pos..<n, then 0..<pos) rather
+   *  than with a `% n` per tap: 32 modulos per output sample was the dominant
+   *  added cost for a 2-op voice. Same samples, same taps, same summation order,
+   *  so it is BIT-identical to the modulo form — pinned by a test. */
   output(): number {
     const n = this.history.length;
+    const p = this.pos;
     let y = 0;
-    for (let j = 0; j < n; j++) {
-      y += FM_DECIMATION_TAPS[j] * this.history[(this.pos + j) % n];
+    let j = 0;
+    for (let i = p; i < n; i++, j++) {
+      y += FM_DECIMATION_TAPS[j] * this.history[i];
+    }
+    for (let i = 0; i < p; i++, j++) {
+      y += FM_DECIMATION_TAPS[j] * this.history[i];
     }
     return y;
   }

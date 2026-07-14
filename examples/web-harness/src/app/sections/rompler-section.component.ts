@@ -147,16 +147,12 @@ const PATCH_CATALOG: CatalogEntry[] = [
                 { ratio: 1, level: 1, adsr: { attack: 0.002, decay: 1.3, sustain: 0.16, release: 0.4 } },
                 // Warm 1:1 body modulation, fades as the note blooms.
                 { ratio: 1, level: 0.55, adsr: { attack: 0.001, decay: 0.5, sustain: 0.1, release: 0.3 } },
-                // The hammer "clank": high-ratio, very fast decay.
-                // Ratio 7, not 14: the FM generator has NO anti-aliasing. At ratio
-                // 14 this operator runs at 23.3 kHz on G#6 (midi 92) — right at
-                // Nyquist — and its sidebands fold back down as inharmonic bass
-                // junk, measured at -24.7 dB below the fundamental there (vs
-                // -57 dB at C4). That is audible as a "weird bassy noise" on high
-                // notes. Ratio 7 keeps the clank but stays under Nyquist across
-                // the keyboard (-50.8 dB at G#6). The real fix is oversampling in
-                // the FM generator; see the roadmap note in the founding spec.
-                { ratio: 7, level: 0.3, adsr: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.05 } },
+                // The hammer "clank". Ratio 14 runs this operator at 23.3 kHz on
+                // G#6 — right at Nyquist — which used to fold back as inharmonic
+                // bass junk (-24.7 dB below the fundamental). It no longer does:
+                // FmGenerator oversamples any voice whose stack reaches past
+                // sampleRate/4. See fm-oversampling.ts.
+                { ratio: 14, level: 0.3, adsr: { attack: 0.001, decay: 0.06, sustain: 0, release: 0.05 } },
               ],
               algorithm: {
                 routes: [

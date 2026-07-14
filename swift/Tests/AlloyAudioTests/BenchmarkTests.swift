@@ -2,37 +2,35 @@
 import Foundation
 import XCTest
 
-/// Indicative CPU-envelope guard for the full render path (64 voices, all
-/// inserts + master reverb/delay/limiter). The spec's target is "< 25% of
-/// one mid-tier phone core"; this dev machine is not a phone, so the hard
-/// assertion is a LOOSE realtime bound (< 1.0, i.e. faster than realtime at
-/// all) that will never flake in CI. The actual realtime ratio and its
-/// implied "% of one core" are printed for a human to read against the 25%
-/// target. Twin: web src/dsp/benchmark.spec.ts (canonical).
+/// CPU-envelope GATE for the full render path (64 voices, all inserts + master
+/// reverb/delay/limiter). The founding spec's budget is "< 25% of one mid-tier
+/// phone core", and in the release config — the one that actually ships — that
+/// is what this test asserts: ratio < 0.25. It is a gate, not an observation.
+/// Twin: web src/dsp/benchmark.spec.ts (canonical); the web twin keeps a loose
+/// bound because Node/V8 is not the shipping runtime, so the real budget is
+/// enforced here.
 final class BenchmarkTests: XCTestCase {
     private let fs = 48_000.0
     private let block = 128
 
-    /// `swift test`'s default debug config (-Onone: no inlining, full ARC
-    /// traffic, array bounds checks) renders this DSP-heavy loop an order of
-    /// magnitude slower than the -O release config the app actually ships
-    /// with — measured 1053% of realtime for the 64-voice case in debug vs.
-    /// 21% in release. A fixed `< 1.0` bound is a guaranteed failure under
-    /// plain `swift test`, not a flake, so the realtime bound gets
-    /// debug-config headroom (well above the observed debug ratio) while
-    /// staying at the brief's intended `< 1.0` for release, which is what the
-    /// < 25%-of-one-core target is actually about.
+    /// RELEASE (`swift test -c release`) is the config that ships and the one the
+    /// budget is about: the bound is the spec's own number, **0.25** = 25% of one
+    /// core. Measured on this dev machine at 20.3-21.0% of realtime with the FM
+    /// anti-aliasing of phase 3c in place (19 of the 64 benchmark voices clear the
+    /// 12 kHz threshold and run 4x + a 32-tap decimator; it was 12% before 3c and
+    /// 21.5% before the decimator's per-tap modulo came out). This bound must not
+    /// be raised to accommodate a regression — a change that pushes it past 0.25 is
+    /// over the design's stated envelope, and that is a decision for a human.
+    ///
+    /// DEBUG (`swift test`'s default -Onone: no inlining, full ARC traffic, array
+    /// bounds checks) runs this DSP-heavy loop ~50x slower — measured 1034-1047% of
+    /// realtime, i.e. a ratio of ~10.4. A `< 0.25` bound there would be a guaranteed
+    /// failure, not a flake, so debug gets its own bound: **13.5**, ~1.3x the
+    /// measured 10.47, tight enough that a real regression trips it (the old 20.0
+    /// would have absorbed a further 1.9x silently).
     /// `_isDebugAssertConfiguration()` is the stdlib's own way to tell the two
     /// configs apart at runtime.
-    ///
-    /// The debug bound was 8.0 (against a measured 419%) until FM anti-aliasing
-    /// landed: the golden FM patch modulates at ratio 14, so 19 of the 64
-    /// benchmark voices (midi 81..99, whose modulator clears the 12 kHz
-    /// threshold) now run the operator loop at 4x plus a 32-tap decimator. That
-    /// costs 2.5x in debug (419% -> 1053%) and 1.75x in release (12% -> 21%);
-    /// release still clears both the < 1.0 bound and the 25%-of-one-core target,
-    /// so only the debug fudge factor moves.
-    private let realtimeBound = _isDebugAssertConfiguration() ? 20.0 : 1.0
+    private let realtimeBound = _isDebugAssertConfiguration() ? 13.5 : 0.25
 
     func testSixtyFourVoiceFullFxFasterThanRealtime() {
         let seconds = 4
@@ -74,7 +72,7 @@ final class BenchmarkTests: XCTestCase {
                 + "(target < 25% of one mid-tier phone core)",
         )
         XCTAssertGreaterThan(engine.activeVoiceCount, 0) // voices actually ran
-        XCTAssertLessThan(ratio, realtimeBound) // faster than realtime — loose, flake-proof
+        XCTAssertLessThan(ratio, realtimeBound) // the < 25%-of-one-core gate (release)
     }
 
     func testReverbTailDenormalFlushAssessment() {

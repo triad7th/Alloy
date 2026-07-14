@@ -403,6 +403,39 @@ platforms (`web/packages/alloy-audio/src/pack/` ↔
   `Math.SQRT2` / `2.0.squareRoot()` and stays bounded in `[1, sqrt(2)]`
   across the crossfade window.
 
+**FM anti-aliasing (phase 3c, strict, twin-tested):** `dsp/fm-oversampling.ts`
+↔ `DSP/FmOversampling.swift`. `FmGenerator` renders its operator loop at K times
+the output rate and decimates back down, where K is chosen per VOICE:
+
+- `FM_OVERSAMPLING` = **4** on both platforms, and `FM_DECIMATION_TAPS` is a
+  **32-tap pinned constant, identical to the last digit in both twins** — a
+  Blackman-windowed sinc, cutoff 0.45/4 of the oversampled rate, normalized to
+  unity DC gain. It must NEVER be computed at runtime: JS `Math.sin` and Swift
+  `sin` may differ in the last ulp, which would silently diverge the twins'
+  audio while every structural test still passed. The table is exactly
+  palindromic, which is also why `FmDecimator.output()` gets away with applying
+  `taps[0]` to the OLDEST sample (the time-reverse of textbook convolution) —
+  an asymmetric table dropped in later would be silently time-reversed.
+  `output()` walks the ring as two contiguous runs rather than `% n` per tap;
+  a twin test pins that this is BIT-identical to the naive modulo form (exact
+  equality, no tolerance), since it is the same taps over the same samples in
+  the same summation order.
+- `chooseOversampling(maxOpFrequency, sampleRate)` — threshold `sampleRate / 4`,
+  **exclusive** (`maxOpFrequency > sampleRate/4`; exactly at the threshold, K=1).
+  A pure function of the note and the patch: deterministic, twin-identical, and
+  decided ONCE per `noteOn` from the highest frequency anywhere in the operator
+  stack. `setPitchRatio` deliberately does NOT re-decide it mid-note — switching
+  K under a sounding voice would glitch, and the threshold sits ~2 semitones
+  below the danger zone precisely to leave pitch-bend headroom.
+- **The behavioral contract that matters most: operator envelopes step once per
+  OUTPUT sample, held constant across the K sub-samples.** This is what keeps the
+  K=1 path bit-identical to the pre-3c code, and therefore what keeps the golden
+  renders stable. A future contributor who "tidies" the envelope step back inside
+  the oversampled operator loop will silently break twin golden agreement — on
+  both platforms at once, so the goldens will still AGREE while both are wrong.
+- `FmGenerator.oversampling` is a read-only accessor (the chosen K) on both
+  sides, exposed for tests only.
+
 **Policy — param-level string-enum runtime validation:** whenever an
 `InsertSpec` param field's TS type is a string-literal union (e.g.
 `RotaryParams.speed: 'slow' | 'fast'`, `ChorusParams.mode: 'chorus' |

@@ -80,4 +80,49 @@ final class FmOversamplingTests: XCTestCase {
         XCTAssertEqual(chooseOversampling(maxOpFrequency: 20_000, sampleRate: 96_000), 1)
         XCTAssertEqual(chooseOversampling(maxOpFrequency: 25_000, sampleRate: 96_000), FM_OVERSAMPLING)
     }
+
+    func testModuloFreeTapLoopIsBitIdenticalToNaiveConvolution() {
+        // output() walks the ring as two contiguous runs instead of doing `% n`
+        // per tap. That is only allowed because it visits the same samples with
+        // the same taps in the SAME summation order — so the result must be equal
+        // to the last bit, not merely close. Exact ==, no accuracy: if this ever
+        // needs a tolerance, the summation order changed and the optimization is
+        // wrong.
+        let n = FM_DECIMATION_TAPS.count
+        var history = [Double](repeating: 0, count: n) // naive reference: ring + `% n`
+        var pos = 0
+        func refPush(_ x: Double) {
+            history[pos] = x
+            pos = (pos + 1) % n
+        }
+        func refOutput() -> Double {
+            var y = 0.0
+            for j in 0..<n {
+                y += FM_DECIMATION_TAPS[j] * history[(pos + j) % n]
+            }
+            return y
+        }
+
+        let dec = FmDecimator()
+        // An FM-shaped signal (asymmetric, wideband), and a varying number of
+        // pushes per output so `pos` lands on every offset 0..<n — including 0,
+        // where the second run is empty.
+        var t = 0
+        var peak = 0.0
+        for i in 0..<500 {
+            let pushes = 1 + (i % 7)
+            for _ in 0..<pushes {
+                let x = sin(0.031 * Double(t) + 3.7 * sin(0.0017 * Double(t)))
+                    * (1 - 0.001 * Double(t % 400))
+                dec.push(x)
+                refPush(x)
+                t += 1
+            }
+            let got = dec.output()
+            let want = refOutput()
+            XCTAssertEqual(got, want) // bit-exact, no accuracy argument
+            peak = max(peak, abs(got))
+        }
+        XCTAssertGreaterThan(peak, 0.1) // the equality above was on real signal, not silence
+    }
 }
