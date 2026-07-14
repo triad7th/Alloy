@@ -122,15 +122,45 @@ free port with `--port`.
 - Local development against an app: Xcode local-package path override /
   npm `file:` link. Never publish to a registry.
 
+## Branching and pull-request workflow
+
+`main` is canonical and, by convention, advances only through pull requests
+merged on GitHub by the human. No direct pushes to `main`, and there is no
+long-lived `develop` branch — just `main` plus short-lived feature branches.
+Every feature follows this lifecycle:
+
+1. **Issue first.** File a GitHub issue describing the work before touching
+   code — it anchors the branch, the PR, and the Alloy project board. Use
+   `/create-issue` to turn a settled brainstorm/design into a precise issue.
+2. **`/implement <issue-number>`.** Reads the issue, creates and links a
+   feature branch via `gh issue develop <n> --base main --checkout` (named
+   `<n>-<slug>`), adds the issue to the **Alloy** project, and does the work
+   on that branch. If the issue references a plan under
+   `docs/superpowers/plans/`, it runs `superpowers:subagent-driven-development`;
+   otherwise it plans/implements as the work warrants. All commits stay on the
+   branch. The board step requires the `gh` `project` scope — grant it with
+   `gh auth refresh -s project` if missing (the skill hard-fails without it).
+3. **`/create-pr`.** Verifies the suites, pushes the feature branch, and opens
+   a PR into `main` whose body ends with `Closes #<n>`. The human reviews and
+   merges on GitHub; agents never self-merge.
+4. **Release from `main` after merge.** Once merged, cut releases with
+   `tools/release.mjs` from up-to-date `main` (see Versioning above).
+
+The `/create-issue`, `/implement`, and `/create-pr` skills live in
+`.claude/skills/`.
+
 ## Agent harness conventions (shared with the app repos)
 
 - `CLAUDE.md` is canonical; `AGENTS.md` is a symlink to it. When adding a
   `CLAUDE.md` in a subdirectory, mirror it:
   `ln -s CLAUDE.md <dir>/AGENTS.md`.
-- Repo-local skills, if added later, live at `.claude/skills/<name>/SKILL.md`
-  (canonical) with `.agents/skills/<name>/SKILL.md` symlinked to it and
-  `.agents/skills/<name>/agents/openai.yaml` as Codex-only metadata — the
-  same pattern as the allyclock repo.
+- Repo-local skills live at `.claude/skills/<name>/SKILL.md` (canonical) with
+  a **real copy** at `.agents/skills/<name>/SKILL.md` (not a symlink — some
+  agent clients don't follow symlinked skill files) and
+  `.agents/skills/<name>/agents/openai.yaml` as Codex-only metadata. When you
+  edit a skill, update both copies in the same commit so the two harnesses
+  stay in sync. (`AGENTS.md` remains a symlink to `CLAUDE.md`; only the
+  per-skill `SKILL.md` files are copied.)
 - Commit style: conventional commits (`feat:`, `fix:`, `docs:`, `test:`,
   `chore:`), imperative subject ≤ 72 chars.
 

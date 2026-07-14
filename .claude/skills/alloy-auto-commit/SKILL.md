@@ -7,6 +7,10 @@ description: Automatically review, group, validate, stage, and commit Alloy repo
 
 Commit current Alloy changes with deliberate grouping and the repo's conventional-commit style.
 
+Alloy is branch-and-PR based: commits belong on the issue's feature branch,
+never on `main`. If `git status` shows you are on `main`, stop and tell the
+user to start from an issue with `/implement <issue>` before committing.
+
 ## Workflow
 
 1. Inspect the worktree:

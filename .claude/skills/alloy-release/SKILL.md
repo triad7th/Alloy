@@ -38,6 +38,10 @@ suites, fresh generated outputs, correct packing directories).
   by hand.
 - Do not bump a package version and leave it unreleased on `main` — bump and
   release in the same sitting.
+- Releases are cut from up-to-date `main` after the feature PR has been merged
+  there — never from a feature branch. The version bump can ride the feature
+  PR or land as its own small release PR; either way `main` carries it before
+  `tools/release.mjs` runs.
 
 ## Final Response
 

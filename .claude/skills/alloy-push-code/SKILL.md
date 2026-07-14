@@ -40,10 +40,16 @@ Push committed Alloy changes deliberately, without hiding local state or pushing
 
 ## Branch and Tag Guidance
 
-- Do not push directly to `main` if the user asked for a feature branch or PR workflow.
-- If already on `main` and commits are present, pushing to `main` is acceptable only when that matches the repo's current workflow or the user's request.
-- If the user asks for a PR, push the branch first, then use the repo's GitHub workflow or GitHub tooling to open the PR.
-- Never create or push semver tags as part of a routine push. Apps consume Alloy by tag; tags are cut deliberately at meaningful checkpoints, only when the user explicitly asks.
+- Alloy is branch-and-PR based: push the current **feature** branch, never
+  `main`. `main` only advances through pull requests merged on GitHub.
+- If you are on `main` with unpushed commits, do NOT push them — that work
+  belongs on a feature branch. Stop and tell the user; feature work starts
+  from an issue with `/implement <issue>`.
+- Opening the PR is the `/create-pr` skill's job; this skill only pushes the
+  branch. Push first, then run `/create-pr`.
+- Never create or push semver tags as part of a routine push. Apps consume
+  Alloy by tag; tags are cut deliberately at meaningful checkpoints, only when
+  the user explicitly asks.
 
 ## Final Response
 
