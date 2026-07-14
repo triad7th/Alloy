@@ -167,6 +167,12 @@ export const INSERT_KINDS: readonly InsertKind[] = [
 
 const DEFAULT_ADSR = { attack: 0.005, decay: 0.5, sustain: 0.7, release: 0.3 };
 
+/** The zone set the harness bakes at startup and always has resolved. A default
+ *  sample layer MUST point at a registered zone set: an unresolvable zoneSetId
+ *  makes the layer silently INACTIVE (voice.ts treats it as "not an error"), so
+ *  a patch pointing at a made-up id validates cleanly and then plays nothing. */
+export const DEFAULT_ZONE_SET_ID = 'workbench.glass';
+
 /** A starting point per kind that is VALID and AUDIBLE — never an empty shell.
  *  Switching kind in the UI must always leave something you can hear. */
 export function defaultGenerator(kind: GeneratorKind): GeneratorSpec {
@@ -193,7 +199,7 @@ export function defaultGenerator(kind: GeneratorKind): GeneratorSpec {
     case 'va':
       return { kind: 'va', va: { shape: 'saw', unison: 1, detuneCents: 0, pulseWidth: 0.5 }, seed: 1 };
     case 'sample':
-      return { kind: 'sample', zoneSetId: 'zones', crossfade: 0 };
+      return { kind: 'sample', zoneSetId: DEFAULT_ZONE_SET_ID, crossfade: 0 };
   }
 }
 
@@ -233,7 +239,10 @@ function withInserts(patch: Patch, inserts: InsertSpec[]): Patch {
   return { ...patch, inserts };
 }
 
-function move<T>(items: readonly T[], from: number, to: number): T[] {
+/** Returns null when either index is out of range — the caller then returns its
+ *  input unchanged, per this module's no-op-is-identity contract. */
+function move<T>(items: readonly T[], from: number, to: number): T[] | null {
+  if (from < 0 || from >= items.length || to < 0 || to >= items.length) return null;
   const copy = items.slice();
   const [item] = copy.splice(from, 1);
   copy.splice(to, 0, item);
@@ -252,11 +261,14 @@ export function removeLayer(patch: Patch, index: number): Patch {
 
 export function moveLayer(patch: Patch, from: number, to: number): Patch {
   if (from === to) return patch;
-  return withLayers(patch, move(patch.layers, from, to));
+  const moved = move(patch.layers, from, to);
+  if (moved === null) return patch;
+  return withLayers(patch, moved);
 }
 
 export function setGeneratorKind(patch: Patch, layerIndex: number, kind: GeneratorKind): Patch {
-  if (patch.layers[layerIndex].generator.kind === kind) return patch;
+  const layer = patch.layers[layerIndex];
+  if (!layer || layer.generator.kind === kind) return patch;
   return setAt(patch, `layers.${layerIndex}.generator`, defaultGenerator(kind));
 }
 
@@ -274,7 +286,9 @@ export function removeInsert(patch: Patch, index: number): Patch {
 export function moveInsert(patch: Patch, from: number, to: number): Patch {
   const inserts = patch.inserts ?? [];
   if (from === to) return patch;
-  return withInserts(patch, move(inserts, from, to));
+  const moved = move(inserts, from, to);
+  if (moved === null) return patch;
+  return withInserts(patch, moved);
 }
 
 export function setInsertKind(patch: Patch, index: number, kind: InsertKind): Patch {

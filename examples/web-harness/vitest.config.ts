@@ -6,14 +6,16 @@ import { defineConfig } from 'vitest/config';
 // `new URL(...).pathname` rather than node:url's fileURLToPath: the harness's
 // tsconfig carries no node types, so importing 'node:url' here is a type error
 // under `tsc --noEmit` even though vitest itself runs fine. URL is a lib.dom
-// global, so this needs no extra @types.
+// global, so this needs no extra @types. `.pathname` alone does NOT undo percent
+// encoding (fileURLToPath does) — a checkout path containing a space would come
+// through as `%20` and the alias would resolve to nothing, so decodeURIComponent
+// it explicitly.
 export default defineConfig({
   resolve: {
     alias: {
-      '@allyworld/alloy-audio': new URL(
-        '../../web/packages/alloy-audio/src/index.ts',
-        import.meta.url,
-      ).pathname,
+      '@allyworld/alloy-audio': decodeURIComponent(
+        new URL('../../web/packages/alloy-audio/src/index.ts', import.meta.url).pathname,
+      ),
     },
   },
   test: {

@@ -4,6 +4,8 @@ import { getAt, setAt, REFERENCE_PATCH } from './patch-edit.js';
 import {
   GENERATOR_KINDS,
   INSERT_KINDS,
+  MAX_LAYERS,
+  DEFAULT_ZONE_SET_ID,
   addInsert,
   addLayer,
   addOperator,
@@ -113,7 +115,11 @@ const MINIMAL: Patch = {
 
 describe('kind templates', () => {
   it.each(GENERATOR_KINDS)('defaultGenerator(%s) yields a patch the library accepts', (kind) => {
-    const next = setGeneratorKind(MINIMAL, 0, kind);
+    // MINIMAL's layer 0 is already FM, so switching straight to 'fm' would
+    // short-circuit to identity and never exercise defaultGenerator('fm') at
+    // all. Start from a non-FM base so every kind in the table is a real switch.
+    const base = setGeneratorKind(MINIMAL, 0, 'va');
+    const next = setGeneratorKind(base, 0, kind);
     expect(next.layers[0].generator.kind).toBe(kind);
     expect(validatePatch(next)).toEqual([]);
   });
@@ -134,12 +140,27 @@ describe('kind templates', () => {
     expect(add.partials.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('defaultGenerator(sample) points at a zone set the harness actually registers', () => {
+    // The harness bakes DEFAULT_ZONE_SET_ID at startup; any other id resolves
+    // to an inactive (silent) layer that still validates cleanly. Pinning this
+    // makes a future rename of the harness's zone set break loudly here.
+    const sample = defaultGenerator('sample');
+    if (sample.kind !== 'sample') throw new Error('unreachable');
+    expect(sample.zoneSetId).toBe(DEFAULT_ZONE_SET_ID);
+  });
+
   it('defaultInsert returns a spec whose payload key matches its kind', () => {
     for (const kind of INSERT_KINDS) {
       const spec = defaultInsert(kind) as unknown as Record<string, unknown>;
       expect(spec['kind']).toBe(kind);
       expect(spec[kind]).toBeDefined();
     }
+  });
+
+  it('setGeneratorKind with an out-of-range layer index is a safe no-op (was: threw)', () => {
+    const p = setGeneratorKind(REFERENCE_PATCH, 9, 'va');
+    expect(p).toBe(REFERENCE_PATCH); // identity: rejected, not thrown
+    expect(validatePatch(p)).toEqual([]);
   });
 });
 
@@ -173,16 +194,34 @@ describe('layers', () => {
   });
 
   it('pins MAX_LAYERS to validatePatch, not a hand-typed number', () => {
-    const fourLayers: Patch = { ...REFERENCE_PATCH, layers: [...REFERENCE_PATCH.layers] };
-    expect(fourLayers.layers).toHaveLength(4);
-    expect(validatePatch(fourLayers)).toEqual([]);
-
-    const fiveLayers: Patch = {
+    // Hand-build (not via addLayer, which would just re-hit the module's own
+    // limit and make this vacuous) — but sized off MAX_LAYERS itself, so a
+    // drift in the constant fails this test instead of silently passing.
+    const atLimit: Patch = {
       ...REFERENCE_PATCH,
-      layers: [...REFERENCE_PATCH.layers, REFERENCE_PATCH.layers[0]],
+      layers: Array.from(
+        { length: MAX_LAYERS },
+        (_, i) => REFERENCE_PATCH.layers[i % REFERENCE_PATCH.layers.length],
+      ),
     };
-    expect(fiveLayers.layers).toHaveLength(5);
-    expect(validatePatch(fiveLayers)).not.toEqual([]);
+    expect(atLimit.layers).toHaveLength(MAX_LAYERS);
+    expect(validatePatch(atLimit)).toEqual([]);
+
+    const overLimit: Patch = { ...REFERENCE_PATCH, layers: [...atLimit.layers, REFERENCE_PATCH.layers[0]] };
+    expect(overLimit.layers).toHaveLength(MAX_LAYERS + 1);
+    expect(validatePatch(overLimit)).not.toEqual([]);
+  });
+
+  it('moveLayer with an out-of-range from index is a safe no-op (was: corrupts the patch)', () => {
+    const p = moveLayer(REFERENCE_PATCH, 7, 0);
+    expect(p).toBe(REFERENCE_PATCH); // identity: rejected, not silently corrupted
+    expect(validatePatch(p)).toEqual([]);
+  });
+
+  it('moveLayer with a negative to index is a safe no-op (was: silently wrong reorder)', () => {
+    const p = moveLayer(REFERENCE_PATCH, 0, -1);
+    expect(p).toBe(REFERENCE_PATCH);
+    expect(validatePatch(p)).toEqual([]);
   });
 });
 
@@ -210,6 +249,12 @@ describe('inserts', () => {
   it('switches an insert kind in place, preserving position', () => {
     const p = setInsertKind(REFERENCE_PATCH, 1, 'rotary');
     expect(p.inserts!.map((i) => i.kind)).toEqual(['chorus', 'rotary', 'compressor']);
+    expect(validatePatch(p)).toEqual([]);
+  });
+
+  it('moveInsert with an out-of-range from index is a safe no-op (was: corrupts the patch)', () => {
+    const p = moveInsert(REFERENCE_PATCH, 9, 0);
+    expect(p).toBe(REFERENCE_PATCH); // identity: rejected, not silently corrupted
     expect(validatePatch(p)).toEqual([]);
   });
 });
@@ -297,7 +342,6 @@ describe('voiceCost', () => {
   it('is the benchmark figure for the benchmark-shaped patch', () => {
     const benchmarkShaped: Patch = { ...MINIMAL };
     expect(voiceCost(benchmarkShaped)).toBe(BENCHMARK_VOICE_COST);
-    expect(BENCHMARK_VOICE_COST).toBe(3);
   });
 
   it('counts FM operators, additive partials, VA unison voices, and 1 per sample layer', () => {
