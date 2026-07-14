@@ -103,9 +103,35 @@ Coefficients are a **compile-time constant table**, identical in both twins —
 no runtime filter design, nothing to drift between platforms. At K=1 the filter
 is bypassed entirely (that is what preserves bit-exactness).
 
-**Accepted cost:** ~4 output samples (83 µs) of group delay at K=4. In a layered
+**Accepted cost — group delay:** ~4 output samples (83 µs) at K=4. In a layered
 patch an oversampled voice sits a hair behind a non-oversampled one. Inaudible,
 but real, and recorded here rather than discovered later.
+
+**Accepted cost — transition band.** What matters about a decimation filter is
+not its response *at* a frequency but where that frequency **folds to**. The
+pinned 32-tap table, measured:
+
+| freq at 192 kHz | folds down to | attenuation |
+| --- | --- | --- |
+| 10 kHz | 10 kHz | −0.1 dB (passband; survives) |
+| 15 kHz | 15 kHz | −1.2 dB |
+| 20 kHz | 20 kHz | −4.3 dB |
+| **30 kHz** | **18 kHz** | **−23 dB** |
+| 36 kHz | 12 kHz | −52 dB |
+| 40 kHz | 8 kHz | −77 dB |
+| 60 kHz | 12 kHz | −84 dB |
+
+The one soft spot — 30 kHz at only −23 dB — folds to 18 kHz, the very top of
+hearing, and is the price of 32 taps. Everything that would fold into the
+audible midrange (36–60 kHz → 8–12 kHz) is crushed by 52–84 dB, which is why
+the end-to-end alias floor still measures −63 dB at G#6.
+
+**Do not "fix" the 30 kHz number by narrowing the cutoff.** That lowpasses the
+*output*, gutting the brightness this phase exists to recover. The tests pin
+both ends of this trade: the fold-down attenuations *and* the passband.
+
+The passband droop above 15 kHz (−1.2 dB at 15 kHz, −4.3 dB at 20 kHz) applies
+only to oversampled voices, i.e. high notes, and is accepted.
 
 ### 4. The payoff
 

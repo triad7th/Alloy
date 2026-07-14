@@ -125,13 +125,34 @@ describe('fm oversampling', () => {
     expect(rms(y)).toBeLessThan(0.75);
   });
 
-  it('CRUSHES a tone above the output Nyquist — this is the whole point', () => {
-    // 30 kHz exists at the 192 kHz oversampled rate but is above the 24 kHz
-    // output Nyquist. Without the filter it would fold back to 18 kHz. With it,
-    // it must be gone before we drop samples.
-    const y = decimate(30_000, 4096).subarray(64);
-    const attenuationDb = 20 * Math.log10(rms(y) / 0.707);
-    expect(attenuationDb).toBeLessThan(-40);
+  it('CRUSHES the frequencies that fold into the AUDIBLE midrange', () => {
+    // What matters is not the response at a frequency, but where that frequency
+    // FOLDS TO once we drop to 48 kHz. These are the dangerous ones:
+    //   40 kHz -> folds to  8 kHz  (squarely audible)
+    //   36 kHz -> folds to 12 kHz  (squarely audible)
+    const at = (hz: number) => 20 * Math.log10(rms(decimate(hz, 4096).subarray(64)) / 0.707);
+    expect(at(40_000)).toBeLessThan(-60);
+    expect(at(36_000)).toBeLessThan(-45);
+  });
+
+  it('is deliberately soft right at the transition band, which folds where nobody hears', () => {
+    // 30 kHz folds to 18 kHz — the very top of hearing — and sits in a 32-tap
+    // filter's transition band, where it only gets ~-23 dB. That is the accepted
+    // cost of 32 taps, and it is why the end-to-end alias floor still measures
+    // -63 dB on G#6. Pinned so a future "improvement" that narrows the passband
+    // to chase this number has to argue with a test: narrowing the cutoff to
+    // crush 30 kHz would lowpass the OUTPUT and gut the brightness this whole
+    // phase exists to recover.
+    const attenuationDb = 20 * Math.log10(rms(decimate(30_000, 4096).subarray(64)) / 0.707);
+    expect(attenuationDb).toBeLessThan(-15);
+    expect(attenuationDb).toBeGreaterThan(-35);
+  });
+
+  it('keeps the audio band intact — the brightness must survive', () => {
+    const at = (hz: number) => 20 * Math.log10(rms(decimate(hz, 4096).subarray(64)) / 0.707);
+    expect(at(1_000)).toBeGreaterThan(-0.5);
+    expect(at(10_000)).toBeGreaterThan(-0.5);
+    expect(at(15_000)).toBeGreaterThan(-2); // -1.2 dB measured
   });
 
   it('chooseOversampling switches at sampleRate/4 and nowhere else', () => {
@@ -267,7 +288,7 @@ public let fmOversampling = 4
 /// these coefficients are part of the twin contract. Group delay is 3.875 output
 /// samples (~83 us).
 public let fmDecimationTaps: [Double] = [
-    2.8477986181713758e-19, -6.0477988340191030e-5, -4.3340271636890365e-5, 5.2916070916784888e-4,
+    2.8477986181713758e-19, -6.047798834019103e-5, -4.3340271636890365e-5, 5.2916070916784888e-4,
     1.9038353814484067e-3, 3.3115968607472083e-3, 2.6042373642096179e-3, -2.7237870035835541e-3,
     -1.2906466905783016e-2, -2.3118576278907177e-2, -2.3226872620304369e-2, -1.9606343826616681e-3,
     4.5690838648908765e-2, 1.1232751779472532e-1, 1.7825129611097032e-1, 2.1942167258103942e-1,
@@ -363,11 +384,36 @@ final class FmOversamplingTests: XCTestCase {
         XCTAssertLessThan(rms(y), 0.75)
     }
 
-    func testCrushesAToneAboveTheOutputNyquist() {
-        // 30 kHz exists at 192 kHz but is above the 24 kHz output Nyquist; without
-        // the filter it would fold back to 18 kHz.
-        let y = decimate(hz: 30_000, frames: 4096)[64...]
-        XCTAssertLessThan(20 * log10(rms(y) / 0.707), -40)
+    /// dB, relative to a unit sine, of what survives decimation at `hz`.
+    private func attenuationDb(_ hz: Double) -> Double {
+        20 * log10(rms(decimate(hz: hz, frames: 4096)[64...]) / 0.707)
+    }
+
+    func testCrushesTheFrequenciesThatFoldIntoTheAudibleMidrange() {
+        // What matters is not the response AT a frequency, but where that frequency
+        // FOLDS TO once we drop to 48 kHz. These are the dangerous ones:
+        //   40 kHz -> folds to  8 kHz  (squarely audible)
+        //   36 kHz -> folds to 12 kHz  (squarely audible)
+        XCTAssertLessThan(attenuationDb(40_000), -60)
+        XCTAssertLessThan(attenuationDb(36_000), -45)
+    }
+
+    func testIsDeliberatelySoftAtTheTransitionBandWhichFoldsWhereNobodyHears() {
+        // 30 kHz folds to 18 kHz — the very top of hearing — and sits in a 32-tap
+        // filter's transition band, where it only gets ~-23 dB. That is the accepted
+        // cost of 32 taps, and it is why the end-to-end alias floor still measures
+        // -63 dB on G#6. Pinned so a future "improvement" that narrows the passband
+        // to chase this number has to argue with a test: narrowing the cutoff to
+        // crush 30 kHz would lowpass the OUTPUT and gut the brightness this whole
+        // phase exists to recover.
+        XCTAssertLessThan(attenuationDb(30_000), -15)
+        XCTAssertGreaterThan(attenuationDb(30_000), -35)
+    }
+
+    func testKeepsTheAudioBandIntactSoTheBrightnessSurvives() {
+        XCTAssertGreaterThan(attenuationDb(1_000), -0.5)
+        XCTAssertGreaterThan(attenuationDb(10_000), -0.5)
+        XCTAssertGreaterThan(attenuationDb(15_000), -2) // -1.2 dB measured
     }
 
     func testChooseOversamplingSwitchesAtQuarterSampleRate() {
