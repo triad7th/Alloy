@@ -127,6 +127,15 @@ free port with `--port`.
 `main` is canonical and, by convention, advances only through pull requests
 merged on GitHub by the human. No direct pushes to `main`, and there is no
 long-lived `develop` branch — just `main` plus short-lived feature branches.
+
+**Feature work happens on a real local branch checked out in place**, in the
+primary working directory — **not** in a git worktree. Do not stand up a
+worktree by default: if a plan-execution, brainstorming, or subagent-driven
+skill offers to run in an isolated worktree (e.g. `superpowers:using-git-worktrees`),
+decline and work on the branch directly. Reach for a worktree only when the
+human explicitly asks for one — for instance to run two lines of work in
+parallel without switching branches.
+
 Every feature follows this lifecycle:
 
 1. **Issue first.** File a GitHub issue describing the work before touching
