@@ -13,7 +13,7 @@ libraries.
 ## Libraries
 
 | Library | Status | Contents |
-|---------|--------|----------|
+| ------- | ------ | -------- |
 | **AlloyTime** | 0.5.x — zone catalog, zone metadata, zone formatting, TimeMachine | Time/TimeZone/TimeMachine models (no views): mock-clock state machine, IANA + fixed-offset zone resolution, zone→country/city/GMT metadata |
 | **AlloyUI** | 0.6.x — tokens, icon layer, icon button, sheet, auto-hide + chrome modifier, knobs, flag view, zone picker | Liquid-glass panels, glass icon buttons, SF-Symbol-named icon layer, dismissible sheets, auto-hiding chrome, canonical knobs design language |
 | **AlloyStorage** | 0.6.x — backends, auth, Drive client, public share links | Storage abstraction (browser, file system, Google Drive) with pluggable auth; sync engine arrives in a later release |
