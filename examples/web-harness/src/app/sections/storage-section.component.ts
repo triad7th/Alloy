@@ -18,7 +18,7 @@ import {
  *  Empty strings = the Drive card shows these setup steps instead. */
 const GOOGLE_CLIENT_ID: string =
   '929183445053-ifjjaptf6g48orqj2eu8o06macrp752a.apps.googleusercontent.com';
-const TOKEN_SERVICE_URL: string = 'http://localhost:8888';
+const TOKEN_SERVICE_URL: string = 'http://localhost:4590';
 const DRIVE_FOLDER = 'AlloyHarness';
 
 /** Section 5: AlloyStorage. Local half exercises BrowserStorageBackend

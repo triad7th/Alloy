@@ -204,8 +204,9 @@ Ports follow the Ally-family scheme — each product owns a hundred block:
 AllyScore 42xx, AllyClock 43xx, AllyPiano 44xx, **Alloy 45xx**, 46xx+
 reserved. Alloy's web harness serves on **4510** (this origin is what the
 storage demo's Google OAuth client and the token service's
-`ALLOWED_ORIGINS` are registered for; the token service itself runs on
-Netlify CLI's default dev port 8888). The official harness port belongs to
+`ALLOWED_ORIGINS` are registered for), and the token service serves on
+**4590** (the x90 infra slot, pinned in its `netlify.toml` `[dev]` block —
+`npx netlify dev` in `services/google-oauth`). The official harness port belongs to
 the human dev: never kill or reuse a server already on it — agents doing
 their own checking start their own instance on a free 45xx port with
 `--port`.

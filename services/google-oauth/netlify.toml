@@ -3,5 +3,10 @@
 [build]
   publish = "public"
 
+# Local dev port: Alloy's infra slot in the Ally-family port scheme (45xx
+# block, x90 infra) — keeps `npx netlify dev` off other products' ports.
+[dev]
+  port = 4590
+
 [functions]
   directory = "functions"
