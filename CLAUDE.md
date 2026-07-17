@@ -174,7 +174,7 @@ Focused runs: `swift test --filter <TestName>`; one web package with
 Preview harnesses (README has the full recipes, including iOS simulator):
 
 ```bash
-cd examples/web-harness && npx ng serve    # → http://localhost:4205
+cd examples/web-harness && npx ng serve    # → http://localhost:4510
 cd examples/apple-harness && swift run AlloyHarness   # macOS window
 ```
 
@@ -202,9 +202,10 @@ asserts generated Swift data matches the TS source.
 
 Ports follow the Ally-family scheme — each product owns a hundred block:
 AllyScore 42xx, AllyClock 43xx, AllyPiano 44xx, **Alloy 45xx**, 46xx+
-reserved. Alloy's web harness currently serves on **4205** (grandfathered
-from the old scheme; moving it to 45xx requires re-registering the Google
-OAuth origins for the storage demo). The official harness port belongs to
+reserved. Alloy's web harness serves on **4510** (this origin is what the
+storage demo's Google OAuth client and the token service's
+`ALLOWED_ORIGINS` are registered for; the token service itself runs on
+Netlify CLI's default dev port 8888). The official harness port belongs to
 the human dev: never kill or reuse a server already on it — agents doing
 their own checking start their own instance on a free 45xx port with
 `--port`.

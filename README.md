@@ -60,7 +60,7 @@ Private demo apps for every library surface — never packed, tagged, or
 released. Both consume the libraries **from source**, so edits show up on
 the next build.
 
-**Web** (<http://localhost:4205>):
+**Web** (<http://localhost:4510>):
 
 ```sh
 cd examples/web-harness
