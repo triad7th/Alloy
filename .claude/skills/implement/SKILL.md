@@ -1,88 +1,69 @@
 ---
 name: implement
-description: Start implementing a GitHub issue on a linked feature branch. Use for "/implement <issue-number>" — reads the issue, creates and links a feature branch, adds the issue to the Alloy project board, and does the work on that branch (never on main). Open the PR afterwards with /create-pr.
+description: Implement a GitHub issue by number on a fresh feature branch with [#N] commits — the working step of the Alloy ticket flow. Usage - /implement <issue-number>.
 ---
 
-# Implement (issue-driven feature branch)
+# Implement Issue
 
-Turn a GitHub issue into work on a linked feature branch. Alloy is
-branch-and-PR based: `main` only advances through merged PRs, so every
-feature starts from an issue and lands on its own branch. This skill sets up
-that branch and drives the implementation. It never pushes to `main`, never
-merges, and never opens the PR — that is `/create-pr`.
+Take an issue from Ready to implemented-and-verified on a feature branch.
+Ends at local review — never pushes; `/create-pr` is the next step.
 
-**Argument:** the issue number (e.g. `/implement 42`). If none was given, ask
-for it before doing anything.
+## Constants
 
-## Preflight — stop early if any check fails
+- Repo: `triad7th/Alloy` — Project: `4` (owner `triad7th`)
+- Project ID: `PVT_kwHOALPoSc4Bda4_`
+- Status field `PVTSSF_lAHOALPoSc4Bda4_zhX8jxY`: In progress `47fc9ee4`
+- Board item lookup: `gh project item-list 4 --owner triad7th --format json --limit 200`,
+  match `content.number` to the issue number.
 
-1. Confirm the repo and issue exist:
-   - `gh repo view --json nameWithOwner` (expect `triad7th/Alloy`).
-   - `gh issue view <n> --json number,title,body,state,url,labels`.
-     If the issue is closed, stop and confirm with the user before continuing.
-2. Confirm `gh` has the `project` scope — the Alloy board step is mandatory
-   and this skill hard-fails without it:
-   - Check `gh auth status` scopes, or probe with
-     `gh project list --owner triad7th`.
-   - If the scope is missing (error mentions `read:project` / `project`),
-     STOP. Tell the user to run `gh auth refresh -s project` themselves — it
-     is an interactive login this skill cannot perform — then re-run
-     `/implement`. Do not proceed: no feature may skip the board.
-3. Confirm a clean starting point:
-   - `git status --short`. If the tree holds uncommitted work that is not
-     this issue's (for example a sibling session's in-flight files), stop and
-     ask — never sweep unrelated changes onto the new branch.
+## Steps
 
-## Set up the linked branch
+1. **Preflight.** `git status` must be clean and on `main`; then
+   `git pull origin main`. If dirty or mid-branch, STOP and report — never
+   mix a ticket with unrelated work.
+2. **Read the ticket.** `gh issue view <N> -R triad7th/Alloy`. If the body
+   links spec/plan docs, read them — they are the requirements. Re-read root
+   `AGENTS.md`, especially the mirroring rule and the verification matrix
+   for the twins you will touch.
+3. **Branch (auto-linked to the ticket).** Create it with
+   `gh issue develop <N> -R triad7th/Alloy --name <type>/<N>-<short-slug> --base main --checkout`
+   — this creates the branch on origin linked to the issue's Development
+   section, then checks it out locally. `<type>` is `feat`, `fix`, or
+   `chore` matching the issue label. (Fallback if `gh issue develop` is
+   unavailable: `git checkout -b <type>/<N>-<short-slug>` — the PR's
+   `Closes #N` still links the ticket at review time.)
+4. **Board: In progress + assignee.** Ensure the ticket is assigned
+   (`gh issue edit <N> -R triad7th/Alloy --add-assignee triad7th`),
+   look up the board item id, then:
 
-4. Base off up-to-date `main`: `git fetch origin`.
-5. Create and check out the issue's linked branch (GitHub's development link):
-   - Check for an existing one first: `gh issue develop <n> --list`.
-   - None yet: `gh issue develop <n> --base main --checkout`. This creates a
-     branch named `<n>-<slug>`, links it to the issue on GitHub, and checks
-     it out.
-   - Already exists: check it out with `git checkout <branch>`; do not create
-     a second branch.
-   - Verify with `git status --short --branch` — you must be on the feature
-     branch, not `main`.
+   ```bash
+   gh project item-edit --id <ITEM_ID> --project-id PVT_kwHOALPoSc4Bda4_ \
+     --field-id PVTSSF_lAHOALPoSc4Bda4_zhX8jxY --single-select-option-id 47fc9ee4
+   ```
 
-## Add the issue to the Alloy project (mandatory)
-
-6. Resolve the project and add the issue:
-   - `gh project list --owner triad7th` — find the project named `Alloy` and
-     note its number.
-   - `gh project item-add <project-number> --owner triad7th --url <issue-url>`.
-   - If no project named `Alloy` exists, STOP and ask the user — do not
-     create a project or add the issue to a different one.
-   - If this step fails for any reason, stop before implementing (see
-     preflight 2).
-
-## Implement
-
-7. Choose the execution path from the issue body:
-   - References a plan (`docs/superpowers/plans/*.md`) → drive it with
-     `superpowers:subagent-driven-development` (fresh subagent per task,
-     review between tasks).
-   - References a design spec but no plan → use `superpowers:writing-plans`
-     to produce the plan first, then execute it.
-   - References neither and the change is small and clear → implement inline
-     (TDD wherever a suite exists).
-   - Only a rough idea → use `superpowers:brainstorming` first; do not guess
-     a design.
-8. Throughout the work:
-   - Every commit lands on the feature branch, conventional-commit style
-     (`feat:`/`fix:`/`docs:`/`test:`/`chore:`, imperative subject ≤ 72 chars).
-   - Stage explicit pathspecs; never `git add -A` / `git add .` / `git stash`
-     (the tree may hold a sibling session's in-flight work).
-   - Respect the mirrored-twins rule: both twins of an API change land in the
-     same commit.
-   - Never push to `main`, never merge, never open the PR here.
-
-## Final Response
-
-Report:
-
-- Issue number, title, and the linked branch name.
-- Confirmation the issue was added to the Alloy project (or why it stopped).
-- What was implemented and the commit hashes on the branch.
-- Next step: run `/create-pr` when the feature is ready.
+5. **Implement with TDD**, scaled to the ticket:
+   - Small (XS/S): failing test → smallest change → focused tests, directly
+     in this session.
+   - Large (M+ with a linked plan): follow the plan task-by-task
+     (superpowers:subagent-driven-development when the plan calls for it).
+   - **Mirrored twins:** design/change the web API first, port to Swift in
+     the same ticket — never leave one twin half-updated. If a generated
+     data table's TS source changed, regenerate (`node tools/generate-tokens.mjs`,
+     `node tools/generate-zone-country.mjs`) in the same commit.
+6. **Verify** with the AGENTS.md matrix for the touched twins (focused
+   tests, then `swift build && swift test` from the repo root and/or
+   `cd web && npm test` / `npm run build` as applicable; harness builds when
+   `examples/` changed). Never claim green on a failed or incomplete run.
+7. **Commit** as work naturally splits — multiple commits per ticket is
+   normal. Message format:
+   - Feature work: `[#N] <imperative subject>`
+   - Support work: `[#N] chore: <subject>` (likewise `fix:`, `test:`,
+     `docs:`)
+   - Subjects all lowercase except proper nouns (GitHub, PR, AlloyUI, Swift)
+   - Always append the session's standard commit trailers (Co-Authored-By +
+     Claude-Session). Stage files explicitly — never `git add -A`, never
+     `--no-verify`. If a commit fails a check: fix, re-stage, NEW commit
+     (never `--amend`).
+8. **Stop for review.** Report what changed, the verification evidence, and
+   the commit list. Do NOT push. The user reviews locally, requests fixes
+   (more `[#N]` commits), then runs `/create-pr`.

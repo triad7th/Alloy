@@ -1,69 +1,50 @@
 ---
 name: create-issue
-description: Create a well-formed GitHub issue capturing a feature's design, drawn from the current conversation. Use for "/create-issue" — most often mid-brainstorm once a design is settled — to file the tracking issue that anchors the branch, the PR, and the Alloy project board. Draft, confirm, then create; ask clarifying questions if the design isn't precise enough.
+description: Create a GitHub issue for a new Alloy feature, fix, or chore and add it to the Alloy Kanban board (Status Ready). Run at the end of a brainstorm, or directly for ad-hoc bugs and tasks.
 ---
 
 # Create Issue
 
-Turn the design worked out in this conversation into a precise GitHub issue on
-`triad7th/Alloy`. In Alloy's branch-and-PR workflow the issue is the anchor
-for everything downstream: `/implement <n>` links a branch to it and adds it
-to the Alloy project, and `/create-pr` closes it on merge. This skill only
-files the issue — it does not create branches, touch the project board, or
-write code.
+Create the GitHub issue that becomes the unit of work for the ticket flow
+(`/implement` → `/create-pr` → `/approve-pr`).
 
-Typically called **in the middle of a `superpowers:brainstorming` session**,
-right after the design is agreed (and, if one was written, after the spec doc
-lands). It captures what was decided; it does not invent scope.
+## Constants
 
-## When the design isn't ready
+- Repo: `triad7th/Alloy` — Project: `4` (owner `triad7th`)
+- Project ID: `PVT_kwHOALPoSc4Bda4_`
+- Status field `PVTSSF_lAHOALPoSc4Bda4_zhX8jxY`: Backlog `f75ad846`, Ready
+  `61e4505c`, In progress `47fc9ee4`, In review `df73e18b`, Done `98236657`
+- Priority field `PVTSSF_lAHOALPoSc4Bda4_zhX8j4s`: P0 `79628723`, P1
+  `0a877460`, P2 `da944a9c`
+- Size field `PVTSSF_lAHOALPoSc4Bda4_zhX8j4w`: XS `6c6483d2`, S `f784b110`,
+  M `7515a9f1`, L `817d0097`, XL `db339eb2`
 
-If the conversation has not settled the feature enough to describe it
-precisely — the approach is still open, scope is fuzzy, or a key decision is
-unmade — ask 1–3 targeted clarifying questions first (prefer
-`AskUserQuestion`). Do not file a vague issue; a vague issue produces vague
-implementation. It is fine to say the design needs more brainstorming before
-an issue makes sense.
+If an `item-edit` call fails, the IDs may have changed — re-derive them with
+`gh project field-list 4 --owner triad7th --format json` and continue.
 
-## Draft the issue
+## Steps
 
-Compose from the actual conversation and any spec/plan already written — never
-from assumptions. Keep it precise and specific.
+1. **Compose the issue.** Title: short, imperative. Body scales with size:
+   - Small feature/fix: the body IS the spec — a Goal line plus concrete
+     acceptance criteria (checkboxes).
+   - Large feature: link the approved design/plan docs in
+     `docs/superpowers/specs/` and `docs/superpowers/plans/`; the body holds
+     the one-paragraph summary and the doc links.
+   - State the twin scope explicitly: both twins (the default), web-only, or
+     a documented asymmetry — so the implementer neither forgets the Swift
+     port nor builds one by reflex. See `docs/mirroring.md`.
+2. **Confirm with the user** (title + body + label + proposed Priority/Size)
+   before creating. Label: `enhancement`, `bug`, or `documentation`.
+3. **Create and board it:**
 
-- **Title:** concise and specific, naming the feature and the affected library
-  (e.g. `alloy-ui form kit: consistent input + form-dialog components`). Not a
-  vague verb phrase; not a conventional-commit prefix (issues aren't commits).
-- **Body**, in this shape:
-  - **Summary / driver** — the problem and why it matters (1–3 sentences).
-  - **Design** — the settled approach and the key decisions made in the
-    brainstorm, stated as decisions, not options.
-  - **Scope** — what this issue delivers.
-  - **Out of scope** — what it deliberately excludes (deferred ideas belong
-    here so they aren't silently pulled in).
-  - **Links** — the spec (`docs/superpowers/specs/*.md`) and plan
-    (`docs/superpowers/plans/*.md`) if they exist, plus related issues. If a
-    plan exists, say so — `/implement` will drive it via
-    subagent-driven-development.
-- Respect the mirrored-twins scope: if the feature is web-only or a documented
-  asymmetry, say that in the body so the implementer doesn't build a Swift
-  twin by reflex.
+   ```bash
+   gh issue create -R triad7th/Alloy --title "<title>" --label "<label>" --assignee triad7th --body "<body>"
+   gh project item-add 4 --owner triad7th --url <issue-url> --format json   # note the item id
+   gh project item-edit --id <ITEM_ID> --project-id PVT_kwHOALPoSc4Bda4_ \
+     --field-id PVTSSF_lAHOALPoSc4Bda4_zhX8jxY --single-select-option-id 61e4505c   # Status: Ready
+   ```
 
-## Confirm, then create
+   Set Priority and Size the same way with their field/option IDs.
 
-1. Show the drafted title and body to the user and get a clear go-ahead before
-   filing — creating the issue posts public content, and the draft is
-   synthesized from context that is easy to get subtly wrong.
-2. Create it:
-   `gh issue create --repo triad7th/Alloy --title "<title>" --body "<body>"`.
-   Add `--label <label>` only if an obviously-matching label already exists;
-   do not invent labels or milestones.
-3. Do NOT create the branch or add to the project here — that is `/implement`.
-
-## Final Response
-
-Report:
-
-- The new issue number and URL.
-- A one-line recap of what it captures.
-- Next step: `/implement <n>` to link a branch, add it to the Alloy project,
-  and start the work.
+4. **Report** the issue number and URL. The number is the handle for
+   `/implement <N>` and every `[#N]` commit after it.

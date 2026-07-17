@@ -1,4 +1,0 @@
-interface:
-  display_name: "Implement Issue"
-  short_description: "Set up a linked feature branch for a GitHub issue and implement it"
-  default_prompt: "Use $implement with an issue number to create its linked feature branch, add the issue to the Alloy project, and implement the work on that branch."

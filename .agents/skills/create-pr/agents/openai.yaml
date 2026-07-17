@@ -1,4 +1,0 @@
-interface:
-  display_name: "Create PR"
-  short_description: "Open a pull request for the current feature branch into main"
-  default_prompt: "Use $create-pr to verify tests, push the current feature branch, and open a PR that closes its linked issue."

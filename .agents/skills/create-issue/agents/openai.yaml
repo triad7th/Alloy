@@ -1,4 +1,0 @@
-interface:
-  display_name: "Create Issue"
-  short_description: "File a precise GitHub issue capturing a feature's design from the conversation"
-  default_prompt: "Use $create-issue to draft and file a tracking GitHub issue for the feature designed in this conversation, then confirm before creating it."
