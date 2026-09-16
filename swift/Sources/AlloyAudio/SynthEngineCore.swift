@@ -16,6 +16,8 @@ public protocol VoicePlayer {
 
 /// The playing surface the UI talks to. Mirrors the web SynthEngine.
 public protocol SynthEngine: AnyObject {
+    /// A requirement so configurable defaults survive existential dispatch.
+    func noteOn(midi: Int)
     func noteOn(midi: Int, velocity: Double)
     func noteOff(midi: Int)
     func setSustain(_ on: Bool)
