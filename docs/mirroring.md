@@ -546,3 +546,48 @@ the StorageError table run the same scenarios and instants on both platforms):
   defaults to drive.file on both
 - `CryptoKit`/`AuthenticationServices`/`Security` imports are confined to
   `Auth/`; everything else stays Foundation + Observation.
+
+### Catalog routing and playable patch adapters
+
+`InstrumentSynthEngine` and `PatchSynthEngine` are strict twins. The router
+accepts an instrument-id map and a registered default id; unknown selections
+and replacements are ignored. Replacement promotes only future unowned
+notes. A pitch remains owned by its original engine while held by key or
+pedal; re-pressing a pedal-held pitch reasserts that same engine's physical
+hold. Duplicate physical presses do not restrike. Before a new note, the
+router selects the id on its engine, allowing several ids to share one legacy
+engine. Replaced engines stay retained for pedal and panic, including release
+tails; the app owns platform-engine disposal at shutdown. `allNotesOff`
+clears ownership without changing the physical pedal state.
+
+`PatchSynthHost` is the minimal immediate `noteOn`/`noteOff`/`allNotesOff`
+command surface. `PatchSynthEngine(host, defaultVelocity = 1)` uses
+`SynthEngineCore` for sustain and key tracking; selecting an instrument is a
+no-op for its single patch. Panic always invokes the host's hard-stop command,
+including voices whose release tails have already left core tracking.
+Omitted velocity flows through every adapter unchanged. Swift adds
+`noteOn(midi:)` as a protocol requirement with the existing default-1 extension
+implementation so configurable defaults dispatch through `any SynthEngine`;
+legacy conformers remain source-compatible.
+
+`WebPatchSynthEngine.create(context, patch, loader, zoneSetIds, moduleUrl,
+defaultVelocity = 1)` and `AVPatchSynthEngine.create(patch:loader:zoneSetIds:
+defaultVelocity:engine:)` are semantic platform twins. Both validate the patch,
+load the pack, require every requested zone set, and set zones before patch.
+Web transfers the original PCM buffers and consumes the loader (callers
+must not reuse its detached buffers); Swift queues value arrays. Both expose idempotent `dispose`, after which note
+commands are inert. A failed factory leaves no attached graph.
+
+Sanctioned platform differences: web takes a structurally typed raw
+AudioContext (`MinimalPatchAudioContext`), constructs the existing worklet,
+and calls resume synchronously in each note gesture when needed. Its optional
+`createWorkletNode` is the browserless test seam. Disposal disconnects the
+owned node but never closes the caller's context. Swift's factory is main-actor
+isolated, loads the pack in a detached task, then constructs a stereo
+`PatchEngineHost`/`AVAudioSourceNode` graph. An injected AVAudioEngine supports
+offline rendering; its manual rendering rate or hardware output rate supplies
+the host rate. Swift configures the iOS playback session, retries startup on
+notes, observes interruptions/configuration changes, and stops/detaches its
+graph on disposal. The playable API follows the existing main-thread-only
+SynthEngine contract; locked host command queues provide the audio-thread
+boundary.

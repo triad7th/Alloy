@@ -54,8 +54,14 @@ export class WorkletSynthHost {
   static async create(ctx: MinimalWorkletContext, moduleUrl: string, options?: { maxVoices?: number }): Promise<WorkletSynthHost> {
     await ctx.audioWorklet.addModule(moduleUrl);
     const node = ctx.createWorkletNode(WORKLET_PROCESSOR_NAME, { processorOptions: options });
-    node.connect(ctx.destination);
-    return new WorkletSynthHost(ctx, node);
+    try {
+      node.connect(ctx.destination);
+      return new WorkletSynthHost(ctx, node);
+    } catch (error) {
+      node.disconnect();
+      node.port.onmessage = null;
+      throw error;
+    }
   }
 
   setPatch(patch: Patch): void {

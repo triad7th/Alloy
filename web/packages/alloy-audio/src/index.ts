@@ -35,3 +35,6 @@ export * from './worklet-synth-host.js';
 export * from './pack/manifest.js';
 export * from './pack/pack-source.js';
 export * from './pack/pack-loader.js';
+export * from './instrument-synth-engine.js';
+export * from './patch-synth-engine.js';
+export * from './web-patch-synth-engine.js';
