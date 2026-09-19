@@ -145,6 +145,12 @@ export class FmGenerator implements ToneGenerator {
 
   render(out: Float32Array, frames: number): void {
     const { operators, algorithm } = this.params;
+    const { carriers, routes, feedback } = algorithm;
+    const envelopes = this.envelopes;
+    const keyed = this.keyed;
+    const operatorCount = operators.length;
+    const carrierCount = carriers.length;
+    const routeCount = routes.length;
     const carrierScale = this.amp / algorithm.carriers.length;
     const os = this.oversamplingFactor;
     // The rate the operator loop actually runs at. At os === 1 this is exactly
@@ -154,31 +160,38 @@ export class FmGenerator implements ToneGenerator {
     const osSampleRate = this.sampleRate * os;
     // Pitch is constant within this block; preserve the arithmetic order while
     // computing the operator increments once instead of at every sub-sample.
-    for (let i = 0; i < operators.length; i++) {
+    for (let i = 0; i < operatorCount; i++) {
       this.phaseIncrements[i] = (this.frequency * this.pitchRatio * operators[i].ratio) / osSampleRate;
     }
     for (let n = 0; n < frames; n++) {
-      if (this.finished) {
-        return;
+      if (keyed) {
+        let active = false;
+        for (let c = 0; c < carrierCount; c++) {
+          if (envelopes[carriers[c]].isActive) {
+            active = true;
+            break;
+          }
+        }
+        if (!active) return;
       }
       // Envelopes advance ONCE per output sample and are held across the K
       // sub-samples. They are slow control signals (<= 83 us of hold at K=4), so
       // this is inaudible — and it is the other half of what makes the os === 1
       // path bit-identical to the pre-oversampling code. Do NOT "tidy" this back
       // inside the operator loop.
-      for (let i = 0; i < operators.length; i++) {
-        this.envLevels[i] = this.envelopes[i].nextSample();
+      for (let i = 0; i < operatorCount; i++) {
+        this.envLevels[i] = envelopes[i].nextSample();
       }
       let sample = 0;
       for (let k = 0; k < os; k++) {
-        for (let i = operators.length - 1; i >= 0; i--) {
+        for (let i = operatorCount - 1; i >= 0; i--) {
           let mod = 0;
-          for (const route of algorithm.routes) {
+          for (let r = 0; r < routeCount; r++) {
+            const route = routes[r];
             if (route.to === i) {
               mod += this.outputs[route.from];
             }
           }
-          const feedback = algorithm.feedback;
           if (feedback && feedback.op === i) {
             mod += this.outputs[i] * feedback.amount;
           }
@@ -187,8 +200,8 @@ export class FmGenerator implements ToneGenerator {
           this.phases[i] -= Math.floor(this.phases[i]);
         }
         let sum = 0;
-        for (const c of algorithm.carriers) {
-          sum += this.outputs[c];
+        for (let c = 0; c < carrierCount; c++) {
+          sum += this.outputs[carriers[c]];
         }
         if (os === 1) {
           sample = sum;

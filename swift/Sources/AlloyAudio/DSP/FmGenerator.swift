@@ -165,8 +165,17 @@ public final class FmGenerator: ToneGenerator {
 
     public func render(into out: inout [Float], frames: Int) {
         precondition(frames >= 0 && frames <= out.count)
+        guard frames > 0 else { return }
         let operators = params.operators
         let algorithm = params.algorithm
+        let envelopes = self.envelopes
+        let carriers = algorithm.carriers
+        let routes = algorithm.routes
+        let feedback = algorithm.feedback
+        let keyed = self.keyed
+        let operatorCount = operators.count
+        let carrierCount = carriers.count
+        let routeCount = routes.count
         let carrierScale = amp / Double(algorithm.carriers.count)
         let os = oversamplingFactor
         // The rate the operator loop actually runs at. At os == 1 this is exactly
@@ -181,39 +190,70 @@ public final class FmGenerator: ToneGenerator {
         }
         // Borrow each preallocated buffer once per block so per-sample writes
         // do not repeatedly check Array copy-on-write ownership. The operators,
-        // sample order, and arithmetic match the web render loop.
-        phaseIncrements.withUnsafeBufferPointer { incrementBuffer in
-            out.withUnsafeMutableBufferPointer { outBuffer in
-                phases.withUnsafeMutableBufferPointer { phaseBuffer in
-                    outputs.withUnsafeMutableBufferPointer { outputBuffer in
-                        envLevels.withUnsafeMutableBufferPointer { envelopeBuffer in
-                            for n in 0..<frames {
-                                if finished { return }
+        // sample order, and arithmetic match the web render loop. Validated
+        // operator/route indices and the frame precondition bound every access;
+        // all buffers are nonempty here, and the pointers never escape.
+        phaseIncrements.withUnsafeBufferPointer { incrementBufferStorage in
+            let incrementBuffer = incrementBufferStorage.baseAddress!
+            out.withUnsafeMutableBufferPointer { outBufferStorage in
+                let outBuffer = outBufferStorage.baseAddress!
+                phases.withUnsafeMutableBufferPointer { phaseBufferStorage in
+                    let phaseBuffer = phaseBufferStorage.baseAddress!
+                    outputs.withUnsafeMutableBufferPointer { outputBufferStorage in
+                        let outputBuffer = outputBufferStorage.baseAddress!
+                        envLevels.withUnsafeMutableBufferPointer { envelopeBufferStorage in
+                            let envelopeBuffer = envelopeBufferStorage.baseAddress!
+                            var n = 0
+                            while n < frames {
+                                if keyed {
+                                    var active = false
+                                    var c = 0
+                                    while c < carrierCount {
+                                        if envelopes[carriers[c]].isActive {
+                                            active = true
+                                            break
+                                        }
+                                        c += 1
+                                    }
+                                    if !active { return }
+                                }
                                 // Envelopes advance ONCE per output sample and are held across the K
                                 // sub-samples. They are slow control signals (<= 83 us of hold at K=4),
                                 // so this is inaudible — and it is the other half of what makes the
                                 // os == 1 path bit-identical to the pre-oversampling code. Do NOT
                                 // "tidy" this back inside the operator loop.
-                                for i in operators.indices {
-                                    envelopeBuffer[i] = envelopes[i].nextSample()
+                                var e = 0
+                                while e < operatorCount {
+                                    envelopeBuffer[e] = envelopes[e].nextSample()
+                                    e += 1
                                 }
                                 var sample = 0.0
-                                for k in 0..<os {
-                                    for i in stride(from: operators.count - 1, through: 0, by: -1) {
+                                var k = 0
+                                while k < os {
+                                    var i = operatorCount - 1
+                                    while i >= 0 {
                                         var mod = 0.0
-                                        for route in algorithm.routes where route.to == i {
-                                            mod += outputBuffer[route.from]
+                                        var r = 0
+                                        while r < routeCount {
+                                            let route = routes[r]
+                                            if route.to == i {
+                                                mod += outputBuffer[route.from]
+                                            }
+                                            r += 1
                                         }
-                                        if let feedback = algorithm.feedback, feedback.op == i {
+                                        if let feedback, feedback.op == i {
                                             mod += outputBuffer[i] * feedback.amount
                                         }
                                         outputBuffer[i] = sin(DspConstants.twoPi * (phaseBuffer[i] + mod)) * envelopeBuffer[i] * operators[i].level
                                         phaseBuffer[i] += incrementBuffer[i]
                                         phaseBuffer[i] -= phaseBuffer[i].rounded(.down)
+                                        i -= 1
                                     }
                                     var sum = 0.0
-                                    for c in algorithm.carriers {
-                                        sum += outputBuffer[c]
+                                    var c = 0
+                                    while c < carrierCount {
+                                        sum += outputBuffer[carriers[c]]
+                                        c += 1
                                     }
                                     if os == 1 {
                                         sample = sum
@@ -223,8 +263,10 @@ public final class FmGenerator: ToneGenerator {
                                             sample = decimator.output()
                                         }
                                     }
+                                    k += 1
                                 }
                                 outBuffer[n] += Float(sample * carrierScale)
+                                n += 1
                             }
                         }
                     }

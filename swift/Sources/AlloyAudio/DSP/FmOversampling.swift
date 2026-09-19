@@ -101,18 +101,24 @@ public final class FmDecimator {
     /// summation order, so it is BIT-identical to the naive modulo form — pinned
     /// by a test.
     public func output() -> Double {
-        let n = history.count
         let p = pos
-        var y = 0.0
-        var j = 0
-        for i in p..<n {
-            y += FM_DECIMATION_TAPS[n - 1 - j] * history[i]
-            j += 1
+        // Borrow the arrays once for the convolution instead of retaining
+        // their storage at every tap. Neither buffer changes during output.
+        return history.withUnsafeBufferPointer { historyBuffer in
+            FM_DECIMATION_TAPS.withUnsafeBufferPointer { taps in
+                let n = historyBuffer.count
+                var y = 0.0
+                var j = 0
+                for i in p..<n {
+                    y += taps[n - 1 - j] * historyBuffer[i]
+                    j += 1
+                }
+                for i in 0..<p {
+                    y += taps[n - 1 - j] * historyBuffer[i]
+                    j += 1
+                }
+                return y
+            }
         }
-        for i in 0..<p {
-            y += FM_DECIMATION_TAPS[n - 1 - j] * history[i]
-            j += 1
-        }
-        return y
     }
 }
