@@ -60,12 +60,14 @@ describe('Reverb', () => {
     expect(tailRms).toBeLessThan(1e-3);
 
     // Bounded: no self-oscillation / NaN / runaway anywhere in the render.
+    // Aggregate every sample before asserting: hundreds of thousands of
+    // matcher calls can exceed the test timeout on shared runners.
+    let peak = 0;
     for (let i = 0; i < frames; i++) {
-      expect(Number.isFinite(outL[i])).toBe(true);
-      expect(Number.isFinite(outR[i])).toBe(true);
-      expect(Math.abs(outL[i])).toBeLessThan(10);
-      expect(Math.abs(outR[i])).toBeLessThan(10);
+      peak = Math.max(peak, Math.abs(outL[i]), Math.abs(outR[i]));
     }
+    expect(Number.isFinite(peak)).toBe(true);
+    expect(peak).toBeLessThan(10);
   });
 
   it('stereo decorrelation: outL and outR are not identical everywhere', () => {

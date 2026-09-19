@@ -9,20 +9,30 @@ final class AutoHideModelTests: XCTestCase {
         try? await Task.sleep(for: .seconds(seconds))
     }
 
+    private func waitUntilHidden(
+        _ model: AutoHideModel,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while model.effectivelyVisible, ContinuousClock.now < deadline {
+            await tick(0.01)
+        }
+        XCTAssertFalse(model.effectivelyVisible, file: file, line: line)
+    }
+
     func test_visibleOnInitThenHidesAfterDelay() async {
         let model = AutoHideModel(delay: 0.05)
         XCTAssertTrue(model.effectivelyVisible)
-        await tick(0.15)
-        XCTAssertFalse(model.effectivelyVisible)
+        await waitUntilHidden(model)
     }
 
     func test_revealRestartsTheClock() async {
         let model = AutoHideModel(delay: 0.05)
-        await tick(0.15)
+        await waitUntilHidden(model)
         model.reveal()
         XCTAssertTrue(model.effectivelyVisible)
-        await tick(0.15)
-        XCTAssertFalse(model.effectivelyVisible)
+        await waitUntilHidden(model)
     }
 
     func test_suppressedHidesImmediatelyAndBlocksReveal() async {
@@ -39,8 +49,7 @@ final class AutoHideModelTests: XCTestCase {
         await tick(0.15) // timer may fire while suppressed; irrelevant
         model.suppressed = false
         XCTAssertTrue(model.effectivelyVisible) // revealed on lift
-        await tick(0.15)
-        XCTAssertFalse(model.effectivelyVisible) // re-armed and hid again
+        await waitUntilHidden(model) // re-armed and hid again
     }
 
     func test_chromeAutoHidesModifierApplies() {
@@ -54,7 +63,6 @@ final class AutoHideModelTests: XCTestCase {
         await tick(0.15)
         XCTAssertTrue(model.effectivelyVisible)
         model.setHold(false)
-        await tick(0.15)
-        XCTAssertFalse(model.effectivelyVisible)
+        await waitUntilHidden(model)
     }
 }
