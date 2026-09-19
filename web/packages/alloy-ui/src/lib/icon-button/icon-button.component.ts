@@ -16,6 +16,7 @@ import { AlloyIconName } from '../icon/icon-registry';
     <button
       type="button"
       class="icon-button"
+      [style.color]="foreground()"
       [class.primary]="variant() === 'primary'"
       [class.destructive]="variant() === 'destructive'"
       [attr.aria-label]="label() || null"
@@ -33,4 +34,6 @@ export class IconButtonComponent {
   readonly variant = input<'secondary' | 'primary' | 'destructive'>('secondary');
   /** Used as both aria-label and title. */
   readonly label = input<string>('');
+  /** Optional icon color; null preserves the standard label color. */
+  readonly foreground = input<string | null>(null);
 }

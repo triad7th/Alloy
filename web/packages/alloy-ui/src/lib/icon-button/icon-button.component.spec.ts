@@ -25,6 +25,18 @@ describe('IconButtonComponent', () => {
     return fixture;
   }
 
+  it('accepts a foreground override and restores the default when cleared', () => {
+    const fixture = create();
+    const button = fixture.nativeElement.querySelector('button') as HTMLButtonElement;
+    const original = getComputedStyle(button).color;
+    fixture.componentRef.setInput('foreground', '#57534c');
+    fixture.detectChanges();
+    expect(getComputedStyle(button).color).toBe('rgb(87, 83, 76)');
+    fixture.componentRef.setInput('foreground', null);
+    fixture.detectChanges();
+    expect(getComputedStyle(button).color).toBe(original);
+  });
+
   it('renders a button with the icon', () => {
     const fixture = create({ icon: 'checkmark' });
     const host = fixture.nativeElement as HTMLElement;
