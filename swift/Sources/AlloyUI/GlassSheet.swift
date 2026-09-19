@@ -11,10 +11,14 @@ public struct GlassIconButton: View {
     let label: String
     var size: CGFloat =
         36 // visual diameter; web chrome buttons are 44px, X is 34px — iOS shrinks ~proportionally
+    /// Optional icon color; nil preserves the standard label color.
+    let foreground: Color?
     let action: () -> Void
 
-    public init(icon: String, label: String, size: CGFloat = 36, action: @escaping () -> Void) {
+    public init(icon: String, label: String, size: CGFloat = 36,
+                foreground: Color? = nil, action: @escaping () -> Void) {
         self.icon = icon; self.label = label; self.size = size; self.action = action
+        self.foreground = foreground
     }
 
     public var body: some View {
@@ -27,7 +31,7 @@ public struct GlassIconButton: View {
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
         }
-        .foregroundStyle(Color(white: 0.93))
+        .foregroundStyle(foreground ?? Color(white: 0.93))
         .accessibilityLabel(label)
     }
 }
