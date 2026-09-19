@@ -98,6 +98,15 @@ final class FmGeneratorTests: XCTestCase {
         }
     }
 
+    func testEmptyRenderDoesNotAdvanceTheNote() {
+        let gen = FmGenerator(params: twoOp(modLevel: 0.7), sampleRate: fs)
+        let reference = FmGenerator(params: twoOp(modLevel: 0.7), sampleRate: fs)
+        gen.noteOn(midi: 69, velocity: 1)
+        reference.noteOn(midi: 69, velocity: 1)
+        XCTAssertEqual(render(gen, 0), [])
+        XCTAssertEqual(render(gen, 128), render(reference, 128))
+    }
+
     func testUpdatesPitchBetweenRenderBlocksWithoutResettingPhase() {
         let gen = FmGenerator(params: twoOp(modLevel: 0), sampleRate: fs)
         gen.noteOn(midi: 69, velocity: 1)

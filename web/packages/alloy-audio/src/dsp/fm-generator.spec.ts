@@ -123,6 +123,15 @@ describe('FmGenerator', () => {
     for (let i = 0; i < 512; i++) expect(a[i]).toBeCloseTo(b[i], 9);
   });
 
+  it('empty render does not advance the note', () => {
+    const gen = new FmGenerator(twoOp(0.7), FS);
+    const reference = new FmGenerator(twoOp(0.7), FS);
+    gen.noteOn(69, 1);
+    reference.noteOn(69, 1);
+    expect(render(gen, 0).length).toBe(0);
+    expect(render(gen, 128)).toEqual(render(reference, 128));
+  });
+
   it('updates pitch between render blocks without resetting phase', () => {
     const gen = new FmGenerator(twoOp(0), FS);
     gen.noteOn(69, 1);

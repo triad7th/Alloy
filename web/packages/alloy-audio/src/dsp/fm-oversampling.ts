@@ -97,15 +97,17 @@ export class FmDecimator {
    *  added cost for a 2-op voice. Same samples, same taps, same summation order,
    *  so it is BIT-identical to the naive modulo form — pinned by a test. */
   output(): number {
-    const n = this.history.length;
+    const history = this.history;
+    const taps = FM_DECIMATION_TAPS;
+    const n = history.length;
     const p = this.pos;
     let y = 0;
     let j = 0;
     for (let i = p; i < n; i++, j++) {
-      y += FM_DECIMATION_TAPS[n - 1 - j] * this.history[i];
+      y += taps[n - 1 - j] * history[i];
     }
     for (let i = 0; i < p; i++, j++) {
-      y += FM_DECIMATION_TAPS[n - 1 - j] * this.history[i];
+      y += taps[n - 1 - j] * history[i];
     }
     return y;
   }
