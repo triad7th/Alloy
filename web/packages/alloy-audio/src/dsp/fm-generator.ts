@@ -77,6 +77,7 @@ export class FmGenerator implements ToneGenerator {
   private readonly decimator = new FmDecimator();
   /** Envelope level per operator for the current OUTPUT sample. */
   private readonly envLevels: number[];
+  private readonly phaseIncrements: number[];
 
   /** `pitchModCents` is the owning layer's LFO pitch-route depth
    *  (`PatchLayer.mod.toPitchCents`), 0 when there is none. It is part of the
@@ -97,6 +98,7 @@ export class FmGenerator implements ToneGenerator {
     this.maxRatio = Math.max(...params.operators.map((op) => op.ratio));
     this.maxPitchRatio = maxPitchModRatio(pitchModCents);
     this.envLevels = params.operators.map(() => 0);
+    this.phaseIncrements = params.operators.map(() => 0);
   }
 
   get finished(): boolean {
@@ -150,6 +152,11 @@ export class FmGenerator implements ToneGenerator {
     // same expression, evaluated in the same order, as the pre-oversampling
     // code — which is why the goldens do not move.
     const osSampleRate = this.sampleRate * os;
+    // Pitch is constant within this block; preserve the arithmetic order while
+    // computing the operator increments once instead of at every sub-sample.
+    for (let i = 0; i < operators.length; i++) {
+      this.phaseIncrements[i] = (this.frequency * this.pitchRatio * operators[i].ratio) / osSampleRate;
+    }
     for (let n = 0; n < frames; n++) {
       if (this.finished) {
         return;
@@ -176,7 +183,7 @@ export class FmGenerator implements ToneGenerator {
             mod += this.outputs[i] * feedback.amount;
           }
           this.outputs[i] = Math.sin(TWO_PI * (this.phases[i] + mod)) * this.envLevels[i] * operators[i].level;
-          this.phases[i] += (this.frequency * this.pitchRatio * operators[i].ratio) / osSampleRate;
+          this.phases[i] += this.phaseIncrements[i];
           this.phases[i] -= Math.floor(this.phases[i]);
         }
         let sum = 0;
