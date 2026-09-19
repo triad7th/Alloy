@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import type { InstrumentDescriptor } from './instruments.js';
 import { WebSynthEngine } from './web-synth-engine.js';
-import { FakeCtx } from './testing/fake-audio-graph.js';
+import { FakeCtx, FakeGain } from './testing/fake-audio-graph.js';
 
 /** Every minor third from A0 (21) to C8 (108) — 30 recorded zones. */
 const GRAND_SAMPLE_MIDIS: readonly number[] = Array.from({ length: 30 }, (_, i) => 21 + i * 3);
@@ -41,6 +41,23 @@ function makeEngine(ctx: FakeCtx, fetchSample = neverFetch) {
 }
 
 describe('WebSynthEngine', () => {
+  it.each([
+    [undefined, 1], [1.2, 1.2], [0, 0], [-1, 0], [Number.NaN, 1],
+  ])('applies instrument gain %s before dry and effect sends', async (gain, expected) => {
+    const ctx = new FakeCtx();
+    const descriptor = { ...CATALOG[0], gain };
+    const engine = new WebSynthEngine(ctx, [descriptor], undefined,
+      () => Promise.resolve(new ArrayBuffer(8)));
+    await Promise.resolve();
+    await Promise.resolve();
+    engine.noteOn(60, 0.5);
+    const envelope = ctx.bufferSources[0].connections[0] as FakeGain;
+    const channel = envelope.connections[0] as FakeGain;
+    expect(envelope.gain.value).toBe(0.5); // Gain must not change strike velocity.
+    expect(channel.gain.value).toBe(expected);
+    expect(channel.connections).toHaveLength(2); // Both dry and reverb receive it.
+  });
+
   it('starts an oscillator tuned to the note on noteOn', () => {
     const ctx = new FakeCtx();
     const engine = makeEngine(ctx);

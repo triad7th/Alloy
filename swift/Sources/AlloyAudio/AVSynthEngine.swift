@@ -36,11 +36,13 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
         let queue = ChannelCommandQueue()
         let mixer = VoiceMixer()
         let sampleRate: Double
+        let gain: Float
         var renderedFrames: Int64 = 0
         var scratch: [Float]
 
-        init(sampleRate: Double, maximumFrames: Int) {
+        init(sampleRate: Double, maximumFrames: Int, gain: Double) {
             self.sampleRate = sampleRate
+            self.gain = Float(gain)
             scratch = [Float](repeating: 0, count: maximumFrames)
         }
 
@@ -103,7 +105,7 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
         // Per-instrument channel strips, from the injected catalog.
         for descriptor in instruments {
             let sends = descriptor.sends
-            let channel = Channel(sampleRate: sampleRate, maximumFrames: 4096)
+            let channel = Channel(sampleRate: sampleRate, maximumFrames: 4096, gain: descriptor.gain)
             let source = AVAudioSourceNode(format: mono) { _, _, frameCount, audioBufferList in
                 Self.render(channel: channel, frameCount: frameCount, audioBufferList: audioBufferList)
             }
@@ -257,7 +259,7 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
         for buffer in buffers {
             guard let data = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
             for i in 0..<frames {
-                data[i] = channel.scratch[i]
+                data[i] = channel.scratch[i] * channel.gain
             }
         }
         channel.renderedFrames += Int64(frames)
