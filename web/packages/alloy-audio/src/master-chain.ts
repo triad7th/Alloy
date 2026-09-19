@@ -52,8 +52,9 @@ export class MasterChain {
    * Create the mixer input for one instrument: a gain feeding the dry bus,
    * plus send taps into the reverb/delay buses at the given levels.
    */
-  channel(sends: VoiceSends): MinimalAudioNode {
+  channel(sends: VoiceSends, gain = 1): MinimalAudioNode {
     const input = this.ctx.createGain();
+    input.gain.value = Number.isFinite(gain) ? Math.max(0, gain) : 1;
     input.connect(this.dry);
     if (sends.reverb > 0) {
       const tap = this.ctx.createGain();

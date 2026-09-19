@@ -54,11 +54,13 @@ private final class EmptySampleSource: SampleSource {
 }
 
 final class AVSynthEngineTests: XCTestCase {
-    private func makeOffline(source: SampleSource) throws -> (AVSynthEngine, AVAudioEngine) {
+    private func makeOffline(
+        source: SampleSource, instruments: [InstrumentDescriptor] = [grandPiano, midnight]
+    ) throws -> (AVSynthEngine, AVAudioEngine) {
         let av = AVAudioEngine()
         let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)!
         try av.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 4096)
-        let engine = AVSynthEngine(instruments: [grandPiano, midnight], engine: av, sampleSource: source)
+        let engine = AVSynthEngine(instruments: instruments, engine: av, sampleSource: source)
         XCTAssertTrue(av.isRunning, "engine must start in manual rendering mode")
         return (engine, av)
     }
@@ -85,6 +87,25 @@ final class AVSynthEngineTests: XCTestCase {
         engine.noteOn(midi: 69)
         let rms = try renderRMS(av, blocks: 4)
         XCTAssertGreaterThan(rms.max()!, 0.01)
+    }
+
+    func test_instrumentGainScalesSamplesAndFallbackWithoutChangingVelocity() throws {
+        for source in [FakeSampleSource(), EmptySampleSource()] as [SampleSource] {
+            var levels: [Double] = []
+            for gain in [1.0, 1.2, 0.0] {
+                let descriptor = InstrumentDescriptor(
+                    id: grandPiano.id, voice: grandPiano.voice, sends: grandPiano.sends, gain: gain
+                )
+                let (engine, audioEngine) = try makeOffline(source: source, instruments: [descriptor])
+                defer { audioEngine.stop() }
+                engine.noteOn(midi: 69, velocity: 0.2)
+                let level = try XCTUnwrap(renderRMS(audioEngine, blocks: 4).last)
+                levels.append(level)
+            }
+            XCTAssertGreaterThan(levels[0], 0.001)
+            XCTAssertEqual(levels[1] / levels[0], 1.2, accuracy: 0.01)
+            XCTAssertEqual(levels[2], 0, accuracy: 1e-8)
+        }
     }
 
     func test_grandPianoFallsBackToSynthWhileZonesUnloaded() throws {

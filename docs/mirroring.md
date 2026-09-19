@@ -549,6 +549,13 @@ the StorageError table run the same scenarios and instants on both platforms):
 
 ### Catalog routing and playable patch adapters
 
+`InstrumentDescriptor.gain` is linear channel gain before dry/effect sends and
+the master limiter. It defaults to 1 (optional on web, initializer default on
+Swift); negative values become 0 and non-finite values become 1. Both legacy
+platform engines apply it to samples and synth fallback without changing note
+velocity. Web's `MasterChain.channel(sends, gain = 1)` owns this gain stage;
+Swift multiplies each instrument's rendered channel before its send taps.
+
 `InstrumentSynthEngine` and `PatchSynthEngine` are strict twins. The router
 accepts an instrument-id map and a registered default id; unknown selections
 and replacements are ignored. Replacement promotes only future unowned

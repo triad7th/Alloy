@@ -78,7 +78,7 @@ export class WebSynthEngine implements SynthEngine {
       // setInstrument guards lookups; this is a defensive backstop.
       throw new Error(`Unknown instrument id: ${id}`);
     }
-    const output = this.master.channel(descriptor.sends);
+    const output = this.master.channel(descriptor.sends, descriptor.gain);
     const voice = descriptor.voice;
     const player =
       voice.kind === 'sampled'

@@ -55,4 +55,6 @@ export interface InstrumentDescriptor {
   id: string;
   voice: VoiceSpec;
   sends: VoiceSends;
+  /** Linear gain before dry/effect sends and limiting; defaults to 1. */
+  gain?: number;
 }

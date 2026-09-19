@@ -88,10 +88,13 @@ public struct InstrumentDescriptor: Equatable, Sendable {
     public let id: String
     public let voice: VoiceSpec
     public let sends: VoiceSends
+    /// Linear gain before dry/effect sends and limiting; defaults to 1.
+    public let gain: Double
 
-    public init(id: String, voice: VoiceSpec, sends: VoiceSends = VoiceSends()) {
+    public init(id: String, voice: VoiceSpec, sends: VoiceSends = VoiceSends(), gain: Double = 1) {
         self.id = id
         self.voice = voice
         self.sends = sends
+        self.gain = gain.isFinite ? max(0, gain) : 1
     }
 }
