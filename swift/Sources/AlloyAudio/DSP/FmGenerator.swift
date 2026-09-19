@@ -100,6 +100,7 @@ public final class FmGenerator: ToneGenerator {
     private let decimator = FmDecimator()
     /// Envelope level per operator for the current OUTPUT sample.
     private var envLevels: [Double]
+    private var phaseIncrements: [Double]
 
     /// `pitchModCents` is the owning layer's LFO pitch-route depth
     /// (`PatchLayer.mod.toPitchCents`), 0 when there is none. It is part of the
@@ -117,6 +118,7 @@ public final class FmGenerator: ToneGenerator {
         maxRatio = params.operators.map(\.ratio).max() ?? 1
         maxPitchRatio = maxPitchModRatio(pitchModCents: pitchModCents)
         envLevels = [Double](repeating: 0, count: opCount)
+        phaseIncrements = [Double](repeating: 0, count: opCount)
     }
 
     public var finished: Bool {
@@ -162,6 +164,7 @@ public final class FmGenerator: ToneGenerator {
     }
 
     public func render(into out: inout [Float], frames: Int) {
+        precondition(frames >= 0 && frames <= out.count)
         let operators = params.operators
         let algorithm = params.algorithm
         let carrierScale = amp / Double(algorithm.carriers.count)
@@ -171,44 +174,62 @@ public final class FmGenerator: ToneGenerator {
         // expression, evaluated in the same order, as the pre-oversampling code —
         // which is why the goldens do not move.
         let osSampleRate = sampleRate * Double(os)
-        for n in 0..<frames {
-            if finished { return }
-            // Envelopes advance ONCE per output sample and are held across the K
-            // sub-samples. They are slow control signals (<= 83 us of hold at K=4),
-            // so this is inaudible — and it is the other half of what makes the
-            // os == 1 path bit-identical to the pre-oversampling code. Do NOT
-            // "tidy" this back inside the operator loop.
-            for i in operators.indices {
-                envLevels[i] = envelopes[i].nextSample()
+        // Pitch is constant within this block; preserve the arithmetic order
+        // while computing each operator increment once per block.
+        for i in operators.indices {
+            phaseIncrements[i] = frequency * pitchRatio * operators[i].ratio / osSampleRate
+        }
+        // Borrow each preallocated buffer once per block so per-sample writes
+        // do not repeatedly check Array copy-on-write ownership. The operators,
+        // sample order, and arithmetic match the web render loop.
+        phaseIncrements.withUnsafeBufferPointer { incrementBuffer in
+            out.withUnsafeMutableBufferPointer { outBuffer in
+                phases.withUnsafeMutableBufferPointer { phaseBuffer in
+                    outputs.withUnsafeMutableBufferPointer { outputBuffer in
+                        envLevels.withUnsafeMutableBufferPointer { envelopeBuffer in
+                            for n in 0..<frames {
+                                if finished { return }
+                                // Envelopes advance ONCE per output sample and are held across the K
+                                // sub-samples. They are slow control signals (<= 83 us of hold at K=4),
+                                // so this is inaudible — and it is the other half of what makes the
+                                // os == 1 path bit-identical to the pre-oversampling code. Do NOT
+                                // "tidy" this back inside the operator loop.
+                                for i in operators.indices {
+                                    envelopeBuffer[i] = envelopes[i].nextSample()
+                                }
+                                var sample = 0.0
+                                for k in 0..<os {
+                                    for i in stride(from: operators.count - 1, through: 0, by: -1) {
+                                        var mod = 0.0
+                                        for route in algorithm.routes where route.to == i {
+                                            mod += outputBuffer[route.from]
+                                        }
+                                        if let feedback = algorithm.feedback, feedback.op == i {
+                                            mod += outputBuffer[i] * feedback.amount
+                                        }
+                                        outputBuffer[i] = sin(DspConstants.twoPi * (phaseBuffer[i] + mod)) * envelopeBuffer[i] * operators[i].level
+                                        phaseBuffer[i] += incrementBuffer[i]
+                                        phaseBuffer[i] -= phaseBuffer[i].rounded(.down)
+                                    }
+                                    var sum = 0.0
+                                    for c in algorithm.carriers {
+                                        sum += outputBuffer[c]
+                                    }
+                                    if os == 1 {
+                                        sample = sum
+                                    } else {
+                                        decimator.push(sum)
+                                        if k == os - 1 {
+                                            sample = decimator.output()
+                                        }
+                                    }
+                                }
+                                outBuffer[n] += Float(sample * carrierScale)
+                            }
+                        }
+                    }
+                }
             }
-            var sample = 0.0
-            for k in 0..<os {
-                for i in stride(from: operators.count - 1, through: 0, by: -1) {
-                    var mod = 0.0
-                    for route in algorithm.routes where route.to == i {
-                        mod += outputs[route.from]
-                    }
-                    if let feedback = algorithm.feedback, feedback.op == i {
-                        mod += outputs[i] * feedback.amount
-                    }
-                    outputs[i] = sin(DspConstants.twoPi * (phases[i] + mod)) * envLevels[i] * operators[i].level
-                    phases[i] += frequency * pitchRatio * operators[i].ratio / osSampleRate
-                    phases[i] -= phases[i].rounded(.down)
-                }
-                var sum = 0.0
-                for c in algorithm.carriers {
-                    sum += outputs[c]
-                }
-                if os == 1 {
-                    sample = sum
-                } else {
-                    decimator.push(sum)
-                    if k == os - 1 {
-                        sample = decimator.output()
-                    }
-                }
-            }
-            out[n] += Float(sample * carrierScale)
         }
     }
 }

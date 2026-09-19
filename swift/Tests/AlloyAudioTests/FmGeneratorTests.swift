@@ -98,6 +98,20 @@ final class FmGeneratorTests: XCTestCase {
         }
     }
 
+    func testUpdatesPitchBetweenRenderBlocksWithoutResettingPhase() {
+        let gen = FmGenerator(params: twoOp(modLevel: 0), sampleRate: fs)
+        gen.noteOn(midi: 69, velocity: 1)
+        _ = render(gen, 128)
+        gen.setPitchRatio(2)
+        let out = render(gen, 512)
+        // The 1 ms attack has finished. Preserve the phase of 128 samples at
+        // 440 Hz, then advance at 880 Hz from the start of this block.
+        for i in out.indices {
+            let expected = sin(2 * Double.pi * (440 * 128 / fs + 880 * Double(i) / fs))
+            XCTAssertEqual(Double(out[i]), expected, accuracy: 1e-5)
+        }
+    }
+
     func testMatchesTwinReference() {
         var params = twoOp(modLevel: 0.7)
         params = FmGeneratorParams(

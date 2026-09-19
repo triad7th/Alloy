@@ -123,6 +123,20 @@ describe('FmGenerator', () => {
     for (let i = 0; i < 512; i++) expect(a[i]).toBeCloseTo(b[i], 9);
   });
 
+  it('updates pitch between render blocks without resetting phase', () => {
+    const gen = new FmGenerator(twoOp(0), FS);
+    gen.noteOn(69, 1);
+    render(gen, 128);
+    gen.setPitchRatio(2);
+    const out = render(gen, 512);
+    // The 1 ms attack has finished. Preserve the phase of 128 samples at
+    // 440 Hz, then advance at 880 Hz from the start of this block.
+    for (let i = 0; i < out.length; i++) {
+      const expected = Math.sin(2 * Math.PI * ((440 * 128) / FS + (880 * i) / FS));
+      expect(out[i]).toBeCloseTo(expected, 5);
+    }
+  });
+
   it('matches the twin reference (2-op, feedback)', () => {
     const params = twoOp(0.7);
     const gen = new FmGenerator(
