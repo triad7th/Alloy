@@ -39,11 +39,11 @@ final class PatchAdapterTests: XCTestCase {
         router.replaceEngine("piano", engine: PatchSynthEngine(host: fresh, defaultVelocity: 0.7))
         router.noteOn(midi: 60)
         router.setSustain(false)
-        XCTAssertEqual(old.events, ["on:60:0.7"])
+        XCTAssertEqual(old.events, ["on:60:0.7", "off:60", "on:60:0.7"])
         XCTAssertTrue(fresh.events.isEmpty)
         router.noteOff(midi: 60)
         router.noteOn(midi: 60)
-        XCTAssertEqual(old.events, ["on:60:0.7", "off:60"])
+        XCTAssertEqual(old.events, ["on:60:0.7", "off:60", "on:60:0.7", "off:60"])
         XCTAssertEqual(fresh.events, ["on:60:0.7"])
     }
 

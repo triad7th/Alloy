@@ -188,9 +188,12 @@ describe('WebSynthEngine', () => {
     engine.noteOn(60); // press
     engine.noteOff(60); // release -> latched by the pedal
     engine.noteOn(60); // re-press and keep holding it
+    expect(ctx.oscillators).toHaveLength(2);
+    expect(ctx.oscillators[0].stopped).toBe(true); // old voice enters its normal release
     engine.setSustain(false); // pedal up: must NOT release a physically held key
-    ctx.oscillators[0].onended?.();
-    expect(ctx.oscillators[0].stopped).toBe(false);
+    expect(ctx.oscillators[1].stopped).toBe(false);
+    engine.noteOff(60);
+    expect(ctx.oscillators[1].stopped).toBe(true);
   });
 
   it('allNotesOff fast-stops every active voice', () => {
