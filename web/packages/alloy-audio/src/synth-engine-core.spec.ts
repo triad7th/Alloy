@@ -2,6 +2,7 @@
 // PianoEngineCoreTests): the polyphony/sustain state machine over fake players.
 import { describe, it, expect } from 'vitest';
 import { SynthEngineCore } from './synth-engine-core.js';
+import { InstrumentSynthEngine } from './instrument-synth-engine.js';
 import type { ActiveVoice, VoicePlayer } from './voice-player.js';
 
 class FakeHandle implements ActiveVoice {
@@ -39,6 +40,24 @@ function makeCore() {
 }
 
 describe('SynthEngineCore', () => {
+  it('retains the original player for a pedal-owned pitch in a shared engine', () => {
+    const { core, players } = makeCore();
+    const router = new InstrumentSynthEngine(new Map([['grand', core], ['midnight', core]]), 'grand');
+    router.setSustain(true);
+    router.noteOn(60);
+    router.noteOff(60);
+    router.setInstrument('midnight');
+    router.noteOn(64);
+    router.noteOff(64);
+    router.noteOn(60, 0.8);
+    expect(players.grand.started.map((voice) => voice.midi)).toEqual([60, 60]);
+    expect(players.midnight.started.map((voice) => voice.midi)).toEqual([64]);
+    router.setSustain(false);
+    router.noteOff(60);
+    router.noteOn(60); // Ownership ended: the next strike uses the selected instrument.
+    expect(players.midnight.started.map((voice) => voice.midi)).toEqual([64, 60]);
+  });
+
   it('requests a player from playerFor on setInstrument', () => {
     const { requests } = makeCore();
     expect(requests).toEqual(['grand']);
@@ -64,8 +83,9 @@ describe('SynthEngineCore', () => {
     expect(players['grand'].started[0].velocity).toBe(1);
   });
 
-  it('repeated noteOn does not re-strike', () => {
+  it('duplicate noteOn while physically held does not re-strike under sustain', () => {
     const { core, players } = makeCore();
+    core.setSustain(true);
     core.noteOn(60);
     core.noteOn(60);
     expect(players['grand'].started).toHaveLength(1);
@@ -110,15 +130,57 @@ describe('SynthEngineCore', () => {
   });
 
   it('a re-pressed key survives pedal up', () => {
-    // The retrigger fix: noteOff under pedal latches; a new noteOn on the
-    // same key re-asserts the physical hold, so pedal-up must NOT release.
-    const { core, players } = makeCore();
+    const { core, players, clock } = makeCore();
     core.setSustain(true);
     core.noteOn(60);
     core.noteOff(60); // heldByPedal
-    core.noteOn(60); // re-pressed: heldByKey, pedal latch cleared
+    clock.now = 1;
+    core.noteOn(60); // a fresh physical strike
+    expect(players.grand.handles).toHaveLength(2);
+    expect(players.grand.handles[0].releasedAt).toBe(1);
+    clock.now = 2;
     core.setSustain(false);
-    expect(players['grand'].handles[0].releasedAt).toBeNull();
+    expect(players.grand.handles[1].releasedAt).toBeNull();
+    clock.now = 3;
+    core.noteOff(60);
+    expect(players.grand.handles[1].releasedAt).toBe(3);
+  });
+
+  it('re-strikes pedal-held notes with fresh velocity without releasing the rest of a chord', () => {
+    const { core, players, clock } = makeCore();
+    core.setSustain(true);
+    core.noteOn(64, 0.5);
+    core.noteOff(64);
+    core.noteOn(60, 0.4);
+    core.noteOff(60);
+    clock.now = 1;
+    core.noteOn(60, 0.8);
+    core.noteOff(60);
+    clock.now = 2;
+    core.noteOn(60, 0.6);
+    core.noteOff(60);
+    expect(players.grand.started).toEqual([
+      { midi: 64, velocity: 0.5, when: 0 },
+      { midi: 60, velocity: 0.4, when: 0 },
+      { midi: 60, velocity: 0.8, when: 1 },
+      { midi: 60, velocity: 0.6, when: 2 },
+    ]);
+    expect(players.grand.handles.map(h => h.releasedAt)).toEqual([null, 1, 2, null]);
+    expect(players.grand.handles.map(h => h.stoppedAt)).toEqual([null, null, null, null]);
+    clock.now = 3;
+    core.setSustain(false);
+    expect(players.grand.handles.map(h => h.releasedAt)).toEqual([3, 1, 2, 3]);
+  });
+
+  it('press and release without sustain still re-strikes normally', () => {
+    const { core, players, clock } = makeCore();
+    core.noteOn(60);
+    clock.now = 1;
+    core.noteOff(60);
+    core.noteOn(60);
+    expect(players.grand.handles).toHaveLength(2);
+    expect(players.grand.handles[0].releasedAt).toBe(1);
+    expect(players.grand.handles[1].releasedAt).toBeNull();
   });
 
   it('setInstrument routes new notes only', () => {

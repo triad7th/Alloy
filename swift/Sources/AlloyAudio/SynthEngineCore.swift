@@ -35,6 +35,7 @@ public extension SynthEngine {
 public final class SynthEngineCore: SynthEngine {
     private struct VoiceRecord {
         var active: ActiveVoiceHandle
+        let player: VoicePlayer
         var heldByKey: Bool // key is still physically down
         var heldByPedal: Bool // sustain pedal latched it
     }
@@ -56,17 +57,15 @@ public final class SynthEngineCore: SynthEngine {
     }
 
     public func noteOn(midi: Int, velocity: Double) {
-        guard let player else { return }
-        if voices[midi] != nil {
-            // Already sounding; the envelope is intentionally not re-struck.
-            // Re-assert the physical hold and clear any pedal latch so a later
-            // pedal-up does not release a key that is still physically down.
-            voices[midi]?.heldByKey = true
-            voices[midi]?.heldByPedal = false
-            return
-        }
-        let active = player.start(midi: midi, velocity: velocity, at: now())
-        voices[midi] = VoiceRecord(active: active, heldByKey: true, heldByPedal: false)
+        let existing = voices[midi]
+        guard let player = existing?.player ?? player else { return }
+        if existing?.heldByKey == true { return }
+        let when = now()
+        // A pedal-held note can be struck again. Let its old voice release normally
+        // before replacing it, so repeated strikes do not accumulate latched voices.
+        existing?.active.release(at: when)
+        let active = player.start(midi: midi, velocity: velocity, at: when)
+        voices[midi] = VoiceRecord(active: active, player: player, heldByKey: true, heldByPedal: false)
     }
 
     public func noteOff(midi: Int) {

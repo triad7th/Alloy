@@ -89,6 +89,19 @@ final class AVSynthEngineTests: XCTestCase {
         XCTAssertGreaterThan(rms.max()!, 0.01)
     }
 
+    func test_sustainedGrandPianoCanRestrikeAfterItsSampleFinishes() throws {
+        let (engine, audioEngine) = try makeOffline(source: FakeSampleSource())
+        defer { audioEngine.stop() }
+        engine.setSustain(true)
+        for _ in 0 ..< 3 {
+            engine.noteOn(midi: 69)
+            engine.noteOff(midi: 69)
+            let rms = try renderRMS(audioEngine, blocks: 50)
+            XCTAssertGreaterThan(try XCTUnwrap(rms.first), 0.01)
+            XCTAssertLessThan(try XCTUnwrap(rms.last), 0.0001)
+        }
+    }
+
     func test_instrumentGainScalesSamplesAndFallbackWithoutChangingVelocity() throws {
         for source in [FakeSampleSource(), EmptySampleSource()] as [SampleSource] {
             var levels: [Double] = []

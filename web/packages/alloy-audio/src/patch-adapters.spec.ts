@@ -21,9 +21,9 @@ describe('patch adapters', () => {
     router.setSustain(true); router.noteOn(60); router.noteOn(60); router.noteOff(60);
     router.replaceEngine('piano', engine(fresh));
     router.noteOn(60); router.setSustain(false);
-    expect(old.events).toEqual([['on', 60, 0.7]]); expect(fresh.events).toEqual([]);
+    expect(old.events).toEqual([['on', 60, 0.7], ['off', 60], ['on', 60, 0.7]]); expect(fresh.events).toEqual([]);
     router.noteOff(60); router.noteOn(60);
-    expect(old.events).toEqual([['on', 60, 0.7], ['off', 60]]);
+    expect(old.events).toEqual([['on', 60, 0.7], ['off', 60], ['on', 60, 0.7], ['off', 60]]);
     expect(fresh.events).toEqual([['on', 60, 0.7]]);
   });
   it('forwards pedal and panic to replaced engines and clears ownership', () => {

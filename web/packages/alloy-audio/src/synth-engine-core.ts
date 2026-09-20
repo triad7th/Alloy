@@ -8,6 +8,7 @@ import type { ActiveVoice, VoicePlayer } from './voice-player.js';
 
 interface Voice {
   active: ActiveVoice;
+  player: VoicePlayer;
   heldByKey: boolean; // key is still physically down
   heldByPedal: boolean; // sustain pedal latched it
 }
@@ -29,16 +30,16 @@ export class SynthEngineCore implements SynthEngine {
       return;
     }
     const existing = this.voices.get(midi);
-    if (existing) {
-      // Already sounding; the envelope is intentionally not re-struck. But re-assert
-      // the physical hold and clear any pedal latch left by a prior release, so a
-      // later pedal-up does not release a key that is still physically down.
-      existing.heldByKey = true;
-      existing.heldByPedal = false;
+    if (existing?.heldByKey) {
       return;
     }
-    const active = this.player.start(midi, velocity, this.now());
-    this.voices.set(midi, { active, heldByKey: true, heldByPedal: false });
+    const when = this.now();
+    // A pedal-held note can be struck again. Let its old voice release normally
+    // before replacing it, so repeated strikes do not accumulate latched voices.
+    existing?.active.release(when);
+    const player = existing?.player ?? this.player;
+    const active = player.start(midi, velocity, when);
+    this.voices.set(midi, { active, player, heldByKey: true, heldByPedal: false });
   }
 
   noteOff(midi: number): void {

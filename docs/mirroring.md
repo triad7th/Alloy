@@ -565,8 +565,12 @@ Swift multiplies each instrument's rendered channel before its send taps.
 accepts an instrument-id map and a registered default id; unknown selections
 and replacements are ignored. Replacement promotes only future unowned
 notes. A pitch remains owned by its original engine while held by key or
-pedal; re-pressing a pedal-held pitch reasserts that same engine's physical
-hold. Duplicate physical presses do not restrike. Before a new note, the
+pedal; re-pressing a pedal-held pitch starts a fresh attack on that same engine
+with the new velocity. The core releases the previous voice normally before
+replacing it, leaving other pitches untouched. Duplicate presses while a key
+is still physically held do not restrike. A pedal-owned pitch retains its
+original player even when several instruments share the same engine and new
+notes use a different selection. Before a new note, the
 router selects the id on its engine, allowing several ids to share one legacy
 engine. Replaced engines stay retained for pedal and panic, including release
 tails; the app owns platform-engine disposal at shutdown. `allNotesOff`

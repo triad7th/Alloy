@@ -72,11 +72,12 @@ final class SynthEngineCoreTests: XCTestCase {
         XCTAssertEqual(started[0].when, 1.5)
     }
 
-    func test_repeatedNoteOnDoesNotRestrike() {
+    func test_duplicateNoteOnWhilePhysicallyHeldDoesNotRestrikeUnderSustain() {
         let engine = makeEngine()
+        engine.setSustain(true)
         engine.noteOn(midi: 60)
         engine.noteOn(midi: 60)
-        XCTAssertEqual(players[alpha]!.started.count, 1)
+        XCTAssertEqual(players[alpha]?.started.count, 1)
     }
 
     func test_noteOffReleasesTheVoice() {
@@ -117,16 +118,78 @@ final class SynthEngineCoreTests: XCTestCase {
         XCTAssertNotNil(player.handles[1].releasedAt) // 64 releases
     }
 
-    func test_repressedKeySurvivesPedalUp() {
-        // The retrigger fix: noteOff under pedal latches; a new noteOn on the
-        // same key re-asserts the physical hold, so pedal-up must NOT release.
+    func test_repressedKeySurvivesPedalUp() throws {
         let engine = makeEngine()
         engine.setSustain(true)
         engine.noteOn(midi: 60)
         engine.noteOff(midi: 60) // heldByPedal
-        engine.noteOn(midi: 60) // re-pressed: heldByKey, pedal latch cleared
+        clock = 1
+        engine.noteOn(midi: 60) // a fresh physical strike
+        let handles = try XCTUnwrap(players[alpha]?.handles)
+        XCTAssertEqual(handles.count, 2)
+        guard handles.count == 2 else { return }
+        XCTAssertEqual(handles[0].releasedAt, 1)
+        clock = 2
         engine.setSustain(false)
-        XCTAssertNil(players[alpha]!.handles[0].releasedAt)
+        XCTAssertNil(handles[1].releasedAt)
+        clock = 3
+        engine.noteOff(midi: 60)
+        XCTAssertEqual(handles[1].releasedAt, 3)
+    }
+
+    func test_restrikesPedalHeldNotesWithFreshVelocityWithoutReleasingOtherChordNotes() throws {
+        let engine = makeEngine()
+        engine.setSustain(true)
+        engine.noteOn(midi: 64, velocity: 0.5)
+        engine.noteOff(midi: 64)
+        engine.noteOn(midi: 60, velocity: 0.4)
+        engine.noteOff(midi: 60)
+        clock = 1
+        engine.noteOn(midi: 60, velocity: 0.8)
+        engine.noteOff(midi: 60)
+        clock = 2
+        engine.noteOn(midi: 60, velocity: 0.6)
+        engine.noteOff(midi: 60)
+        let player = try XCTUnwrap(players[alpha])
+        XCTAssertEqual(player.started.map(\.midi), [64, 60, 60, 60])
+        XCTAssertEqual(player.started.map(\.velocity), [0.5, 0.4, 0.8, 0.6])
+        XCTAssertEqual(player.started.map(\.when), [0, 0, 1, 2])
+        XCTAssertEqual(player.handles.map(\.releasedAt), [nil, 1, 2, nil])
+        XCTAssertEqual(player.handles.map(\.stoppedAt), [nil, nil, nil, nil])
+        clock = 3
+        engine.setSustain(false)
+        XCTAssertEqual(player.handles.map(\.releasedAt), [3, 1, 2, 3])
+    }
+
+    func test_pressAndReleaseWithoutSustainStillRestrikesNormally() throws {
+        let engine = makeEngine()
+        engine.noteOn(midi: 60)
+        clock = 1
+        engine.noteOff(midi: 60)
+        engine.noteOn(midi: 60)
+        let handles = try XCTUnwrap(players[alpha]?.handles)
+        XCTAssertEqual(handles.count, 2)
+        guard handles.count == 2 else { return }
+        XCTAssertEqual(handles[0].releasedAt, 1)
+        XCTAssertNil(handles[1].releasedAt)
+    }
+
+    func test_retainsOriginalPlayerForPedalOwnedPitchInSharedEngine() {
+        let core = makeEngine()
+        let router = InstrumentSynthEngine(engines: [alpha: core, beta: core], defaultInstrumentId: alpha)
+        router.setSustain(true)
+        router.noteOn(midi: 60)
+        router.noteOff(midi: 60)
+        router.setInstrument(beta)
+        router.noteOn(midi: 64)
+        router.noteOff(midi: 64)
+        router.noteOn(midi: 60, velocity: 0.8)
+        XCTAssertEqual(players[alpha]?.started.map(\.midi), [60, 60])
+        XCTAssertEqual(players[beta]?.started.map(\.midi), [64])
+        router.setSustain(false)
+        router.noteOff(midi: 60)
+        router.noteOn(midi: 60) // Ownership ended: use the selected instrument.
+        XCTAssertEqual(players[beta]?.started.map(\.midi), [64, 60])
     }
 
     func test_setInstrumentRoutesNewNotesOnly() {
