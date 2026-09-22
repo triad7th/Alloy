@@ -177,6 +177,17 @@ builds the equivalent bus inside `AVSynthEngine` from AVFoundation units.
 Sample assets ship with apps, never with Alloy; the shared contract is the
 naming convention (zero-padded MIDI + `.mp3`) and the zone-list arithmetic.
 
+Both native synth adapters configure the iOS session as `.playback` with
+`.mixWithOthers` before live engine startup and on note-triggered recovery.
+They neither duck nor interrupt other apps' audio, matching independent
+Web Audio playback. The internal `PlaybackAudioSession` helper is an iOS-only
+platform edge; manual/offline engines never configure or activate the device
+session. Interruptions, hardware route changes, and engine configuration changes
+clear stale voices (including key-up releases in the legacy render mixer);
+the next note gesture retries activation/startup rather than automatically
+resuming at an interruption's end. Apps remain responsible for stopping
+notes when their UI backgrounds; this adds no background-playback capability.
+
 **Rompler core (phase 1b, strict, twin-tested):** the `Patch` wire schema
 (`PatchMeta`, `KeyRange`, `VelRange`, `GeneratorSpec`, `TvfParams`,
 `TvaParams`, `LfoRouting`, `PatchLayer`, `PatchSends`) plus `validatePatch`

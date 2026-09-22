@@ -33,6 +33,74 @@ private final class AdapterDecoder: SampleDecoder, @unchecked Sendable {
 }
 
 final class AVPatchSynthEngineTests: XCTestCase {
+    #if os(iOS)
+        @MainActor
+        func testOfflineSessionIsUntouchedAndHardwareRouteChangeClearsSustain() async throws {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.ambient)
+            let options = session.categoryOptions
+            let av = AVAudioEngine()
+            let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 2))
+            try av.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 4096)
+            let patch = try JSONDecoder().decode(Patch.self, from: Data(fixturePatchJSON.utf8))
+            let loader = PackLoader(source: AdapterPackSource(fail: false), decoder: AdapterDecoder())
+            let synth = try await AVPatchSynthEngine.create(patch: patch, loader: loader, zoneSetIds: ["piano"], engine: av)
+            defer { synth.dispose() }
+            let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4096))
+            synth.setSustain(true)
+            synth.noteOn(midi: 60)
+            synth.noteOff(midi: 60)
+            NotificationCenter.default.post(
+                name: AVAudioSession.routeChangeNotification, object: session,
+                userInfo: [AVAudioSessionRouteChangeReasonKey: AVAudioSession.RouteChangeReason.categoryChange.rawValue]
+            )
+            XCTAssertEqual(try av.renderOffline(4096, to: buffer), .success)
+            XCTAssertGreaterThan((0 ..< 4096).map { abs(buffer.floatChannelData![0][$0]) }.max()!, 0.001)
+            NotificationCenter.default.post(
+                name: AVAudioSession.routeChangeNotification, object: session,
+                userInfo: [AVAudioSessionRouteChangeReasonKey: AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue]
+            )
+            for _ in 0 ..< 32 { XCTAssertEqual(try av.renderOffline(4096, to: buffer), .success) }
+            XCTAssertLessThan((0 ..< 4096).map { abs(buffer.floatChannelData![0][$0]) }.max()!, 0.0001)
+            av.stop()
+            synth.noteOn(midi: 60)
+            XCTAssertTrue(av.isRunning)
+            XCTAssertEqual(session.category, .ambient)
+            XCTAssertEqual(session.categoryOptions, options)
+            XCTAssertEqual(try av.renderOffline(4096, to: buffer), .success)
+            XCTAssertGreaterThan((0 ..< 4096).map { abs(buffer.floatChannelData![0][$0]) }.max()!, 0.001)
+        }
+
+        @MainActor
+        func testLivePlaybackMixesFromStartupAndRestoresMixingOnNextGesture() async throws {
+            let session = AVAudioSession.sharedInstance()
+            let av = AVAudioEngine()
+            defer {
+                av.stop()
+                try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            }
+            try session.setCategory(.soloAmbient)
+            let patch = try JSONDecoder().decode(Patch.self, from: Data(fixturePatchJSON.utf8))
+            let loader = PackLoader(source: AdapterPackSource(fail: false), decoder: AdapterDecoder())
+            let synth = try await AVPatchSynthEngine.create(patch: patch, loader: loader, zoneSetIds: ["piano"], engine: av)
+            defer { synth.dispose() }
+            XCTAssertTrue(av.isRunning)
+            XCTAssertEqual(session.category, .playback)
+            XCTAssertEqual(session.categoryOptions, [.mixWithOthers], "startup must neither interrupt nor duck background audio")
+
+            av.stop()
+            try session.setCategory(.playback)
+            NotificationCenter.default.post(
+                name: AVAudioSession.interruptionNotification, object: session,
+                userInfo: [AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue]
+            )
+            XCTAssertFalse(av.isRunning)
+            synth.noteOn(midi: 69, velocity: 0)
+            XCTAssertTrue(av.isRunning)
+            XCTAssertEqual(session.categoryOptions, [.mixWithOthers])
+        }
+    #endif
+
     @MainActor
     func testOfflineFormatProducesStereoAndPanicSilenceAndDisposes() async throws {
         let av = AVAudioEngine()
