@@ -24,9 +24,6 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
     private let defaultDescriptor: InstrumentDescriptor
     private var channels: [String: Channel] = [:]
     private var core: SynthEngineCore!
-    #if os(iOS)
-        private var sessionConfigured = false
-    #endif
     private var observers: [NSObjectProtocol] = []
 
     /// Everything one instrument channel owns. The render closure captures
@@ -64,7 +61,18 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
         self.engine = engine
         self.instruments = instruments
         defaultDescriptor = instruments.first { $0.id == defaultInstrumentId } ?? instruments[0]
-        let outputFormat = engine.outputNode.outputFormat(forBus: 0)
+        var sessionReady = true
+        #if os(iOS)
+            do {
+                try PlaybackAudioSession.activate(for: engine)
+            } catch {
+                // Do not let engine.start implicitly activate an exclusive
+                // session after setup failed. Retry on the next note gesture.
+                sessionReady = false
+            }
+        #endif
+        let outputFormat = engine.isInManualRenderingMode
+            ? engine.manualRenderingFormat : engine.outputNode.outputFormat(forBus: 0)
         let sampleRate = outputFormat.sampleRate > 0 ? outputFormat.sampleRate : 44_100
         let mono = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
 
@@ -152,10 +160,8 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
         core.setInstrument(defaultDescriptor.id)
 
         engine.prepare()
-        do {
-            try engine.start()
-        } catch {
-            // Stay silent but alive; retried on the next noteOn.
+        if sessionReady {
+            try? engine.start() // Stay alive on failure; retry on the next noteOn.
         }
         observeInterruptions()
     }
@@ -284,16 +290,14 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
     /// from a real gesture, so activate the session and (re)start the engine
     /// here to guarantee the first note sounds.
     private func ensureAudioReady() {
-        #if os(iOS)
-            if !sessionConfigured {
-                sessionConfigured = true
-                let session = AVAudioSession.sharedInstance()
-                try? session.setCategory(.playback)
-                try? session.setActive(true)
-            }
-        #endif
-        if !engine.isRunning {
-            try? engine.start()
+        do {
+            #if os(iOS)
+                try PlaybackAudioSession.activate(for: engine)
+            #endif
+            if !engine.isRunning { try engine.start() }
+        } catch {
+            // Session activation can fail during an interruption. A later
+            // gesture retries both session setup and graph startup.
         }
     }
 
@@ -302,26 +306,40 @@ public final class AVSynthEngine: SynthEngine, @unchecked Sendable {
             let interruptionToken = NotificationCenter.default.addObserver(
                 forName: AVAudioSession.interruptionNotification,
                 object: nil, queue: .main,
-            ) { [weak self] notification in
+            ) { [weak self] _ in
                 guard let self else { return }
-                let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
-                if raw == AVAudioSession.InterruptionType.began.rawValue {
-                    allNotesOff()
-                } else {
-                    try? engine.start()
-                }
+                // Clear both interruption edges; never resume stale notes or
+                // reclaim the session until the user plays again.
+                clearVoicesForRecovery()
             }
             observers.append(interruptionToken)
+            observers.append(NotificationCenter.default.addObserver(
+                forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+            ) { [weak self] notification in
+                guard let self else { return }
+                let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+                // Our own session setup is not a hardware route change.
+                guard reason != AVAudioSession.RouteChangeReason.categoryChange.rawValue else { return }
+                clearVoicesForRecovery()
+            })
         #endif
         let configChangeToken = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange,
             object: engine, queue: .main,
         ) { [weak self] _ in
             guard let self else { return }
-            allNotesOff()
-            try? engine.start()
+            clearVoicesForRecovery()
+            // A route change may stop the graph. Restart on the next note.
         }
         observers.append(configChangeToken)
+    }
+
+    private func clearVoicesForRecovery() {
+        allNotesOff()
+        for channel in channels.values {
+            let mixer = channel.mixer
+            channel.queue.enqueue { _ in mixer.removeAllVoices() }
+        }
     }
 
     deinit {

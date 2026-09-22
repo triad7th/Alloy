@@ -89,6 +89,113 @@ final class AVSynthEngineTests: XCTestCase {
         XCTAssertGreaterThan(rms.max()!, 0.01)
     }
 
+    @MainActor
+    func test_configurationChangeClearsNotesAndWaitsForNextGesture() throws {
+        let (synth, av) = try makeOffline(source: EmptySampleSource())
+        defer { av.stop() }
+        synth.setSustain(true)
+        synth.noteOn(midi: 69)
+        _ = try renderRMS(av, blocks: 2)
+        av.stop()
+
+        NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: av)
+
+        XCTAssertFalse(av.isRunning, "route recovery must wait for a playable gesture")
+        try av.start() // Inspect the queued cleanup without adding a new note.
+        XCTAssertLessThan(try XCTUnwrap(renderRMS(av, blocks: 32).last), 0.0001)
+        av.stop()
+        synth.noteOn(midi: 69)
+        XCTAssertTrue(av.isRunning)
+        XCTAssertGreaterThan(try XCTUnwrap(renderRMS(av, blocks: 4).max()), 0.005)
+    }
+
+    @MainActor
+    func test_configurationChangeDiscardsAnOldKeyUpReleaseBeforeRecovery() throws {
+        let descriptor = InstrumentDescriptor(
+            id: "long-release",
+            voice: .sampled(SampledVoiceSpec(
+                sampleBaseURL: "unused", sampleMidis: [], release: 10,
+                fallback: SynthVoiceConfig(waveform: .triangle, attack: 0, decay: 0, sustain: 1, release: 10)
+            )),
+            sends: VoiceSends(reverb: 0, delay: 0)
+        )
+        let (synth, av) = try makeOffline(source: EmptySampleSource(), instruments: [descriptor])
+        defer { av.stop() }
+        synth.noteOn(midi: 69)
+        XCTAssertGreaterThan(try XCTUnwrap(renderRMS(av, blocks: 2).max()), 0.01)
+        synth.noteOff(midi: 69) // Core no longer owns this still-audible voice.
+        av.stop()
+        NotificationCenter.default.post(name: .AVAudioEngineConfigurationChange, object: av)
+        try av.start()
+        XCTAssertLessThan(try XCTUnwrap(renderRMS(av, blocks: 2).last), 0.0001)
+    }
+
+    #if os(iOS)
+        @MainActor
+        func test_hardwareRouteChangeClearsSustainedNotesWithoutAFormatChange() throws {
+            let (synth, av) = try makeOffline(source: EmptySampleSource())
+            defer { av.stop() }
+            synth.setSustain(true)
+            synth.noteOn(midi: 69)
+            synth.noteOff(midi: 69)
+            NotificationCenter.default.post(
+                name: AVAudioSession.routeChangeNotification, object: AVAudioSession.sharedInstance(),
+                userInfo: [AVAudioSessionRouteChangeReasonKey: AVAudioSession.RouteChangeReason.categoryChange.rawValue]
+            )
+            XCTAssertGreaterThan(try XCTUnwrap(renderRMS(av, blocks: 2).max()), 0.005)
+            NotificationCenter.default.post(
+                name: AVAudioSession.routeChangeNotification, object: AVAudioSession.sharedInstance(),
+                userInfo: [AVAudioSessionRouteChangeReasonKey: AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue]
+            )
+            XCTAssertLessThan(try XCTUnwrap(renderRMS(av, blocks: 32).last), 0.0001)
+            synth.noteOn(midi: 69)
+            XCTAssertGreaterThan(try XCTUnwrap(renderRMS(av, blocks: 4).max()), 0.005)
+        }
+
+        @MainActor
+        func test_livePlaybackMixesFromStartupThroughInstrumentChangesAndRecovery() throws {
+            let session = AVAudioSession.sharedInstance()
+            let av = AVAudioEngine()
+            defer {
+                av.stop()
+                try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            }
+            try session.setCategory(.soloAmbient)
+            let synth = AVSynthEngine(instruments: [grandPiano, midnight], engine: av, sampleSource: EmptySampleSource())
+            XCTAssertTrue(av.isRunning)
+            XCTAssertEqual(session.category, .playback)
+            XCTAssertEqual(session.categoryOptions, [.mixWithOthers], "startup must neither interrupt nor duck background audio")
+
+            for instrument in ["grand-piano", "midnight"] {
+                synth.setInstrument(instrument)
+                av.stop()
+                try session.setCategory(.playback) // Another session user changed the policy.
+                NotificationCenter.default.post(
+                    name: AVAudioSession.interruptionNotification, object: session,
+                    userInfo: [AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.ended.rawValue]
+                )
+                XCTAssertFalse(av.isRunning)
+                synth.noteOn(midi: 69, velocity: 0)
+                XCTAssertTrue(av.isRunning)
+                XCTAssertEqual(session.categoryOptions, [.mixWithOthers])
+                synth.allNotesOff()
+            }
+        }
+
+        @MainActor
+        func test_offlinePlaybackDoesNotChangeTheDeviceSession() throws {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.ambient)
+            let options = session.categoryOptions
+            let (synth, av) = try makeOffline(source: EmptySampleSource())
+            defer { av.stop() }
+            synth.noteOn(midi: 69)
+            _ = try renderRMS(av, blocks: 2)
+            XCTAssertEqual(session.category, .ambient)
+            XCTAssertEqual(session.categoryOptions, options)
+        }
+    #endif
+
     func test_sustainedGrandPianoCanRestrikeAfterItsSampleFinishes() throws {
         let (engine, audioEngine) = try makeOffline(source: FakeSampleSource())
         defer { audioEngine.stop() }

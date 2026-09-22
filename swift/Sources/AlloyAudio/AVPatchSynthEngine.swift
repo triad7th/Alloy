@@ -35,11 +35,7 @@ public final class AVPatchSynthEngine: SynthEngine, @unchecked Sendable {
             guard loader.provide(id) != nil else { throw AVPatchSynthEngineError.missingZoneSet(id) }
         }
         #if os(iOS)
-            if !engine.isInManualRenderingMode {
-                let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.playback)
-                try session.setActive(true)
-            }
+            try PlaybackAudioSession.activate(for: engine)
         #endif
         let output = engine.isInManualRenderingMode
             ? engine.manualRenderingFormat : engine.outputNode.outputFormat(forBus: 0)
@@ -106,12 +102,14 @@ public final class AVPatchSynthEngine: SynthEngine, @unchecked Sendable {
     }
 
     private func ensureAudioReady() {
-        #if os(iOS)
-            if !engine.isInManualRenderingMode {
-                try? AVAudioSession.sharedInstance().setActive(true)
-            }
-        #endif
-        if !engine.isRunning { try? engine.start() }
+        do {
+            #if os(iOS)
+                try PlaybackAudioSession.activate(for: engine)
+            #endif
+            if !engine.isRunning { try engine.start() }
+        } catch {
+            // Retry activation and graph startup on the next playable gesture.
+        }
     }
 
     private func observeLifecycle() {
@@ -122,6 +120,14 @@ public final class AVPatchSynthEngine: SynthEngine, @unchecked Sendable {
                 guard let self, !disposed else { return }
                 // Both interruption edges clear stale notes. Session activation
                 // and restart belong to the next playable gesture.
+                allNotesOff()
+            })
+            observers.append(NotificationCenter.default.addObserver(
+                forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+            ) { [weak self] notification in
+                guard let self, !disposed else { return }
+                let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+                guard reason != AVAudioSession.RouteChangeReason.categoryChange.rawValue else { return }
                 allNotesOff()
             })
         #endif

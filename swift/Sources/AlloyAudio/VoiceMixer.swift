@@ -14,6 +14,12 @@ public final class VoiceMixer {
         voices.append(voice)
     }
 
+    /// Lifecycle recovery discards even voices already in their key-up
+    /// release. Called only on the render thread through its command queue.
+    func removeAllVoices() {
+        voices.removeAll(keepingCapacity: true)
+    }
+
     public func render(into output: inout [Float], frames: Int) {
         for i in 0..<frames {
             output[i] = 0
