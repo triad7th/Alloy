@@ -33,6 +33,17 @@ func runStorageBackendContract(_ make: () async throws -> any StorageBackend) as
   #expect(got?.name == "renamed.json" && got?.payload == "new" && got?.updatedAt == contractT2)
   #expect(try await b.list().count == 1)
 
+  // a createdAt handed to write round-trips; a record without one reports none
+  b = try await make()
+  try await b.write(
+    StorageRecord(id: "a", name: "a.json", updatedAt: contractT2, createdAt: contractT1, payload: "x"))
+  try await b.write(StorageRecord(id: "b", name: "b.json", updatedAt: contractT2, payload: "y"))
+  #expect(try await b.read(id: "a")?.createdAt == contractT1)
+  #expect(try await b.read(id: "b")?.createdAt == nil)
+  let dated = try await b.list()
+  #expect(dated.first { $0.id == "a" }?.createdAt == contractT1)
+  #expect(dated.first { $0.id == "b" }?.createdAt == nil)
+
   // delete removes and is idempotent
   b = try await make()
   try await b.write(StorageRecord(id: "a", name: "a.json", updatedAt: contractT1, payload: "x"))

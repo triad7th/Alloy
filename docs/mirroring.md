@@ -513,7 +513,10 @@ Storage abstraction + backends (`@allyworld/alloy-storage` ↔ `AlloyStorage`).
 the StorageError table run the same scenarios and instants on both platforms):
 
 - `StorageRecordMeta` / `StorageRecord` (TS `updatedAt: number` epoch ms ↔ Swift
-  `updatedAt: Date` — the platform-time rule above)
+  `updatedAt: Date` — the platform-time rule above; optional `createdAt`
+  likewise, TS `createdAt?: number` ↔ Swift `createdAt: Date?` — Drive
+  reports its `createdTime` and ignores a written one, local replicas
+  round-trip what write was given, unknown is omitted, never 0)
 - `StorageBackend` (`list`/`read`/`write`/`delete`; list is metadata-only,
   read misses resolve null/nil, delete is idempotent)
 - `AuthProvider` + `AuthState`

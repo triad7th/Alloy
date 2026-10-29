@@ -17,7 +17,11 @@ function toMeta(file: DriveFileMeta): StorageRecordMeta | null {
   const raw = Number(p['alloySavedAt'] ?? p['savedAt'] ?? 0);
   const updatedAt = Number.isFinite(raw) ? raw : 0;
   const meta: StorageRecordMeta = { id, name: file.name, updatedAt };
-  return file.headRevisionId ? { ...meta, revision: file.headRevisionId } : meta;
+  if (file.headRevisionId) meta.revision = file.headRevisionId;
+  // Unlike updatedAt, an unknown creation time is omitted, never 0.
+  const createdAt = file.createdTime === undefined ? NaN : Date.parse(file.createdTime);
+  if (Number.isFinite(createdAt)) meta.createdAt = createdAt;
+  return meta;
 }
 
 /** StorageBackend on the user's own Google Drive (drive.file scope), scoped to

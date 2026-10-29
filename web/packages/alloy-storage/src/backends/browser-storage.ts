@@ -4,6 +4,14 @@ import { openDatabase, requestAsPromise } from './idb.js';
 
 const STORE = 'records';
 
+/** The record's metadata with optional fields present only when set. */
+function toMeta({ id, name, updatedAt, revision, createdAt }: StorageRecord): StorageRecordMeta {
+  const meta: StorageRecordMeta = { id, name, updatedAt };
+  if (revision !== undefined) meta.revision = revision;
+  if (createdAt !== undefined) meta.createdAt = createdAt;
+  return meta;
+}
+
 /** Local replica backend on IndexedDB. One database per collection
  *  (`alloy-storage.<collection>`), records keyed by id. */
 export class BrowserStorageBackend implements StorageBackend {
@@ -30,9 +38,7 @@ export class BrowserStorageBackend implements StorageBackend {
     const all = await requestAsPromise(
       (await this.tx('readonly')).getAll() as IDBRequest<StorageRecord[]>
     );
-    return all.map(({ id, name, updatedAt, revision }) =>
-      revision === undefined ? { id, name, updatedAt } : { id, name, updatedAt, revision }
-    );
+    return all.map(toMeta);
   }
 
   async read(id: string): Promise<StorageRecord | null> {
@@ -44,8 +50,7 @@ export class BrowserStorageBackend implements StorageBackend {
 
   async write(record: StorageRecord): Promise<StorageRecordMeta> {
     await requestAsPromise((await this.tx('readwrite')).put(record));
-    const { id, name, updatedAt, revision } = record;
-    return revision === undefined ? { id, name, updatedAt } : { id, name, updatedAt, revision };
+    return toMeta(record);
   }
 
   async delete(id: string): Promise<void> {

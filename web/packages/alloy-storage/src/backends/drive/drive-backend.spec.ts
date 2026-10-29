@@ -68,6 +68,43 @@ describe('DriveBackend', () => {
     ]);
   });
 
+  // #9: Drive's createdTime becomes createdAt (epoch ms); missing or
+  // unparseable is OMITTED, never 0 — unlike updatedAt, nothing sorts on a
+  // fabricated creation time. Twin of DriveBackendTests.swift.
+  it('reports Drive createdTime as createdAt on list and read, omitting bad values', async () => {
+    const created = '2025-07-08T13:06:40.000Z'; // = T1
+    const files: DriveFileMeta[] = [
+      { id: 'd1', name: 'a.json', createdTime: created, appProperties: { alloyId: 'a', alloySavedAt: String(T1) } },
+      { id: 'd2', name: 'b.json', appProperties: { alloyId: 'b', alloySavedAt: String(T1) } },
+      { id: 'd3', name: 'c.json', createdTime: 'garbage', appProperties: { alloyId: 'c', alloySavedAt: String(T1) } },
+    ];
+    const client = fakeClient({
+      listFiles: vi.fn(async () => files),
+      findByAlloyId: vi.fn(async () => files[0]),
+    } as Partial<DriveClient>);
+    const b = new DriveBackend(client, 'App', memStorage());
+    expect(await b.list()).toEqual([
+      { id: 'a', name: 'a.json', updatedAt: T1, createdAt: T1 },
+      { id: 'b', name: 'b.json', updatedAt: T1 },
+      { id: 'c', name: 'c.json', updatedAt: T1 },
+    ]);
+    expect(await b.read('a')).toEqual({
+      id: 'a',
+      name: 'a.json',
+      updatedAt: T1,
+      createdAt: T1,
+      payload: 'payload',
+    });
+  });
+
+  it('write ignores a supplied createdAt — Drive owns it', async () => {
+    const client = fakeClient();
+    const b = new DriveBackend(client, 'App', memStorage());
+    const meta = await b.write({ id: 'a', name: 'a.json', updatedAt: T1, createdAt: 5, payload: 'p' });
+    expect(client.createFile).toHaveBeenCalledWith('folder1', 'a.json', { alloyId: 'a', alloySavedAt: String(T1) }, 'p');
+    expect(meta).toEqual({ id: 'a', name: 'a.json', updatedAt: T1 });
+  });
+
   it('write creates when absent, updates when present, sanitizing the filename', async () => {
     const client = fakeClient();
     const b = new DriveBackend(client, 'App', memStorage());

@@ -10,12 +10,19 @@ public struct StorageRecordMeta: Sendable, Equatable {
   public let updatedAt: Date
   /// Backend-native version marker, when the backend has one.
   public let revision: String?
+  /// Creation time, when known: Drive reports its own `createdTime` (and
+  /// ignores one handed to write); local replicas store whatever write was
+  /// given. nil = unknown — never a fabricated epoch.
+  public let createdAt: Date?
 
-  public init(id: String, name: String, updatedAt: Date, revision: String? = nil) {
+  public init(
+    id: String, name: String, updatedAt: Date, revision: String? = nil, createdAt: Date? = nil
+  ) {
     self.id = id
     self.name = name
     self.updatedAt = updatedAt
     self.revision = revision
+    self.createdAt = createdAt
   }
 }
 
@@ -25,17 +32,23 @@ public struct StorageRecord: Sendable, Equatable {
   public let name: String
   public let updatedAt: Date
   public let revision: String?
+  public let createdAt: Date?
   public let payload: String
 
-  public init(id: String, name: String, updatedAt: Date, revision: String? = nil, payload: String) {
+  public init(
+    id: String, name: String, updatedAt: Date, revision: String? = nil, createdAt: Date? = nil,
+    payload: String
+  ) {
     self.id = id
     self.name = name
     self.updatedAt = updatedAt
     self.revision = revision
+    self.createdAt = createdAt
     self.payload = payload
   }
 
   public var meta: StorageRecordMeta {
-    StorageRecordMeta(id: id, name: name, updatedAt: updatedAt, revision: revision)
+    StorageRecordMeta(
+      id: id, name: name, updatedAt: updatedAt, revision: revision, createdAt: createdAt)
   }
 }
