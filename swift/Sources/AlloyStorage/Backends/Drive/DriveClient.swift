@@ -9,6 +9,8 @@ public struct DriveFileMeta: Sendable, Equatable, Decodable {
   public let id: String
   public let name: String
   public let headRevisionId: String?
+  /// RFC 3339 creation time, as Drive reports it.
+  public let createdTime: String?
   public let appProperties: [String: String]?
 }
 
@@ -127,7 +129,7 @@ public final class DriveClient: Sendable {
   public func listFiles(folderId: String) async throws -> [DriveFileMeta] {
     let q = encodeQuery("'\(folderId)' in parents and trashed=false")
     let data = try await call(
-      "\(api)/files?q=\(q)&fields=files(id,name,appProperties,headRevisionId)&pageSize=1000")
+      "\(api)/files?q=\(q)&fields=files(id,name,appProperties,headRevisionId,createdTime)&pageSize=1000")
     return try JSONDecoder().decode(FileList.self, from: data).files ?? []
   }
 
@@ -138,7 +140,7 @@ public final class DriveClient: Sendable {
         + "(appProperties has { key='alloyId' and value='\(escapedId)' } or "
         + "appProperties has { key='allyscoreId' and value='\(escapedId)' })")
     let data = try await call(
-      "\(api)/files?q=\(q)&fields=files(id,name,appProperties,headRevisionId)")
+      "\(api)/files?q=\(q)&fields=files(id,name,appProperties,headRevisionId,createdTime)")
     return try JSONDecoder().decode(FileList.self, from: data).files?.first
   }
 

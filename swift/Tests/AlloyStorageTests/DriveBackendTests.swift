@@ -132,6 +132,56 @@ private final class OrderTrackingTransport: HTTPTransport, @unchecked Sendable {
       ])
   }
 
+  // #9: Drive's createdTime becomes createdAt; missing or unparseable is
+  // OMITTED, never 0. Twin of the web drive-backend.spec.ts case.
+  @Test func reportsDriveCreatedTimeAsCreatedAtOmittingBadValues() async throws {
+    let (suite, cleanup) = testSuite()
+    defer { cleanup() }
+    UserDefaults(suiteName: suite)!.set("folder1", forKey: "alloy-storage.folderId.App")
+    let props = #""appProperties":{"alloyId":"ID","alloySavedAt":"\#(Int(T1Ms))"}"#
+    let listBody = """
+      {"files":[
+        {"id":"d1","name":"a.json","createdTime":"2025-07-08T13:06:40.000Z",\(props.replacingOccurrences(of: "ID", with: "a"))},
+        {"id":"d2","name":"b.json",\(props.replacingOccurrences(of: "ID", with: "b"))},
+        {"id":"d3","name":"c.json","createdTime":"garbage",\(props.replacingOccurrences(of: "ID", with: "c"))}
+      ]}
+      """
+    let transport = ScriptedTransport([
+      .init(matches: { $0.url!.absoluteString.contains("alt=media") }, body: "payload", status: 200),
+      .init(matches: { _ in true }, body: listBody, status: 200),
+    ])
+    let client = DriveClient(auth: StubAuth(token: "tok"), transport: transport)
+    let backend = DriveBackend(client: client, folderPath: "App", cache: UserDefaults(suiteName: suite))
+    #expect(
+      try await backend.list() == [
+        StorageRecordMeta(id: "a", name: "a.json", updatedAt: T1, createdAt: T1),
+        StorageRecordMeta(id: "b", name: "b.json", updatedAt: T1),
+        StorageRecordMeta(id: "c", name: "c.json", updatedAt: T1),
+      ])
+    #expect(
+      try await backend.read(id: "a")
+        == StorageRecord(id: "a", name: "a.json", updatedAt: T1, createdAt: T1, payload: "payload"))
+  }
+
+  @Test func writeIgnoresASuppliedCreatedAtBecauseDriveOwnsIt() async throws {
+    let (suite, cleanup) = testSuite()
+    defer { cleanup() }
+    UserDefaults(suiteName: suite)!.set("folder1", forKey: "alloy-storage.folderId.App")
+    let transport = ScriptedTransport([
+      .init(matches: { $0.httpMethod != "POST" }, body: #"{"files":[]}"#, status: 200),
+      .init(matches: { $0.httpMethod == "POST" }, body: #"{"id":"file1"}"#, status: 200),
+    ])
+    let client = DriveClient(auth: StubAuth(token: "tok"), transport: transport)
+    let backend = DriveBackend(client: client, folderPath: "App", cache: UserDefaults(suiteName: suite))
+    let meta = try await backend.write(
+      StorageRecord(
+        id: "a", name: "a.json", updatedAt: T1, createdAt: Date(timeIntervalSince1970: 0.005),
+        payload: "p"))
+    #expect(meta == StorageRecordMeta(id: "a", name: "a.json", updatedAt: T1))
+    let post = transport.requests.first { $0.httpMethod == "POST" }!
+    #expect(!String(data: post.httpBody!, encoding: .utf8)!.contains("createdTime"))
+  }
+
   @Test func writeCreatesWhenAbsentUpdatesWhenPresentSanitizingTheFilename() async throws {
     let (suite, cleanup) = testSuite()
     defer { cleanup() }

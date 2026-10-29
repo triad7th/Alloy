@@ -68,7 +68,7 @@ final class ScriptedTransport: HTTPTransport, @unchecked Sendable {
     let client = DriveClient(auth: StubAuth(token: "tok"), transport: transport)
     _ = try await client.listFiles(folderId: "f1")
     let url = transport.requests[0].url!.absoluteString
-    #expect(url.contains("fields=files(id,name,appProperties,headRevisionId)"))
+    #expect(url.contains("fields=files(id,name,appProperties,headRevisionId,createdTime)"))
     #expect(!url.contains("alt=media"))
   }
 
@@ -82,6 +82,7 @@ final class ScriptedTransport: HTTPTransport, @unchecked Sendable {
     #expect(q.contains("key='alloyId' and value='id9'"))
     #expect(q.contains("key='allyscoreId' and value='id9'"))
     #expect(q.contains(" or "))
+    #expect(q.contains("fields=files(id,name,appProperties,headRevisionId,createdTime)"))
   }
 
   @Test func findByAlloyIdEscapesAQuoteInTheIdSoItCannotBreakTheDriveQueryGrammar() async throws {

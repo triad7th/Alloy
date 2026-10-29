@@ -4,7 +4,7 @@ import type { StorageBackend } from '../core/backend.js';
 /** Twin fixture: swift/Tests/AlloyStorageTests/StorageBackendContract.swift
  *  runs the same scenarios with the same instants (epoch ms). */
 export function describeStorageBackendContract(makeBackend: () => Promise<StorageBackend>) {
-  const T1 = 1751980000000; // 2025-07-08T12:26:40Z
+  const T1 = 1751980000000; // 2025-07-08T13:06:40Z
   const T2 = 1751990000000;
 
   describe('StorageBackend contract', () => {
@@ -36,6 +36,17 @@ export function describeStorageBackendContract(makeBackend: () => Promise<Storag
       const got = await b.read('a');
       expect(got).toMatchObject({ name: 'renamed.json', updatedAt: T2, payload: 'new' });
       expect((await b.list()).length).toBe(1);
+    });
+
+    it('a createdAt handed to write round-trips; a record without one reports none', async () => {
+      const b = await makeBackend();
+      await b.write({ id: 'a', name: 'a.json', updatedAt: T2, createdAt: T1, payload: 'x' });
+      await b.write({ id: 'b', name: 'b.json', updatedAt: T2, payload: 'y' });
+      expect((await b.read('a'))?.createdAt).toBe(T1);
+      expect(await b.read('b')).not.toHaveProperty('createdAt');
+      const metas = await b.list();
+      expect(metas.find((m) => m.id === 'a')?.createdAt).toBe(T1);
+      expect(metas.find((m) => m.id === 'b')).not.toHaveProperty('createdAt');
     });
 
     it('delete removes and is idempotent', async () => {

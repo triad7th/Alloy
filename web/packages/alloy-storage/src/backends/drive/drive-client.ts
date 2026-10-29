@@ -10,6 +10,8 @@ export interface DriveFileMeta {
   id: string;
   name: string;
   headRevisionId?: string;
+  /** RFC 3339 creation time, as Drive reports it. */
+  createdTime?: string;
   appProperties?: Record<string, string>;
 }
 
@@ -106,7 +108,7 @@ export class DriveClient {
   async listFiles(folderId: string): Promise<DriveFileMeta[]> {
     const q = this.encodeQuery(`'${folderId}' in parents and trashed=false`);
     const res = await this.call(
-      `${API}/files?q=${q}&fields=files(id,name,appProperties,headRevisionId)&pageSize=1000`
+      `${API}/files?q=${q}&fields=files(id,name,appProperties,headRevisionId,createdTime)&pageSize=1000`
     );
     return ((await res.json()) as { files?: DriveFileMeta[] }).files ?? [];
   }
@@ -119,7 +121,7 @@ export class DriveClient {
         `appProperties has { key='allyscoreId' and value='${escapedId}' })`
     );
     const res = await this.call(
-      `${API}/files?q=${q}&fields=files(id,name,appProperties,headRevisionId)`
+      `${API}/files?q=${q}&fields=files(id,name,appProperties,headRevisionId,createdTime)`
     );
     return ((await res.json()) as { files?: DriveFileMeta[] }).files?.[0] ?? null;
   }

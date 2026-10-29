@@ -65,7 +65,7 @@ describe('DriveClient', () => {
       fakeFetch([{ match: () => true, response: { files: [{ id: 'x', name: 'a.json' }] } }], calls)
     );
     await client.listFiles('f1');
-    expect(calls[0].url).toContain('fields=files(id,name,appProperties,headRevisionId)');
+    expect(calls[0].url).toContain('fields=files(id,name,appProperties,headRevisionId,createdTime)');
     expect(calls[0].url).not.toContain('alt=media');
   });
 
@@ -80,6 +80,7 @@ describe('DriveClient', () => {
     expect(q).toContain("key='alloyId' and value='id9'");
     expect(q).toContain("key='allyscoreId' and value='id9'");
     expect(q).toContain(' or ');
+    expect(calls[0].url).toContain('fields=files(id,name,appProperties,headRevisionId,createdTime)');
   });
 
   it('escapes a quote in the id so it cannot break the Drive query grammar', async () => {

@@ -8,6 +8,10 @@ export interface StorageRecordMeta {
   updatedAt: number;
   /** Backend-native version marker (e.g. Drive headRevisionId), when the backend has one. */
   revision?: string;
+  /** Creation time, epoch milliseconds, when known: Drive reports its own
+   *  `createdTime` (and ignores one handed to write); local replicas store
+   *  whatever write was given. Absent = unknown — never a fabricated 0. */
+  createdAt?: number;
 }
 
 /** A stored document: metadata plus its whole-document payload. */

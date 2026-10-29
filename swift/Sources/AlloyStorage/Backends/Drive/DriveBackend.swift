@@ -12,8 +12,19 @@ private func toMeta(_ file: DriveFileMeta) -> StorageRecordMeta? {
   return StorageRecordMeta(
     id: id, name: file.name,
     updatedAt: Date(timeIntervalSince1970: updatedAtMs / 1000),
-    revision: file.headRevisionId
+    revision: file.headRevisionId,
+    createdAt: file.createdTime.flatMap(parseRFC3339)
   )
+}
+
+/// Drive's RFC 3339 `createdTime` (fractional seconds optional); nil when
+/// unparseable — unlike updatedAt, an unknown creation time is omitted.
+private func parseRFC3339(_ text: String) -> Date? {
+  let formatter = ISO8601DateFormatter()
+  formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+  if let date = formatter.date(from: text) { return date }
+  formatter.formatOptions = [.withInternetDateTime]
+  return formatter.date(from: text)
 }
 
 /// StorageBackend on the user's own Google Drive (drive.file scope), scoped to
@@ -106,7 +117,7 @@ public actor DriveBackend: StorageBackend {
       let payload = try await self.client.downloadFile(fileId: file.id)
       return StorageRecord(
         id: meta.id, name: meta.name, updatedAt: meta.updatedAt, revision: meta.revision,
-        payload: payload)
+        createdAt: meta.createdAt, payload: payload)
     }
   }
 

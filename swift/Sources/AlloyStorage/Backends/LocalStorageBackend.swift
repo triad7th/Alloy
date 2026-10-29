@@ -8,6 +8,7 @@ public actor LocalStorageBackend: StorageBackend {
     let name: String
     let updatedAtMs: Double
     let revision: String?
+    let createdAtMs: Double?
     let payload: String
   }
 
@@ -37,6 +38,7 @@ public actor LocalStorageBackend: StorageBackend {
       name: stored.name,
       updatedAt: Date(timeIntervalSince1970: stored.updatedAtMs / 1000),
       revision: stored.revision,
+      createdAt: stored.createdAtMs.map { Date(timeIntervalSince1970: $0 / 1000) },
       payload: stored.payload
     )
   }
@@ -61,6 +63,7 @@ public actor LocalStorageBackend: StorageBackend {
       name: record.name,
       updatedAtMs: record.updatedAt.timeIntervalSince1970 * 1000,
       revision: record.revision,
+      createdAtMs: record.createdAt.map { $0.timeIntervalSince1970 * 1000 },
       payload: record.payload
     )
     try JSONEncoder().encode(stored).write(to: fileURL(for: record.id), options: .atomic)
